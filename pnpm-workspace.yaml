@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  # Native binary for tsx, vitest and Next tooling.
+  esbuild: true
+  # Not needed until the ledger schema lands (Slice 2); revisit then.
+  # Optional native speed-up for msgpack; a JS fallback exists.
+  msgpackr-extract: false
+  prisma: false
+  "@prisma/engines": false
