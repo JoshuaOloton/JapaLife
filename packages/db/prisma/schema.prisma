@@ -1,0 +1,11 @@
+// Intentionally has no models yet: the ledger schema (Player, Wallet,
+// Transaction) touches money and needs sign-off before it is written.
+// See Slice 2 of the Phase 1 plan.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
