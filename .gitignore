@@ -1,0 +1,57 @@
+# dependencies (every workspace package has its own node_modules)
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# build output
+dist/
+build/
+out/
+.next/
+.turbo/
+
+# testing
+coverage/
+
+# env files: ignore real ones, keep the committed template
+.env
+.env.*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# prisma generated client
+packages/db/src/generated/
+
+# logs and debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+pnpm-debug.log*
+
+# secrets and keys
+*.pem
+*.key
+
+# os and editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# claude code local settings
+.claude/settings.local.json
+
+# vercel
+.vercel
+
