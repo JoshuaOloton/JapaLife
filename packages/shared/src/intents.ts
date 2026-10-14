@@ -1,0 +1,93 @@
+import { z } from "zod";
+
+/**
+ * Messages the client sends to the server. They are intents, never outcomes:
+ * no balances, prices, positions or results travel from client to server.
+ * The server validates every message with these schemas before acting on it.
+ */
+
+/** Largest food quantity a player can ask for in one purchase. */
+export const MAX_FOOD_PURCHASE_QUANTITY = 10;
+
+/** Content ids (jobs, items, entities) are short lowercase slugs. */
+const contentId = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9_-]*$/);
+
+/**
+ * Where the player is trying to go this tick, as a direction (not a position).
+ * The server integrates movement and enforces speed and bounds.
+ */
+export const moveIntentSchema = z
+  .strictObject({
+    /** Increasing counter so the server can ignore stale or reordered inputs. */
+    seq: z.int().nonnegative(),
+    dx: z.number().min(-1).max(1),
+    dz: z.number().min(-1).max(1),
+  })
+  .refine((move) => Math.hypot(move.dx, move.dz) <= 1 + 1e-6, {
+    message: "direction must not be longer than 1",
+  });
+
+export const interactIntentSchema = z.strictObject({
+  targetId: contentId,
+});
+
+export const workIntentSchema = z.strictObject({
+  jobId: contentId,
+});
+
+export const buyFoodIntentSchema = z.strictObject({
+  itemId: contentId,
+  quantity: z.int().min(1).max(MAX_FOOD_PURCHASE_QUANTITY),
+});
+
+export const payRentIntentSchema = z.strictObject({});
+
+export const intentSchemas = {
+  move: moveIntentSchema,
+  interact: interactIntentSchema,
+  work: workIntentSchema,
+  buyFood: buyFoodIntentSchema,
+  payRent: payRentIntentSchema,
+} as const;
+
+export type IntentType = keyof typeof intentSchemas;
+export const INTENT_TYPES = Object.keys(intentSchemas) as IntentType[];
+
+export type IntentPayloads = {
+  [T in IntentType]: z.infer<(typeof intentSchemas)[T]>;
+};
+
+export type Intent = {
+  [T in IntentType]: { type: T; payload: IntentPayloads[T] };
+}[IntentType];
+
+export type ParseIntentResult =
+  | { ok: true; intent: Intent }
+  | { ok: false; error: string };
+
+function isIntentType(type: string): type is IntentType {
+  return Object.hasOwn(intentSchemas, type);
+}
+
+/**
+ * Validates a raw message from the wire. Never throws, so a hostile client
+ * cannot crash a room handler with a malformed message.
+ */
+export function parseIntent(type: string, payload: unknown): ParseIntentResult {
+  if (!isIntentType(type)) {
+    return { ok: false, error: `unknown intent: ${type.slice(0, 32)}` };
+  }
+  // Intents with no fields may arrive with no body at all.
+  const body = payload === undefined || payload === null ? {} : payload;
+  const result = intentSchemas[type].safeParse(body);
+  if (!result.success) {
+    return { ok: false, error: `invalid ${type} intent` };
+  }
+  // The schema was chosen by `type`, so the parsed payload matches it; TS cannot
+  // correlate the two across the lookup, so the union is asserted here.
+  return { ok: true, intent: { type, payload: result.data } as Intent };
+}
