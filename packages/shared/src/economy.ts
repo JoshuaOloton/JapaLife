@@ -123,3 +123,13 @@ export const SINK_REASONS = [
 
 export const LEDGER_REASONS = [...FAUCET_REASONS, ...SINK_REASONS] as const;
 export type LedgerReason = (typeof LEDGER_REASONS)[number];
+
+// ---- Transfers: money moving between two players -----------------------------
+
+/**
+ * Neither a faucet nor a sink: a transfer creates and destroys no money, so it
+ * is deliberately NOT part of LEDGER_REASONS. Server-internal only for now; no
+ * client intent exists for it (see "Money sharing controls" in CLAUDE.md).
+ */
+export const TRANSFER_REASONS = ["player_transfer"] as const;
+export type TransferReason = (typeof TRANSFER_REASONS)[number];

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { FAUCET_REASONS, LEDGER_REASONS, SINK_REASONS, VISA_FEE_REASONS } from "./economy";
+import {
+  FAUCET_REASONS,
+  LEDGER_REASONS,
+  SINK_REASONS,
+  TRANSFER_REASONS,
+  VISA_FEE_REASONS,
+} from "./economy";
 
 describe("ledger reasons", () => {
   it("has no duplicates", () => {
@@ -23,6 +29,13 @@ describe("ledger reasons", () => {
     const sinks = new Set<string>(SINK_REASONS);
     for (const reason of VISA_FEE_REASONS) {
       expect(sinks.has(reason), reason).toBe(true);
+    }
+  });
+
+  it("keeps transfers out of the faucet and sink lists", () => {
+    const money = new Set<string>(LEDGER_REASONS);
+    for (const reason of TRANSFER_REASONS) {
+      expect(money.has(reason), reason).toBe(false);
     }
   });
 
