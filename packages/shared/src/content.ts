@@ -111,6 +111,23 @@ export type NgnEconomyConfig = z.infer<typeof ngnEconomySchema>;
 export type FoodItem = z.infer<typeof foodItemSchema>;
 export type ShopItem = z.infer<typeof shopItemSchema>;
 
+// ---- economy/needs.json: hunger and energy meters ---------------------------------
+
+/**
+ * Both meters run 0-100 in real time. Hunger is fullness (100 is full) and
+ * drains; energy regenerates while the player rests. Values are computed from a
+ * stored timestamp when needed, so they keep moving while the player is offline.
+ */
+export const needsSchema = z.strictObject({
+  meta: contentMetaSchema,
+  startingHunger: z.int().min(1).max(100),
+  startingEnergy: z.int().min(1).max(100),
+  hungerDecayPerHour: z.number().min(0).max(100),
+  energyRegenPerHour: z.number().min(0).max(100),
+  todo: todoNote,
+});
+export type NeedsConfig = z.infer<typeof needsSchema>;
+
 // ---- economy/jobs.json: work that pays per shift ------------------------------
 
 export const jobSchema = z.strictObject({

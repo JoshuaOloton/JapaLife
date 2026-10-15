@@ -1,0 +1,8 @@
+{
+  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "startingHunger": 80,
+  "startingEnergy": 100,
+  "hungerDecayPerHour": 4,
+  "energyRegenPerHour": 6,
+  "todo": "TODO: feel values. A 45-point meal lasts about half a real day at 4/hour; retune after play-testing"
+}

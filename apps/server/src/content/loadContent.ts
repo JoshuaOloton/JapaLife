@@ -6,17 +6,20 @@ import {
   citySchema,
   gameEventSchema,
   jobsSchema,
+  needsSchema,
   ngnEconomySchema,
   type CityConfig,
   type GameEventConfig,
   type GameEventId,
   type JobsConfig,
+  type NeedsConfig,
   type NgnEconomyConfig,
 } from "@japalife/shared";
 import type { z } from "zod";
 
 export type GameContent = {
   ngn: NgnEconomyConfig;
+  needs: NeedsConfig;
   jobs: JobsConfig;
   events: Record<GameEventId, GameEventConfig>;
   cities: Record<string, CityConfig>;
@@ -72,6 +75,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   }
 
   const ngn = readJson("economy/ngn.json", ngnEconomySchema);
+  const needs = readJson("economy/needs.json", needsSchema);
   const jobs = readJson("economy/jobs.json", jobsSchema);
 
   const events: Partial<Record<GameEventId, GameEventConfig>> = {};
@@ -102,13 +106,21 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
 
   if (ngn && jobs) problems.push(...crossCheck(ngn, jobs, Object.values(cities)));
 
-  if (problems.length > 0 || !ngn || !jobs) throw new ContentError(problems);
+  if (problems.length > 0 || !ngn || !needs || !jobs) throw new ContentError(problems);
   const allEvents = events as Record<GameEventId, GameEventConfig>;
-  return { ngn, jobs, events: allEvents, cities, todos: collectTodos(ngn, jobs, allEvents) };
+  return {
+    ngn,
+    needs,
+    jobs,
+    events: allEvents,
+    cities,
+    todos: collectTodos(ngn, needs, jobs, allEvents),
+  };
 }
 
 function collectTodos(
   ngn: NgnEconomyConfig,
+  needs: NeedsConfig,
   jobs: JobsConfig,
   events: Record<GameEventId, GameEventConfig>,
 ): string[] {
@@ -116,6 +128,7 @@ function collectTodos(
   const add = (where: string, note: string | undefined): void => {
     if (note) todos.push(`${where}: ${note}`);
   };
+  add("economy/needs.json", needs.todo);
   add("economy/ngn.json busFareKobo", ngn.busFareTodo);
   add("economy/ngn.json rent", ngn.rent.todo);
   for (const item of ngn.food) add(`economy/ngn.json food "${item.id}"`, item.todo);
