@@ -64,12 +64,13 @@ Requires Node 24+ and pnpm 12 (`packageManager` in the root `package.json`).
 - `pnpm install`: install everything
 - `pnpm dev`: run client (Next.js, http://localhost:3000) and game server (Colyseus, ws://localhost:2567, health check at `/health`) together
 - `pnpm --filter @japalife/client dev` / `pnpm --filter @japalife/server dev`: run one side only
-- `pnpm test`: run all tests (Vitest; the server tests boot a real Colyseus server on port 2599)
+- `pnpm test`: run all tests (Vitest). The server tests boot a real Colyseus server on port 2599, and the ledger tests need Postgres running. They use a separate `<dbname>_test` database that the test setup creates and migrates itself, and they refuse to run against any database whose name does not end in `_test`. If Postgres is down, `pnpm test` fails with a message saying so
 - `pnpm lint`: ESLint across the repo
 - `pnpm typecheck`: `tsc` in every workspace package
 - Run lint, typecheck and test before considering any task done
-- `docker compose up -d`: local Postgres (5432) and Redis (6379). Not needed yet; nothing uses them until the ledger lands
-- `pnpm db:migrate` / `pnpm db:seed`: Prisma. The schema has no models yet, so these do nothing useful until the ledger schema is approved and written
+- `docker compose up -d postgres`: local Postgres on 5432. Needed for the ledger tests and anything that touches money. Redis is also in the compose file but nothing uses it yet, so don't start it (`up -d` with no service name starts both)
+- `pnpm db:migrate`: Prisma `migrate dev` against `DATABASE_URL` (the ledger migration `init_ledger` is applied). `pnpm db:seed` is a placeholder that does nothing yet
+- `.env` (git-ignored, copy from `.env.example`): `DB_USER`, `DB_NAME`, `DB_PASSWORD` feed docker-compose, and `DATABASE_URL` must match them. The generated Prisma client is git-ignored and rebuilt by `pnpm install` (a `postinstall` runs `prisma generate`)
 
 Ports: `DEFAULT_CLIENT_PORT` and `DEFAULT_SERVER_PORT` live in `packages/shared`. Override the server port with `SERVER_PORT` and the client's server URL with `NEXT_PUBLIC_SERVER_URL`.
 
@@ -117,11 +118,54 @@ Ports: `DEFAULT_CLIENT_PORT` and `DEFAULT_SERVER_PORT` live in `packages/shared`
 - Small, focused modules. Game systems (economy, documents, applications, remittances, credit, housing, events) are separate server modules with their own tests.
 - Prefer clear names over comments, and add comments where the reason isn't obvious.
 
+## Working with me
+I'm an experienced full-stack developer but new to game development. Act as my lead game developer and mentor:
+- Make standard game-dev decisions yourself, following established practice. Briefly explain what you chose and why, in plain language.
+- Only ask me when a decision is about the game's design or feel, Nigerian cultural accuracy, real money, or player data. When you ask, give your recommendation first.
+- When you introduce a game-dev concept (faucet/sink, interpolation, tick rate, LOD...), explain it in one or two sentences the first time.
+- After each step, tell me what to play-test and what "good" should feel like.
+
 ## How to work in this repo
 - Work in phases. Finish and verify the current phase before starting the next one.
 - After a change: run typecheck, lint, and tests. For gameplay changes, describe how to try it manually.
 - Ask before adding a new dependency or changing the stack.
 - Ask before any change that touches auth, payments, or the ledger schema.
+
+## Known limits of the current build
+
+Things that are deliberately incomplete or that will bite later. Remove an item when it is fixed.
+
+### Ledger and money (`apps/server/src/economy/`, `packages/db`)
+- **Only `Ledger` writes `Transaction` rows.** The "player balance never goes negative" rule cannot be a database CHECK (system wallets legitimately go negative), so it is enforced by `Ledger.applyMovement` under the wallet lock. Any code that creates `Transaction` rows another way (raw SQL, `prisma.transaction.create`) bypasses it. Don't.
+- **Hot-row bottleneck.** Every earn locks the single `faucet` system wallet, and every spend locks the single `sink` wallet (one pair per currency), so all earning serialises across the whole game. Fine for single-player and early multiplayer. Fix before real load: shard system wallets (e.g. `faucet:0..N`, chosen by hashing the player id) and re-run the concurrency tests.
+- **Balance cap.** `MAX_WALLET_BALANCE` is 10^15 smallest units (about 10 trillion naira), kept below `Number.MAX_SAFE_INTEGER` so balances can travel as JSON numbers. A database CHECK mirrors it. The `sink` wallet's running total only ever grows, so it also hits this ceiling eventually; sharding or rotating system wallets (per season) fixes that too.
+- **Conversion is not persisted.** `convertAmount` (integer maths, rounds down, refuses zero results) is built and tested, but there is no `convert()` operation yet. It must write both legs through the `fx` system wallets plus a `Conversion` row in one transaction, locking up to four wallets in sorted order. Phase 3.
+- **Reasons are a Phase 1 guess.** `FAUCET_REASONS` and `SINK_REASONS` in `packages/shared/src/economy.ts` cover only salary, starting balance, rent, food and black tax. Add new faucets and sinks there (no migration needed, since `reason` is a string). The cost is that the database does not enforce the list.
+- **Not built yet:** per-player earn rate limit (Slice 4, with work shifts) and abnormal-balance flagging (Slice 6). CLAUDE.md requires both.
+- **The ledger is append-only.** A trigger blocks UPDATE and DELETE on `Transaction`. Correct a mistake with a reversing entry, never an edit. Only tests TRUNCATE.
+- **Money is `bigint`.** `JSON.stringify` throws on bigint. Send balances to the client as numbers (safe under the cap) or strings, and never do money maths in `number`.
+- **No loans.** Player wallets cannot go negative, so credit, overdrafts, student loans and mortgages need their own liability model, not a negative wallet.
+
+### Server and protocol
+- **Intents are validated but not wired up.** `parseIntent` in `packages/shared/src/intents.ts` exists and is tested, but `DistrictRoom` does not call it yet, so the server currently ignores every client message. Slice 4 connects it. Never add a message handler that skips it.
+- **No auth.** `Player` has no identity fields and anyone can join a room. Auth, the 18+ gate and data-protection decisions need your approval before they are built.
+- **Rooms are in memory.** A Colyseus room is lost on restart. Rent timers, shift progress and anything that must survive belongs in Postgres, with the room only caching it.
+- **Capacity queue is a stub.** `MAX_PLAYERS_PER_ROOM` is set on the room, but the "queue and show your place" behaviour is not built.
+
+### Tooling
+- **TypeScript is pinned to `~6.0`** because `typescript-eslint` does not support TS 7 yet. Revisit when it does.
+- **`pnpm-workspace.yaml` `allowBuilds`:** `esbuild` is allowed; `prisma`, `@prisma/engines` and `msgpackr-extract` are declined. The first two are not needed (migrate and generate work). `msgpackr-extract` is an optional native speed-up for Colyseus with a JS fallback; revisit if message encoding shows up in profiling.
+- **CI needs a Postgres service** for the ledger tests, and `DATABASE_URL` set.
+- **Client bundle:** `@react-three/*` and `three` are installed but unused so far. Check the 15 MB initial-load budget when Slice 5 lands.
+
+## Look-ahead: what to consider in later phases
+
+- **Phase 1 (finish):** keep earn amounts, rent and food prices in `content/economy/`, not code. Decide how game time works (real time vs game days) before building the rent timer, because Phase 2 waits and Phase 4 credit history depend on it.
+- **Phase 2, documents and applications:** fees are sinks, so add reasons such as `document_fee` and `application_fee`. Roll visa decisions on the server with a logged seed so a result can be audited. Persist application state in the database (waits can last game-months). Funds "held long enough" can be computed from the ledger's running balances; add an index on wallet and `createdAt` if that query is slow.
+- **Phase 3, funds and departure:** build `convert()` (see above), with rates from `content/economy/` and per-channel spreads. Ajo (rotating savings) and japa sales are new faucet and sink types. Any player-to-player gift or family help is a laundering and abuse risk once players can see each other: add per-day limits and flagging before it ships.
+- **Phase 4, abroad:** remittances move money across currencies and possibly between players, so reuse the two-leg conversion path. The credit score should be derived from ledger history (late rent, missed payments), not stored as a number the client can influence. Mortgages need the loan model noted above. Needs a decision on how family members are represented (NPCs, linked accounts or other players).
+- **Phase 5, multiplayer:** shard the system wallets, bring Redis in for presence and cross-instance pub/sub, add the capacity queue, and enforce area-of-interest so each player only receives nearby entities. Chat and the advice board need the profanity and link filters plus report, mute and block, and moderators need a ban tool.
+- **Phase 6, launch:** Paystack webhooks must be idempotent. Use the provider's reference as the ledger `reference` so a repeated webhook cannot credit twice, and keep purchased currency one-way (no cash-out, no transfers). Plan for the ledger growing forever (balance lookups use the latest row per wallet, so they stay fast, but backups and archiving need a strategy). Load-test the room and queue logic on real mobile networks, and settle Nigeria Data Protection Act obligations (retention, deletion requests, a data-processing record). Payments and the ledger schema need your approval at each step.
 
 ## Current phase
 
