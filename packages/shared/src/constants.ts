@@ -1,6 +1,13 @@
 export const CURRENCIES = ["NGN", "GBP", "CAD"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
+/**
+ * Largest balance or single movement any wallet may hold, in smallest units
+ * (kobo, pence, cents). Kept below Number.MAX_SAFE_INTEGER so a balance can
+ * cross the wire as a plain JSON number. Money is a bigint everywhere else.
+ */
+export const MAX_WALLET_BALANCE = 1_000_000_000_000_000n;
+
 /** Colyseus room name for a walkable district instance. */
 export const DISTRICT_ROOM_NAME = "district";
 

@@ -1,11 +1,136 @@
-// Intentionally has no models yet: the ledger schema (Player, Wallet,
-// Transaction) touches money and needs sign-off before it is written.
-// See Slice 2 of the Phase 1 plan.
+// JapaLife ledger schema.
+//
+// Rules this schema encodes (see CLAUDE.md, "The economy is a multi-currency ledger"):
+//  - No mutable `balance` column. Every movement of money is an immutable
+//    `Transaction` row. A wallet's balance is the `*BalanceAfter` of the latest
+//    row that touches it, written while holding a lock on the wallet row.
+//  - Amounts are BigInt in the smallest unit (kobo, pence, cents). Never floats.
+//  - A Transaction moves money between two wallets of the SAME currency; the
+//    composite foreign keys make a mismatch impossible at the database level.
+//  - Faucets and sinks are movements to/from SYSTEM wallets, so every movement
+//    has a real `from` and `to` and total money in the system stays auditable.
+//
+// Rules Prisma cannot express live in the migration SQL (init_ledger):
+//  - Transaction.amount is > 0 and <= 10^15 (MAX_WALLET_BALANCE)
+//  - Transaction.fromWalletId <> Transaction.toWalletId
+//  - Wallet shape: PLAYER has playerId and no systemKey; SYSTEM the reverse
+//  - Conversion amounts, rate and spread are in range
+//  - A trigger rejects UPDATE and DELETE on Transaction: the ledger is append-only
+//  - Nothing cascades or nulls out on delete: ledger links are never lost
+// PLAYER wallet balances never go negative. That cannot be a single-table CHECK
+// (SYSTEM wallets legitimately go negative as faucets), so the ledger service
+// enforces it under the wallet lock and an audit test re-verifies it.
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Currency {
+  NGN
+  GBP
+  CAD
+}
+
+enum WalletKind {
+  PLAYER
+  SYSTEM
+}
+
+enum ConversionChannel {
+  BANK
+  FINTECH
+  STREET
+}
+
+model Player {
+  id        String   @id @default(uuid(7))
+  createdAt DateTime @default(now())
+
+  wallets     Wallet[]
+  conversions Conversion[]
+}
+
+model Wallet {
+  id        String     @id @default(uuid(7))
+  kind      WalletKind
+  currency  Currency
+  /// Set for PLAYER wallets only.
+  playerId  String?
+  /// Set for SYSTEM wallets only, e.g. "faucet", "sink", "fx".
+  systemKey String?
+  createdAt DateTime   @default(now())
+
+  player Player? @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  sent    Transaction[] @relation("TransactionFrom")
+  received Transaction[] @relation("TransactionTo")
+
+  // One wallet per player per currency; one system wallet per key per currency.
+  @@unique([playerId, currency])
+  @@unique([systemKey, currency])
+  // Lets Transaction reference (wallet, currency) so currencies cannot mismatch.
+  @@unique([id, currency])
+}
+
+model Transaction {
+  /// Monotonic. For any one wallet, rows are inserted under that wallet's lock,
+  /// so the highest id touching a wallet is its latest movement.
+  id BigInt @id @default(autoincrement())
+
+  fromWalletId String
+  toWalletId   String
+  currency     Currency
+  /// Smallest unit, always > 0 (CHECK in migration).
+  amount       BigInt
+
+  /// What the movement was for. One of LEDGER_REASONS in packages/shared;
+  /// validated in the ledger service so adding a reason needs no migration.
+  reason    String
+  /// Idempotency key. A retried request reuses it and cannot apply twice.
+  reference String   @unique
+  createdAt DateTime @default(now())
+
+  /// Running balances of each wallet immediately after this movement.
+  fromBalanceAfter BigInt
+  toBalanceAfter   BigInt
+
+  /// Set on the two legs of a currency conversion.
+  conversionId String?
+
+  fromWallet Wallet      @relation("TransactionFrom", fields: [fromWalletId, currency], references: [id, currency])
+  toWallet   Wallet      @relation("TransactionTo", fields: [toWalletId, currency], references: [id, currency])
+  conversion Conversion? @relation(fields: [conversionId], references: [id], onDelete: Restrict)
+
+  @@index([fromWalletId, id])
+  @@index([toWalletId, id])
+  @@index([conversionId])
+  @@index([reason, createdAt])
+}
+
+/// A currency conversion. Its two ledger legs are Transactions linked by
+/// `conversionId`: player -> fx wallet in `fromCurrency`, then fx wallet ->
+/// player in `toCurrency`. Records the rate and spread actually used.
+model Conversion {
+  id           String            @id @default(uuid(7))
+  playerId     String
+  channel      ConversionChannel
+  fromCurrency Currency
+  toCurrency   Currency
+  fromAmount   BigInt
+  toAmount     BigInt
+  /// Mid-market rate before spread, scaled by 1_000_000 (integers only).
+  midRateMicro BigInt
+  /// Channel spread in basis points (1 bp = 0.01%).
+  spreadBps    Int
+  createdAt    DateTime          @default(now())
+
+  player       Player        @relation(fields: [playerId], references: [id])
+  transactions Transaction[]
+
+  @@index([playerId, createdAt])
 }
