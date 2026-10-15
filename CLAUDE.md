@@ -75,7 +75,7 @@ Requires Node 24+ and pnpm 12 (`packageManager` in the root `package.json`).
 - `pnpm typecheck`: `tsc` in every workspace package
 - Run lint, typecheck and test before considering any task done
 - `docker compose up -d postgres`: local Postgres on 5432. Needed for the ledger tests and anything that touches money. Redis is also in the compose file but nothing uses it yet, so don't start it (`up -d` with no service name starts both)
-- `pnpm db:migrate`: Prisma `migrate dev` against `DATABASE_URL` (the ledger migration `init_ledger` is applied). `pnpm db:seed` is a placeholder that does nothing yet
+- `pnpm db:migrate`: Prisma `migrate dev` against `DATABASE_URL` (the ledger migration `init_ledger` is applied). `pnpm db:seed` creates one test player (`seed-test-player`) with N50,000 through the ledger. It is safe to run repeatedly and refuses to run when `NODE_ENV=production`
 - `.env` (git-ignored, copy from `.env.example`): `DB_USER`, `DB_NAME`, `DB_PASSWORD` feed docker-compose, and `DATABASE_URL` must match them. The generated Prisma client is git-ignored and rebuilt by `pnpm install` (a `postinstall` runs `prisma generate`)
 
 Ports: `DEFAULT_CLIENT_PORT` and `DEFAULT_SERVER_PORT` live in `packages/shared`. Override the server port with `SERVER_PORT` and the client's server URL with `NEXT_PUBLIC_SERVER_URL`.
@@ -142,6 +142,8 @@ I'm an experienced full-stack developer but new to game development. Act as my l
 Things that are deliberately incomplete or that will bite later. Remove an item when it is fixed.
 
 ### Ledger and money (`apps/server/src/economy/`, `packages/db`)
+- **Game code calls `WalletService`, never `Ledger`.** `WalletService` (`apps/server/src/economy/wallet.ts`) has `getBalance`, `credit` (faucet reasons only), `debit` (sink reasons only) and `transfer`. `getBalance` is a snapshot: never check it and then spend, call `debit`, which checks under a lock. Idempotency keys must be derived from the event (`shift:<playerId>:<shiftId>`), never random per call, or a retry pays twice.
+- **`transfer` exists but is server-internal.** No client intent reaches it, it charges no fee and has no limits. Do not expose it until the "Money sharing controls" decisions are made.
 - **Only `Ledger` writes `Transaction` rows.** The "player balance never goes negative" rule cannot be a database CHECK (system wallets legitimately go negative), so it is enforced by `Ledger.applyMovement` under the wallet lock. Any code that creates `Transaction` rows another way (raw SQL, `prisma.transaction.create`) bypasses it. Don't.
 - **Hot-row bottleneck.** Every earn locks the single `faucet` system wallet, and every spend locks the single `sink` wallet (one pair per currency), so all earning serialises across the whole game. Fine for single-player and early multiplayer. Fix before real load: shard system wallets (e.g. `faucet:0..N`, chosen by hashing the player id) and re-run the concurrency tests.
 - **Balance cap.** `MAX_WALLET_BALANCE` is 10^15 smallest units (about 10 trillion naira), kept below `Number.MAX_SAFE_INTEGER` so balances can travel as JSON numbers. A database CHECK mirrors it. The `sink` wallet's running total only ever grows, so it also hits this ceiling eventually; sharding or rotating system wallets (per season) fixes that too.
