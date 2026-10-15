@@ -1,0 +1,24 @@
+{
+  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "id": "lagos",
+  "name": "Lagos",
+  "timeZone": "Africa/Lagos",
+  "currency": "NGN",
+  "districts": [
+    {
+      "id": "yaba",
+      "name": "Yaba",
+      "halfWidth": 60,
+      "halfDepth": 60,
+      "spawn": { "x": 0, "z": 0 },
+      "interactRadius": 3,
+      "interactables": [
+        { "id": "face-me-face-you", "kind": "home", "position": { "x": -5, "z": -25 } },
+        { "id": "yaba-office", "kind": "job_site", "position": { "x": 20, "z": -10 }, "jobId": "office-assistant" },
+        { "id": "mama-put-buka", "kind": "food_vendor", "position": { "x": -15, "z": 12 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] },
+        { "id": "yaba-bus-stop", "kind": "bus_stop", "position": { "x": 8, "z": 25 } },
+        { "id": "yaba-fuel-station", "kind": "fuel_station", "position": { "x": 30, "z": 20 }, "shopItemIds": ["generator-petrol"] }
+      ]
+    }
+  ]
+}

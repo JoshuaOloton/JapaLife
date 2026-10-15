@@ -1,0 +1,13 @@
+{
+  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "jobs": [
+    {
+      "id": "office-assistant",
+      "name": "Office assistant",
+      "shiftPayKobo": 500000,
+      "energyCost": 30,
+      "shiftMinutes": 30,
+      "maxShiftsPerDay": 2
+    }
+  ]
+}
