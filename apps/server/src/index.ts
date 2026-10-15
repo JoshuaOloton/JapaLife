@@ -1,6 +1,6 @@
 import { createPrismaClient } from "@japalife/db";
 import { DEFAULT_SERVER_PORT } from "@japalife/shared";
-import { loadContent } from "./content/loadContent";
+import { loadContentOrExit } from "./content/loadContent";
 import { createGameServer } from "./createGameServer";
 import { loadRootEnv } from "./env";
 import { createGameSystems, startGameLoop } from "./game";
@@ -8,15 +8,16 @@ import { createGameSystems, startGameLoop } from "./game";
 loadRootEnv();
 
 const port = Number(process.env["SERVER_PORT"] ?? DEFAULT_SERVER_PORT);
+
+// Refuses to start on bad content, printing every problem and exiting with code 1.
+const content = loadContentOrExit(process.env["CONTENT_DIR"]);
+console.log(`content ok: ${Object.keys(content.cities).length} city, ${content.jobs.jobs.length} job(s)`);
+for (const todo of content.todos) console.warn(`content TODO ${todo}`);
+
 const databaseUrl = process.env["DATABASE_URL"];
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is not set. See .env.example.");
 }
-
-// Refuse to start on bad content (throws a ContentError listing every problem).
-const content = loadContent();
-console.log(`content ok: ${Object.keys(content.cities).length} city, ${content.jobs.jobs.length} job(s)`);
-for (const todo of content.todos) console.warn(`content TODO ${todo}`);
 
 const db = createPrismaClient(databaseUrl);
 // Refuses to start if GAME_CLOCK is set in production.
