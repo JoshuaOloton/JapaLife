@@ -28,6 +28,12 @@
 - Visa refusal is a real outcome. Approval chance is computed from application strength (documents complete and unexpired, funds held long enough and genuinely the player's, test scores, consistent history). Refusal reasons are data in `content/refusals/`.
 - Shortcuts that are fraud in real life (fake bank statements, fake job offers, paid "agents") exist only as traps with heavy consequences, never as winning strategies. The game should teach players to spot scams.
 - Policy-change events can update rule values mid-game, the way real rules change.
+- **Game time is real time (decided 2026-10-15).** One game day is one real day. A 3-week visa wait takes 3 real weeks and a monthly rent is due every real month. Processing times, waits, expiries and timers are configured in real durations. Consequences:
+  - The server clock is the only clock. Never trust a device clock.
+  - Every timer is stored as a timestamp in Postgres (`dueAt`, `readyAt`, `expiresAt`) and checked on access plus by a scheduled job. Time passes while the player is offline, so nothing may depend on a room being open.
+  - Waits can be months, so players need to be told when something happens (web push or email, in-app inbox on return). That is a product decision to make before Phase 2.
+  - Testing needs a **dev-only time multiplier** (a server `GAME_CLOCK` setting, refused when `NODE_ENV=production`), otherwise nobody can play-test a month of rent.
+  - Use real time zones for calendar logic: Lagos (WAT, UTC+1, no daylight saving), the UK (GMT/BST) and Toronto (EST/EDT).
 
 ## Stack
 
@@ -140,7 +146,7 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **Hot-row bottleneck.** Every earn locks the single `faucet` system wallet, and every spend locks the single `sink` wallet (one pair per currency), so all earning serialises across the whole game. Fine for single-player and early multiplayer. Fix before real load: shard system wallets (e.g. `faucet:0..N`, chosen by hashing the player id) and re-run the concurrency tests.
 - **Balance cap.** `MAX_WALLET_BALANCE` is 10^15 smallest units (about 10 trillion naira), kept below `Number.MAX_SAFE_INTEGER` so balances can travel as JSON numbers. A database CHECK mirrors it. The `sink` wallet's running total only ever grows, so it also hits this ceiling eventually; sharding or rotating system wallets (per season) fixes that too.
 - **Conversion is not persisted.** `convertAmount` (integer maths, rounds down, refuses zero results) is built and tested, but there is no `convert()` operation yet. It must write both legs through the `fx` system wallets plus a `Conversion` row in one transaction, locking up to four wallets in sorted order. Phase 3.
-- **Reasons are a Phase 1 guess.** `FAUCET_REASONS` and `SINK_REASONS` in `packages/shared/src/economy.ts` cover only salary, starting balance, rent, food and black tax. Add new faucets and sinks there (no migration needed, since `reason` is a string). The cost is that the database does not enforce the list.
+- **Reasons are names only.** `FAUCET_REASONS` and `SINK_REASONS` in `packages/shared/src/economy.ts` now cover living costs, documents, UK and Canada immigration fees (`VISA_FEE_REASONS`), departure, family, and scam traps. No amounts are in code: every fee, wage and price must come from `content/` with a `source` URL and an `asOf` date, and the real 2026 fee values still need to be researched and entered there. Add new faucets and sinks to that file (no migration needed, since `reason` is a string). The cost is that the database does not enforce the list. Currency conversion legs and player-to-player transfers are neither faucets nor sinks and need their own reason class when built.
 - **Not built yet:** per-player earn rate limit (Slice 4, with work shifts) and abnormal-balance flagging (Slice 6). CLAUDE.md requires both.
 - **The ledger is append-only.** A trigger blocks UPDATE and DELETE on `Transaction`. Correct a mistake with a reversing entry, never an edit. Only tests TRUNCATE.
 - **Money is `bigint`.** `JSON.stringify` throws on bigint. Send balances to the client as numbers (safe under the cap) or strings, and never do money maths in `number`.
@@ -160,7 +166,7 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 
 ## Look-ahead: what to consider in later phases
 
-- **Phase 1 (finish):** keep earn amounts, rent and food prices in `content/economy/`, not code. Decide how game time works (real time vs game days) before building the rent timer, because Phase 2 waits and Phase 4 credit history depend on it.
+- **Phase 1 (finish):** keep earn amounts, rent and food prices in `content/economy/`, not code. Build the clock before the rent timer: a server time source with the dev-only multiplier, and timers stored as timestamps (see "Game time is real time" under Realism rules).
 - **Phase 2, documents and applications:** fees are sinks, so add reasons such as `document_fee` and `application_fee`. Roll visa decisions on the server with a logged seed so a result can be audited. Persist application state in the database (waits can last game-months). Funds "held long enough" can be computed from the ledger's running balances; add an index on wallet and `createdAt` if that query is slow.
 - **Phase 3, funds and departure:** build `convert()` (see above), with rates from `content/economy/` and per-channel spreads. Ajo (rotating savings) and japa sales are new faucet and sink types. Any player-to-player gift or family help is a laundering and abuse risk once players can see each other: add per-day limits and flagging before it ships.
 - **Phase 4, abroad:** remittances move money across currencies and possibly between players, so reuse the two-leg conversion path. The credit score should be derived from ledger history (late rent, missed payments), not stored as a number the client can influence. Mortgages need the loan model noted above. Needs a decision on how family members are represented (NPCs, linked accounts or other players).
@@ -181,4 +187,12 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 ## Open decisions
 - [x] 3D with React Three Fiber, low-poly art style (decided 2026-10-14). Not 2D isometric.
 - [x] Release 1 cities: London (UK) and Toronto (Canada) (decided 2026-10-14)
+- [x] Game time equals real-world time (decided 2026-10-15). See Realism rules for what follows from it.
+- [x] Players must be able to share money with each other (decided 2026-10-15). Not built. Do not expose it to clients until the controls below are decided.
+- [ ] Money sharing controls (recommendation in brackets):
+  - Who can send to whom? [only players who have friended each other, never strangers]
+  - Is bought currency transferable? [no: purchased money stays with the buyer]
+  - Limits? [a transfer fee as a sink, a daily send cap, a receive cap, and no transfers until the account is 7 days old]
+  - Are transfers reversible? [no for players; a moderator can add a reversing entry after a scam report]
+  - Does received money count as "genuinely the player's" for proof of funds? [no, if it arrived shortly before an application, which is realistic and discourages gifting to skip the grind]
 - [ ] Hosting for the game servers

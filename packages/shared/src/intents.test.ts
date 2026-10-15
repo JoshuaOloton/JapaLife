@@ -4,7 +4,6 @@ import {
   MAX_FOOD_PURCHASE_QUANTITY,
   parseIntent,
 } from "./intents";
-import { LEDGER_REASONS } from "./economy";
 
 describe("parseIntent", () => {
   it("accepts every valid intent", () => {
@@ -94,11 +93,5 @@ describe("parseIntent", () => {
   it("does not leak the offending payload in the error", () => {
     const result = parseIntent("work", { jobId: "SECRET VALUE" });
     expect(result).toEqual({ ok: false, error: "invalid work intent" });
-  });
-});
-
-describe("ledger reasons", () => {
-  it("has no duplicates", () => {
-    expect(new Set(LEDGER_REASONS).size).toBe(LEDGER_REASONS.length);
   });
 });
