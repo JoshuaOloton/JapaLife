@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "db:migrate": "pnpm --filter @japalife/db migrate",
-    "db:seed": "pnpm --filter @japalife/db seed"
+    "db:seed": "pnpm --filter @japalife/server seed"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

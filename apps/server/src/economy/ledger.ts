@@ -43,6 +43,22 @@ export interface MovementResult {
   replayed: boolean;
 }
 
+export interface TransferRequest {
+  fromPlayerId: string;
+  toPlayerId: string;
+  currency: Currency;
+  amount: Amount;
+  /** Idempotency key. Retrying with the same reference never applies twice. */
+  reference: string;
+}
+
+export interface TransferResult {
+  transactionId: bigint;
+  fromBalanceAfter: Amount;
+  toBalanceAfter: Amount;
+  replayed: boolean;
+}
+
 export interface WalletAudit {
   ok: boolean;
   /** Balance rebuilt from scratch by replaying every movement. */
@@ -51,6 +67,27 @@ export interface WalletAudit {
 }
 
 type Tx = Prisma.TransactionClient;
+
+/** Player wallets are bounded (no overdraft, no overflow); system wallets just keep a running total. */
+type Side = "player" | "system";
+
+interface Posting {
+  fromWalletId: string;
+  toWalletId: string;
+  fromSide: Side;
+  toSide: Side;
+  currency: Currency;
+  amount: Amount;
+  reason: string;
+  reference: string;
+}
+
+interface Posted {
+  transactionId: bigint;
+  fromBalanceAfter: Amount;
+  toBalanceAfter: Amount;
+  replayed: boolean;
+}
 
 /**
  * The only code allowed to move money. Every movement is one immutable
@@ -77,93 +114,60 @@ export class Ledger {
     return wallet ? this.latestBalance(this.db, wallet.id) : 0n;
   }
 
+  /** A faucet (money in from the system) or a sink (money out to the system). */
   async applyMovement(request: MovementRequest): Promise<MovementResult> {
     const { playerId, currency, reason, amount, reference } = request;
-    assertValidAmount(amount);
-    if (!(CURRENCIES as readonly string[]).includes(currency)) {
-      throw new InvalidMovementError("unknown currency");
-    }
+    this.validate(currency, amount, reference);
     if (!isLedgerReason(reason)) {
       throw new InvalidMovementError("unknown reason");
-    }
-    if (!REFERENCE_PATTERN.test(reference)) {
-      throw new InvalidMovementError("invalid reference");
     }
 
     const direction = directionOf(reason);
     const playerWalletId = await this.playerWalletId(playerId, currency);
     const systemWalletId = await this.systemWalletId(SYSTEM_WALLET_KEYS[direction], currency);
-    const fromWalletId = direction === "faucet" ? systemWalletId : playerWalletId;
-    const toWalletId = direction === "faucet" ? playerWalletId : systemWalletId;
+    const faucet = direction === "faucet";
 
-    try {
-      return await this.db.$transaction(
-        async (tx) => {
-          await this.lockWallets(tx, [fromWalletId, toWalletId]);
+    const posted = await this.post({
+      fromWalletId: faucet ? systemWalletId : playerWalletId,
+      toWalletId: faucet ? playerWalletId : systemWalletId,
+      fromSide: faucet ? "system" : "player",
+      toSide: faucet ? "player" : "system",
+      currency,
+      amount,
+      reason,
+      reference,
+    });
+    return {
+      transactionId: posted.transactionId,
+      balanceAfter: faucet ? posted.toBalanceAfter : posted.fromBalanceAfter,
+      replayed: posted.replayed,
+    };
+  }
 
-          // Checked after the lock: concurrent retries of one reference queue up
-          // here and the later ones see the row the first one wrote.
-          const existing = await tx.transaction.findUnique({ where: { reference } });
-          if (existing) {
-            const same =
-              existing.fromWalletId === fromWalletId &&
-              existing.toWalletId === toWalletId &&
-              existing.currency === currency &&
-              existing.amount === amount &&
-              existing.reason === reason;
-            if (!same) throw new ReferenceConflictError();
-            return {
-              transactionId: existing.id,
-              balanceAfter:
-                direction === "sink" ? existing.fromBalanceAfter : existing.toBalanceAfter,
-              replayed: true,
-            };
-          }
-
-          const fromBalance = await this.latestBalance(tx, fromWalletId);
-          const toBalance = await this.latestBalance(tx, toWalletId);
-
-          // The player side is bounded (no overdraft, no overflow). The system side
-          // is just the running total of everything the faucet gave or the sink took.
-          const fromAfter =
-            direction === "sink" ? debitedBalance(fromBalance, amount) : fromBalance - amount;
-          const toAfter =
-            direction === "faucet" ? creditedBalance(toBalance, amount) : toBalance + amount;
-
-          const row = await tx.transaction.create({
-            data: {
-              fromWalletId,
-              toWalletId,
-              currency,
-              amount,
-              reason,
-              reference,
-              fromBalanceAfter: fromAfter,
-              toBalanceAfter: toAfter,
-            },
-            select: { id: true },
-          });
-
-          return {
-            transactionId: row.id,
-            balanceAfter: direction === "sink" ? fromAfter : toAfter,
-            replayed: false,
-          };
-        },
-        { maxWait: 5_000, timeout: 10_000 },
-      );
-    } catch (error) {
-      // Same reference, different wallets: the unique index catches what the
-      // in-transaction check cannot see.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002" &&
-        JSON.stringify(error.meta ?? {}).includes("reference")
-      ) {
-        throw new ReferenceConflictError();
-      }
-      throw error;
+  /**
+   * Moves money from one player to another. Creates and destroys nothing, so it
+   * is neither a faucet nor a sink. Server-internal: no client intent calls this.
+   */
+  async transfer(request: TransferRequest): Promise<TransferResult> {
+    const { fromPlayerId, toPlayerId, currency, amount, reference } = request;
+    this.validate(currency, amount, reference);
+    if (fromPlayerId === toPlayerId) {
+      throw new InvalidMovementError("cannot transfer to yourself");
     }
+
+    const fromWalletId = await this.playerWalletId(fromPlayerId, currency);
+    const toWalletId = await this.playerWalletId(toPlayerId, currency);
+
+    return this.post({
+      fromWalletId,
+      toWalletId,
+      fromSide: "player",
+      toSide: "player",
+      currency,
+      amount,
+      reason: "player_transfer",
+      reference,
+    });
   }
 
   /**
@@ -221,6 +225,90 @@ export class Ledger {
       if (isUniqueViolation(error)) {
         const raced = await this.db.wallet.findUniqueOrThrow({ where, select: { id: true } });
         return raced.id;
+      }
+      throw error;
+    }
+  }
+
+  private validate(currency: Currency, amount: Amount, reference: string): void {
+    assertValidAmount(amount);
+    if (!(CURRENCIES as readonly string[]).includes(currency)) {
+      throw new InvalidMovementError("unknown currency");
+    }
+    if (!REFERENCE_PATTERN.test(reference)) {
+      throw new InvalidMovementError("invalid reference");
+    }
+  }
+
+  /** The single write path: lock, replay check, balance rules, append one row. */
+  private async post(posting: Posting): Promise<Posted> {
+    const { fromWalletId, toWalletId, fromSide, toSide, currency, amount, reason, reference } =
+      posting;
+
+    try {
+      return await this.db.$transaction(
+        async (tx) => {
+          await this.lockWallets(tx, [fromWalletId, toWalletId]);
+
+          // Checked after the lock: concurrent retries of one reference queue up
+          // here and the later ones see the row the first one wrote.
+          const existing = await tx.transaction.findUnique({ where: { reference } });
+          if (existing) {
+            const same =
+              existing.fromWalletId === fromWalletId &&
+              existing.toWalletId === toWalletId &&
+              existing.currency === currency &&
+              existing.amount === amount &&
+              existing.reason === reason;
+            if (!same) throw new ReferenceConflictError();
+            return {
+              transactionId: existing.id,
+              fromBalanceAfter: existing.fromBalanceAfter,
+              toBalanceAfter: existing.toBalanceAfter,
+              replayed: true,
+            };
+          }
+
+          const fromBalance = await this.latestBalance(tx, fromWalletId);
+          const toBalance = await this.latestBalance(tx, toWalletId);
+
+          const fromAfter =
+            fromSide === "player" ? debitedBalance(fromBalance, amount) : fromBalance - amount;
+          const toAfter =
+            toSide === "player" ? creditedBalance(toBalance, amount) : toBalance + amount;
+
+          const row = await tx.transaction.create({
+            data: {
+              fromWalletId,
+              toWalletId,
+              currency,
+              amount,
+              reason,
+              reference,
+              fromBalanceAfter: fromAfter,
+              toBalanceAfter: toAfter,
+            },
+            select: { id: true },
+          });
+
+          return {
+            transactionId: row.id,
+            fromBalanceAfter: fromAfter,
+            toBalanceAfter: toAfter,
+            replayed: false,
+          };
+        },
+        { maxWait: 5_000, timeout: 10_000 },
+      );
+    } catch (error) {
+      // Same reference, different wallets: the unique index catches what the
+      // in-transaction check cannot see.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        JSON.stringify(error.meta ?? {}).includes("reference")
+      ) {
+        throw new ReferenceConflictError();
       }
       throw error;
     }

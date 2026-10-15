@@ -1,17 +1,10 @@
 import { createPrismaClient, type PrismaClient } from "@japalife/db";
+import { loadRootEnv } from "../env";
 
 /**
  * Money tests truncate tables, so they must never run against the dev database.
  * They use "<name>_test", derived from DATABASE_URL, and refuse anything else.
  */
-
-function loadRootEnv(): void {
-  try {
-    process.loadEnvFile(new URL("../../../../.env", import.meta.url));
-  } catch {
-    // No .env file: rely on the real environment.
-  }
-}
 
 export interface TestDatabase {
   url: string;

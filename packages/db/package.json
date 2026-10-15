@@ -12,7 +12,6 @@
     "postinstall": "prisma generate",
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
-    "seed": "echo 'No seed data yet (ledger schema pending approval)'",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
