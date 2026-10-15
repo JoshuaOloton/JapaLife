@@ -13,6 +13,7 @@
     "@colyseus/core": "^0.18.18",
     "@colyseus/schema": "^5.0.39",
     "@colyseus/ws-transport": "^0.18.4",
+    "@japalife/db": "workspace:*",
     "@japalife/shared": "workspace:*",
     "zod": "^4.6.7"
   },
