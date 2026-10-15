@@ -40,6 +40,29 @@ export const DEFAULT_CONTENT_DIR = fileURLToPath(
 );
 
 /**
+ * For the server's startup: loads content, and if it is invalid prints a short,
+ * readable list of what to fix (no stack trace) and exits with code 1, so the
+ * server never runs on bad data. Anything other than a ContentError is a real
+ * bug and is rethrown untouched.
+ */
+export function loadContentOrExit(contentDir?: string): GameContent {
+  try {
+    return loadContent(contentDir);
+  } catch (error) {
+    if (!(error instanceof ContentError)) throw error;
+    console.error(
+      [
+        `japalife server cannot start: ${error.problems.length} problem(s) in content/`,
+        ...error.problems.map((problem) => `  - ${problem}`),
+        "",
+        "Fix the file(s) above and start the server again.",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+}
+
+/**
  * Reads and validates everything in `content/` that Phase 1 needs. Throws a
  * ContentError listing all problems, so the server refuses to start on bad data.
  */
