@@ -1,0 +1,12 @@
+{
+  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "id": "power_cut",
+  "title": "NEPA took light",
+  "message": "The power is out across the district.",
+  "chancePerDay": 0.5,
+  "minGapDays": 1,
+  "effect": {
+    "type": "blackout",
+    "durationMinutes": 45
+  }
+}

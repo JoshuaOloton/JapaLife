@@ -160,6 +160,11 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **Rooms are in memory.** A Colyseus room is lost on restart. Rent timers, shift progress and anything that must survive belongs in Postgres, with the room only caching it.
 - **Capacity queue is a stub.** `MAX_PLAYERS_PER_ROOM` is set on the room, but the "queue and show your place" behaviour is not built.
 
+### Content
+- **Phase 1 numbers are placeholders.** Everything in `content/economy/`, `content/events/` and `content/cities/lagos.json` is marked `"basis": "game-balance"` instead of a `source` URL: starting balance, rent, food prices, shift pay, event amounts and frequencies are tuning guesses, not researched Lagos prices. Retune them after play-testing. Real rules (Phase 2) must use `source` plus `asOf`.
+- **Content is loaded once at boot** by `loadContent()` and not yet handed to the room; Slice 4 passes it in. Unknown fields are rejected, and cross-references (job sites, food vendors, event files per `GAME_EVENT_IDS`) are checked.
+- **Hunger decay and the blackout's gameplay effect are not configured yet.** Slice 4 decides them (they are design/feel questions).
+
 ### Tooling
 - **TypeScript is pinned to `~6.0`** because `typescript-eslint` does not support TS 7 yet. Revisit when it does.
 - **`pnpm-workspace.yaml` `allowBuilds`:** `esbuild` is allowed; `prisma`, `@prisma/engines` and `msgpackr-extract` are declined. The first two are not needed (migrate and generate work). `msgpackr-extract` is an optional native speed-up for Colyseus with a JS fallback; revisit if message encoding shows up in profiling.
@@ -178,6 +183,20 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 ## Current phase
 
 **Phase 1: Lagos single-player core loop.** One walkable Lagos district, a third-person character with touch + keyboard controls, one job that pays per shift, rent due on a timer, food to buy, black-tax and power-cut events, and an NGN wallet backed by the ledger. Server-authoritative from the start, but no other players visible yet.
+
+### Phase 1 slices (the plan, kept here so it survives `/clear`)
+
+Work one slice at a time on its own branch. "Slice 3" and similar always mean this table.
+
+| # | Slice | What it covers | Status |
+|---|---|---|---|
+| 0 | Scaffold | pnpm workspace, tooling, Colyseus connect demo | Done |
+| 1 | Shared contracts | Zod intent schemas (`move`, `interact`, `work`, `buyFood`, `payRent`), ledger reasons, event ids in `packages/shared` | Done |
+| 2 | Ledger and NGN wallet | Prisma schema and migration, `Ledger`, `WalletService`, concurrency tests, seeded test player | Done |
+| 3 | Content config | Zod schemas in `packages/shared` and a server loader that validates `content/` JSON at boot (refuse to start on a bad file). Files Phase 1 needs: shift pay and starting balance, rent, food and other NGN prices, the black-tax and power-cut events, and `cities/lagos.json` (one district). No visa rules yet (Phase 2). Amounts are integers in kobo | Done (schemas in `packages/shared/src/content.ts`, loader in `apps/server/src/content/loadContent.ts`; all values are placeholder game-balance numbers, see Known limits) |
+| 4 | Server game systems | The server clock (with the dev-only time multiplier), `DistrictRoom` handlers that call `parseIntent`, and separate modules for jobs, rent, food and events, plus the earn rate limit. Capacity queue stub | Next |
+| 5 | Client | Walkable low-poly Lagos district, third-person controller with keyboard and touch joystick, interpolation, HUD (wallet, hunger, rent countdown, event toasts), 18+ gate stub, disclaimer | Not started |
+| 6 | Hardening | 15 MB budget check, fps check on a mid-range Android, abnormal-balance flagging, log hygiene | Not started |
 
 <!-- Phases to come:
   2 Documents + applications: passport and document quests, UK and Canada routes from config, decision rolls and refusals

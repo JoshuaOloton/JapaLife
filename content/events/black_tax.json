@@ -1,0 +1,15 @@
+{
+  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "id": "black_tax",
+  "title": "Family call",
+  "message": "A relative needs help with school fees. You send what you can.",
+  "chancePerDay": 0.2,
+  "minGapDays": 5,
+  "effect": {
+    "type": "debit",
+    "reason": "black_tax",
+    "minKobo": 200000,
+    "maxKobo": 500000
+  },
+  "todo": "TODO: unsure how much and how often to ask; tune after play-testing"
+}

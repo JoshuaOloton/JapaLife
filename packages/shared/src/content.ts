@@ -1,0 +1,238 @@
+import { z } from "zod";
+import { MAX_WALLET_BALANCE } from "./constants";
+import { SINK_REASONS } from "./economy";
+import { GAME_EVENT_IDS } from "./events";
+
+/**
+ * Schemas for the JSON files in `content/`. The server validates every file at
+ * boot and refuses to start on a bad one. Amounts are integers in the smallest
+ * unit (kobo for NGN), as plain numbers: they are converted to bigint where
+ * they meet the ledger.
+ */
+
+/** Content ids are short lowercase slugs, the same shape intents use to refer to them. */
+export const contentIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9_-]*$/);
+
+/** A positive whole number of kobo, pence or cents. Never a float. */
+const smallestUnits = z.int().positive().max(Number(MAX_WALLET_BALANCE));
+
+const isoDate = z.iso.date();
+
+export const RULE_STATUSES = ["active", "proposed"] as const;
+
+/**
+ * Where a file's numbers come from. Real-world rules need a `source` URL and an
+ * `asOf` date. Values that are game balance (what a shift pays, what a plate of
+ * rice costs in the game) have no official source, so they say
+ * `basis: "game-balance"` instead and can be retuned freely.
+ */
+export const contentMetaSchema = z
+  .strictObject({
+    asOf: isoDate,
+    source: z.url().optional(),
+    basis: z.literal("game-balance").optional(),
+    /** Proposed rules are not law yet (CLAUDE.md realism rules). */
+    status: z.enum(RULE_STATUSES).default("active"),
+  })
+  .refine((meta) => (meta.source === undefined) !== (meta.basis === undefined), {
+    message: 'give exactly one of "source" (a URL) or "basis": "game-balance"',
+  });
+export type ContentMeta = z.infer<typeof contentMetaSchema>;
+
+/**
+ * One real-world rule value (a fee, threshold, processing time). Unlike game
+ * balance numbers, it always needs a source URL, an asOf date and a status.
+ * Phase 2 rule files (`content/rules/`) are built from this.
+ */
+export function ruleValueSchema<T extends z.ZodType>(value: T) {
+  return z.strictObject({
+    value,
+    source: z.url(),
+    asOf: isoDate,
+    status: z.enum(RULE_STATUSES),
+  });
+}
+export type RuleValue<T> = {
+  value: T;
+  source: string;
+  asOf: string;
+  status: (typeof RULE_STATUSES)[number];
+};
+
+/** A price or amount I am unsure of: the loader prints these at boot so they get reviewed. */
+const todoNote = z.string().min(1).max(200).optional();
+
+const positionSchema = z.strictObject({ x: z.number(), z: z.number() });
+
+// ---- economy/ngn.json: starting money, rent, food ---------------------------
+
+export const foodItemSchema = z.strictObject({
+  id: contentIdSchema,
+  name: z.string().min(1).max(60),
+  priceKobo: smallestUnits,
+  /** How much of the 0-100 hunger meter one portion refills. */
+  hungerRestored: z.int().min(1).max(100),
+  /** How much of the 0-100 energy meter one portion refills. */
+  energyRestored: z.int().min(0).max(100),
+  todo: todoNote,
+});
+
+/** Non-food goods sold in the district, e.g. petrol for the generator. */
+export const shopItemSchema = z.strictObject({
+  id: contentIdSchema,
+  name: z.string().min(1).max(60),
+  priceKobo: smallestUnits,
+  /** Ledger sink the purchase is logged under. */
+  reason: z.enum(SINK_REASONS),
+  todo: todoNote,
+});
+
+export const ngnEconomySchema = z.strictObject({
+  meta: contentMetaSchema,
+  startingBalanceKobo: smallestUnits,
+  busFareKobo: smallestUnits,
+  busFareTodo: todoNote,
+  rent: z.strictObject({
+    todo: todoNote,
+    amountKobo: smallestUnits,
+    /** Real days between rent due dates (game time is real time). */
+    periodDays: z.int().min(1).max(366),
+    /** Real days after the due date before the missed payment has consequences. */
+    graceDays: z.int().min(0).max(31),
+  }),
+  food: z.array(foodItemSchema).min(1),
+  shop: z.array(shopItemSchema),
+});
+export type NgnEconomyConfig = z.infer<typeof ngnEconomySchema>;
+export type FoodItem = z.infer<typeof foodItemSchema>;
+export type ShopItem = z.infer<typeof shopItemSchema>;
+
+// ---- economy/jobs.json: work that pays per shift ------------------------------
+
+export const jobSchema = z.strictObject({
+  id: contentIdSchema,
+  name: z.string().min(1).max(60),
+  shiftPayKobo: smallestUnits,
+  /** How much of the 0-100 energy meter one shift uses; a tired player cannot work. */
+  energyCost: z.int().min(1).max(100),
+  todo: todoNote,
+  /** How long a shift takes in real minutes. */
+  shiftMinutes: z.int().min(1).max(24 * 60),
+  /** The earn rate limit: a faucet cannot be farmed past this (CLAUDE.md). */
+  maxShiftsPerDay: z.int().min(1).max(24),
+});
+
+export const jobsSchema = z.strictObject({
+  meta: contentMetaSchema,
+  jobs: z.array(jobSchema).min(1),
+});
+export type JobConfig = z.infer<typeof jobSchema>;
+export type JobsConfig = z.infer<typeof jobsSchema>;
+
+// ---- events/<id>.json: black tax, power cuts ------------------------------------
+
+const eventEffectSchema = z.discriminatedUnion("type", [
+  /** Money leaves the wallet, logged under `reason` (a real ledger sink). */
+  z
+    .strictObject({
+      type: z.literal("debit"),
+      reason: z.enum(SINK_REASONS),
+      minKobo: smallestUnits,
+      maxKobo: smallestUnits,
+    })
+    .refine((effect) => effect.minKobo <= effect.maxKobo, {
+      message: "minKobo must not exceed maxKobo",
+    }),
+  /** The district loses power for a real-time stretch. */
+  z.strictObject({
+    type: z.literal("blackout"),
+    durationMinutes: z.int().min(1).max(24 * 60),
+  }),
+  /** Prices in a category go up by a percentage for a real-time stretch. */
+  z.strictObject({
+    type: z.literal("price_rise"),
+    category: z.enum(["food", "fuel"]),
+    percent: z.int().min(1).max(500),
+    durationDays: z.int().min(1).max(365),
+  }),
+]);
+
+export const gameEventSchema = z.strictObject({
+  meta: contentMetaSchema,
+  id: z.enum(GAME_EVENT_IDS),
+  title: z.string().min(1).max(80),
+  /** Toast text shown to the player. */
+  message: z.string().min(1).max(280),
+  /** Chance the event fires on a given real day, once the minimum gap has passed. */
+  chancePerDay: z.number().gt(0).max(1),
+  /** Fewest real days between two firings for the same player. */
+  minGapDays: z.int().min(0).max(365),
+  effect: eventEffectSchema,
+  todo: todoNote,
+});
+export type GameEventConfig = z.infer<typeof gameEventSchema>;
+
+// ---- cities/<id>.json: one district in Phase 1 ------------------------------------
+
+/** Something in the district the player can walk up to and `interact` with. */
+const interactableSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    id: contentIdSchema,
+    kind: z.literal("job_site"),
+    position: positionSchema,
+    jobId: contentIdSchema,
+  }),
+  z.strictObject({
+    id: contentIdSchema,
+    kind: z.literal("food_vendor"),
+    position: positionSchema,
+    foodIds: z.array(contentIdSchema).min(1),
+  }),
+  /** Where the player lives (their room); rent is paid here and sleeping restores energy. */
+  z.strictObject({
+    id: contentIdSchema,
+    kind: z.literal("home"),
+    position: positionSchema,
+  }),
+  /** Where the player pays the bus fare (`busFareKobo`) to travel. */
+  z.strictObject({
+    id: contentIdSchema,
+    kind: z.literal("bus_stop"),
+    position: positionSchema,
+  }),
+  z.strictObject({
+    id: contentIdSchema,
+    kind: z.literal("fuel_station"),
+    position: positionSchema,
+    shopItemIds: z.array(contentIdSchema).min(1),
+  }),
+]);
+
+export const districtSchema = z.strictObject({
+  id: contentIdSchema,
+  name: z.string().min(1).max(60),
+  /** Walkable area is a rectangle centred on the origin; the server clamps movement to it. */
+  halfWidth: z.number().positive(),
+  halfDepth: z.number().positive(),
+  spawn: positionSchema,
+  /** How far the player may be from an interactable for `interact` to count. */
+  interactRadius: z.number().positive(),
+  interactables: z.array(interactableSchema).min(1),
+});
+
+export const citySchema = z.strictObject({
+  meta: contentMetaSchema,
+  id: contentIdSchema,
+  name: z.string().min(1).max(60),
+  /** IANA time zone for calendar logic (Lagos has no daylight saving). */
+  timeZone: z.string().min(1),
+  currency: z.literal("NGN"),
+  districts: z.array(districtSchema).min(1),
+});
+export type CityConfig = z.infer<typeof citySchema>;
+export type DistrictConfig = z.infer<typeof districtSchema>;
+export type Interactable = z.infer<typeof interactableSchema>;
