@@ -20,5 +20,8 @@ export const MAX_PLAYERS_PER_ROOM = 50;
 /** Client position updates per second (CLAUDE.md: 10-20 Hz). */
 export const POSITION_UPDATE_HZ = 15;
 
+/** How fast a player walks, in world units per second. The server enforces it. */
+export const PLAYER_SPEED_UNITS_PER_SECOND = 4;
+
 /** Cap on devicePixelRatio for low-end Android GPUs. */
 export const MAX_DEVICE_PIXEL_RATIO = 1.5;

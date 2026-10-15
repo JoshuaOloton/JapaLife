@@ -78,6 +78,8 @@ Requires Node 24+ and pnpm 12 (`packageManager` in the root `package.json`).
 - `pnpm db:migrate`: Prisma `migrate dev` against `DATABASE_URL` (the ledger migration `init_ledger` is applied). `pnpm db:seed` creates one test player (`seed-test-player`) with N50,000 through the ledger. It is safe to run repeatedly and refuses to run when `NODE_ENV=production`
 - `.env` (git-ignored, copy from `.env.example`): `DB_USER`, `DB_NAME`, `DB_PASSWORD` feed docker-compose, and `DATABASE_URL` must match them. The generated Prisma client is git-ignored and rebuilt by `pnpm install` (a `postinstall` runs `prisma generate`)
 
+Dev-only time multiplier: `GAME_CLOCK=60 pnpm --filter @japalife/server dev` runs game time 60x faster (one real minute is one game hour), so a month of rent takes about 12 real hours. The server refuses to start with `GAME_CLOCK` set when `NODE_ENV=production`. After a restart the clock is back at real time, so timestamps stored by a sped-up session lie in the future; reset the dev database if that gets confusing.
+
 Ports: `DEFAULT_CLIENT_PORT` and `DEFAULT_SERVER_PORT` live in `packages/shared`. Override the server port with `SERVER_PORT` and the client's server URL with `NEXT_PUBLIC_SERVER_URL`.
 
 ## Non-negotiable rules
@@ -149,21 +151,27 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **Balance cap.** `MAX_WALLET_BALANCE` is 10^15 smallest units (about 10 trillion naira), kept below `Number.MAX_SAFE_INTEGER` so balances can travel as JSON numbers. A database CHECK mirrors it. The `sink` wallet's running total only ever grows, so it also hits this ceiling eventually; sharding or rotating system wallets (per season) fixes that too.
 - **Conversion is not persisted.** `convertAmount` (integer maths, rounds down, refuses zero results) is built and tested, but there is no `convert()` operation yet. It must write both legs through the `fx` system wallets plus a `Conversion` row in one transaction, locking up to four wallets in sorted order. Phase 3.
 - **Reasons are names only.** `FAUCET_REASONS` and `SINK_REASONS` in `packages/shared/src/economy.ts` now cover living costs, documents, UK and Canada immigration fees (`VISA_FEE_REASONS`), departure, family, and scam traps. No amounts are in code: every fee, wage and price must come from `content/` with a `source` URL and an `asOf` date, and the real 2026 fee values still need to be researched and entered there. Add new faucets and sinks to that file (no migration needed, since `reason` is a string). The cost is that the database does not enforce the list. Currency conversion legs and player-to-player transfers are neither faucets nor sinks and need their own reason class when built.
-- **Not built yet:** per-player earn rate limit (Slice 4, with work shifts) and abnormal-balance flagging (Slice 6). CLAUDE.md requires both.
+- **Earn rate limit is built** as a per-job daily shift cap (`maxShiftsPerDay`, reset at midnight Lagos time) plus a per-client intent token bucket. **Not built yet:** abnormal-balance flagging (Slice 6).
 - **The ledger is append-only.** A trigger blocks UPDATE and DELETE on `Transaction`. Correct a mistake with a reversing entry, never an edit. Only tests TRUNCATE.
 - **Money is `bigint`.** `JSON.stringify` throws on bigint. Send balances to the client as numbers (safe under the cap) or strings, and never do money maths in `number`.
 - **No loans.** Player wallets cannot go negative, so credit, overdrafts, student loans and mortgages need their own liability model, not a negative wallet.
 
 ### Server and protocol
-- **Intents are validated but not wired up.** `parseIntent` in `packages/shared/src/intents.ts` exists and is tested, but `DistrictRoom` does not call it yet, so the server currently ignores every client message. Slice 4 connects it. Never add a message handler that skips it.
-- **No auth.** `Player` has no identity fields and anyone can join a room. Auth, the 18+ gate and data-protection decisions need your approval before they are built.
-- **Rooms are in memory.** A Colyseus room is lost on restart. Rent timers, shift progress and anything that must survive belongs in Postgres, with the room only caching it.
-- **Capacity queue is a stub.** `MAX_PLAYERS_PER_ROOM` is set on the room, but the "queue and show your place" behaviour is not built.
+- **Every intent goes through `parseIntent`** in `DistrictRoom`'s single `onMessage("*")` handler, then through a per-player `KeyedMutex` so one player's intents run in order. Never add a message handler that skips either. The mutex is in-process: with several server instances it needs a database or Redis lock (Phase 5).
+- **No auth (dev identity stub).** A client names itself with the `playerId` join option, accepted only when `NODE_ENV` is not `production`; in production nobody can join. Anyone can pose as anyone in dev. Auth, the 18+ gate and data-protection decisions need your approval before they are built.
+- **Game state is in Postgres, not the room.** `PlayerState` (meters, rent due date, event check time), `Shift` and `EventFiring` hold everything that must survive a restart; rooms only hold positions. Hunger and energy are computed from a stored value plus elapsed real time.
+- **Scheduled job:** `startGameLoop` (every 30 s) pays finished shifts for everyone, online or not. Random events are only evaluated for connected players (every 60 s, and caught up once on join). Offline players are not notified: the inbox/push decision is still open.
+- **Power cuts and price rises are per player** in Phase 1 (stored per player), not per district. Revisit in Phase 5 when players share a district.
+- **Unpaid rent has no consequence yet.** `RentService.status` reports `ok`, `due` or `overdue`; nothing else happens. What overdue rent does (eviction, fees, credit score) is a design decision.
+- **No intents for the bus stop and fuel station.** They exist in `lagos.json` and answer `interact`, but nothing can be bought or ridden there yet; the petrol shop item and bus fare are config only.
+- **Food purchases use a random reference per intent** (`food:<player>:<uuid>`). A crash after the debit but before the hunger update would charge without feeding. Rare, and safe in the player's disfavour only by a meal; fix by recording purchases in a table first if it ever matters.
+- **Capacity queue is a stub.** `CapacityQueue` (`apps/server/src/game/capacityQueue.ts`) holds a line with positions and is tested, but is not connected to matchmaking. Colyseus already refuses joins beyond `MAX_PLAYERS_PER_ROOM`, so nothing over capacity is accepted.
+- **One district.** `DistrictRoom` always hosts `yaba`.
 
 ### Content
 - **Phase 1 numbers are placeholders.** Everything in `content/economy/`, `content/events/` and `content/cities/lagos.json` is marked `"basis": "game-balance"` instead of a `source` URL: starting balance, rent, food prices, shift pay, event amounts and frequencies are tuning guesses, not researched Lagos prices. Retune them after play-testing. Real rules (Phase 2) must use `source` plus `asOf`.
-- **Content is loaded once at boot** by `loadContent()` and not yet handed to the room; Slice 4 passes it in. Unknown fields are rejected, and cross-references (job sites, food vendors, event files per `GAME_EVENT_IDS`) are checked.
-- **Hunger decay and the blackout's gameplay effect are not configured yet.** Slice 4 decides them (they are design/feel questions).
+- **Content is loaded once at boot** by `loadContent()` and handed to the game systems. Unknown fields are rejected, and cross-references (job sites, food vendors, fuel station items, event files per `GAME_EVENT_IDS`) are checked.
+- **Meters (decided 2026-10-15):** hunger drains 4 points an hour, so a 45-point meal lasts about half a real day; energy regenerates 6 an hour; a power cut only blocks starting new shifts (a running shift still pays). All in `content/economy/needs.json` and `content/events/`, marked TODO for tuning.
 
 ### Tooling
 - **TypeScript is pinned to `~6.0`** because `typescript-eslint` does not support TS 7 yet. Revisit when it does.
@@ -194,7 +202,7 @@ Work one slice at a time on its own branch. "Slice 3" and similar always mean th
 | 1 | Shared contracts | Zod intent schemas (`move`, `interact`, `work`, `buyFood`, `payRent`), ledger reasons, event ids in `packages/shared` | Done |
 | 2 | Ledger and NGN wallet | Prisma schema and migration, `Ledger`, `WalletService`, concurrency tests, seeded test player | Done |
 | 3 | Content config | Zod schemas in `packages/shared` and a server loader that validates `content/` JSON at boot (refuse to start on a bad file). Files Phase 1 needs: shift pay and starting balance, rent, food and other NGN prices, the black-tax and power-cut events, and `cities/lagos.json` (one district). No visa rules yet (Phase 2). Amounts are integers in kobo | Done (schemas in `packages/shared/src/content.ts`, loader in `apps/server/src/content/loadContent.ts`; all values are placeholder game-balance numbers, see Known limits) |
-| 4 | Server game systems | The server clock (with the dev-only time multiplier), `DistrictRoom` handlers that call `parseIntent`, and separate modules for jobs, rent, food and events, plus the earn rate limit. Capacity queue stub | Next |
+| 4 | Server game systems | The server clock (with the dev-only time multiplier), `DistrictRoom` handlers that call `parseIntent`, and separate modules for jobs, rent, food and events, plus the earn rate limit. Capacity queue stub | Done (`apps/server/src/game/`, `rooms/DistrictRoom.ts`; migration `add_player_game_state`) |
 | 5 | Client | Walkable low-poly Lagos district, third-person controller with keyboard and touch joystick, interpolation, HUD (wallet, hunger, rent countdown, event toasts), 18+ gate stub, disclaimer | Not started |
 | 6 | Hardening | 15 MB budget check, fps check on a mid-range Android, abnormal-balance flagging, log hygiene | Not started |
 

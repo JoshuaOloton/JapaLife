@@ -51,8 +51,65 @@ model Player {
   id        String   @id @default(uuid(7))
   createdAt DateTime @default(now())
 
-  wallets     Wallet[]
-  conversions Conversion[]
+  wallets      Wallet[]
+  conversions  Conversion[]
+  state        PlayerState?
+  shifts       Shift[]
+  eventFirings EventFiring[]
+}
+
+// ---- Game state (Phase 1, Slice 4) -------------------------------------------
+// Not money: nothing here touches the ledger tables. Every timer is a timestamp
+// on the server clock, so time passes while the player is offline.
+
+model PlayerState {
+  playerId        String   @id
+  /// Meter values as of `statsAt`. The current value is computed from the
+  /// elapsed real time and the rates in content/economy/needs.json.
+  hunger          Float
+  energy          Float
+  statsAt         DateTime
+  /// When the next rent payment is due.
+  rentDueAt       DateTime
+  /// Random events have been evaluated up to this moment.
+  eventsCheckedAt DateTime
+  createdAt       DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+}
+
+/// One work shift. Energy is spent at the start; pay is credited through the
+/// ledger once `endsAt` has passed (reference `shift:<id>`), then `paidAt` is set.
+model Shift {
+  id        String    @id @default(uuid(7))
+  playerId  String
+  jobId     String
+  startedAt DateTime
+  endsAt    DateTime
+  /// The city's calendar day the shift started on ("YYYY-MM-DD"), for the daily cap.
+  dayKey    String
+  paidAt    DateTime?
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@index([playerId, dayKey])
+  @@index([paidAt, endsAt])
+}
+
+/// A random event that happened to a player. `endsAt` is set for events with a
+/// duration (power cut, price rise). `amountKobo` is set for money events.
+model EventFiring {
+  id         String    @id @default(uuid(7))
+  playerId   String
+  eventId    String
+  firedAt    DateTime
+  endsAt     DateTime?
+  amountKobo BigInt?
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@index([playerId, eventId, firedAt])
+  @@index([playerId, endsAt])
 }
 
 model Wallet {
@@ -67,7 +124,7 @@ model Wallet {
 
   player Player? @relation(fields: [playerId], references: [id], onDelete: Restrict)
 
-  sent    Transaction[] @relation("TransactionFrom")
+  sent     Transaction[] @relation("TransactionFrom")
   received Transaction[] @relation("TransactionTo")
 
   // One wallet per player per currency; one system wallet per key per currency.
