@@ -1,4 +1,4 @@
-import type { DistrictConfig, Interactable } from "@japalife/shared";
+import { type DistrictConfig, type Interactable, type Point, moveWithCollisions } from "@japalife/shared";
 
 /** A district's walkable area and the things in it, with the geometry checks the server needs. */
 export class DistrictMap {
@@ -12,13 +12,12 @@ export class DistrictMap {
     return this.config.spawn;
   }
 
-  /** Keeps a position inside the walkable rectangle. */
-  clamp(x: number, z: number): { x: number; z: number } {
-    const { halfWidth, halfDepth } = this.config;
-    return {
-      x: Math.min(halfWidth, Math.max(-halfWidth, x)),
-      z: Math.min(halfDepth, Math.max(-halfDepth, z)),
-    };
+  /**
+   * Walks from `from` by `delta`, stopping at buildings and the district edge.
+   * This is the shared function the client also runs to predict its own walking.
+   */
+  move(from: Point, delta: Point): Point {
+    return moveWithCollisions(from, delta, this.config.buildings, this.config);
   }
 
   byId(targetId: string): Interactable | undefined {

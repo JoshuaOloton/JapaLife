@@ -23,5 +23,8 @@ export const POSITION_UPDATE_HZ = 15;
 /** How fast a player walks, in world units per second. The server enforces it. */
 export const PLAYER_SPEED_UNITS_PER_SECOND = 4;
 
+/** The player's body radius in world units. Collision grows every building by this much. */
+export const PLAYER_RADIUS = 0.4;
+
 /** Cap on devicePixelRatio for low-end Android GPUs. */
 export const MAX_DEVICE_PIXEL_RATIO = 1.5;

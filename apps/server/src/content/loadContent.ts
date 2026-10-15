@@ -16,6 +16,7 @@ import {
   type NgnEconomyConfig,
 } from "@japalife/shared";
 import type { z } from "zod";
+import { checkLayout } from "./checkLayout";
 
 export type GameContent = {
   ngn: NgnEconomyConfig;
@@ -183,6 +184,7 @@ function crossCheck(ngn: NgnEconomyConfig, jobs: JobsConfig, cities: CityConfig[
     for (const district of city.districts) {
       const where = `cities/${city.id}.json district "${district.id}"`;
       duplicates(`${where} interactables`, district.interactables.map((i) => i.id));
+      problems.push(...checkLayout(where, district));
       if (
         Math.abs(district.spawn.x) > district.halfWidth ||
         Math.abs(district.spawn.z) > district.halfDepth

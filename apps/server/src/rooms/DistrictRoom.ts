@@ -118,6 +118,8 @@ export function createDistrictRoom(game: GameSystems) {
       position.x = live.x;
       position.z = live.z;
       this.state.players.set(client.sessionId, position);
+      // The layout the client draws and predicts its walking from: one source of truth.
+      client.send(SERVER_MESSAGES.district, this.district.config);
       await this.sendStats(client, live);
     }
 
@@ -225,9 +227,12 @@ export function createDistrictRoom(game: GameSystems) {
       const seconds = Math.min(deltaMs / 1000, MAX_STEP_SECONDS);
       for (const [sessionId, live] of this.live) {
         if (live.dx === 0 && live.dz === 0) continue;
-        const next = this.district.clamp(
-          live.x + live.dx * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
-          live.z + live.dz * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
+        const next = this.district.move(
+          { x: live.x, z: live.z },
+          {
+            x: live.dx * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
+            z: live.dz * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
+          },
         );
         live.x = next.x;
         live.z = next.z;

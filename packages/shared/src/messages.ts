@@ -66,4 +66,10 @@ export const SERVER_MESSAGES = {
   notice: "notice",
   rejected: "rejected",
   interaction: "interaction",
+  /**
+   * Sent once on join. The payload is the district's `DistrictConfig`: its
+   * buildings, roads, signs and walkable area. The client draws the world and
+   * predicts its own walking from it, so the layout is defined only on the server.
+   */
+  district: "district",
 } as const;

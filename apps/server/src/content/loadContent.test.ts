@@ -12,6 +12,10 @@ describe("loadContent (real content/)", () => {
     expect(districts[0]?.interactables.map((i) => i.kind).sort()).toEqual(
       ["bus_stop", "food_vendor", "fuel_station", "home", "job_site"].sort(),
     );
+    // Every location has sign text, and the district has buildings and roads to draw.
+    expect(districts[0]?.interactables.every((i) => i.label.length > 0)).toBe(true);
+    expect(districts[0]?.buildings.length).toBeGreaterThan(0);
+    expect(districts[0]?.roads.length).toBeGreaterThan(0);
     expect(content.jobs.jobs.map((j) => j.id)).toEqual(["office-assistant"]);
     expect(content.jobs.jobs[0]?.energyCost).toBeGreaterThan(0);
     expect(content.ngn.food.length).toBeGreaterThanOrEqual(4);
@@ -103,6 +107,58 @@ describe("loadContent (broken content)", () => {
   it("rejects an interactable placed outside the walkable area", () => {
     edit("cities/lagos.json", (j) => (interactable(j, "home").position.x = 999));
     expect(problemsOf().join("\n")).toContain("outside the walkable area");
+  });
+
+  it("rejects a spawn point inside a building", () => {
+    edit("cities/lagos.json", (j) => {
+      j["districts"][0].buildings.push({
+        id: "on-spawn", name: "Oops", x: 0, z: 0, halfWidth: 3, halfDepth: 3, height: 3, colour: "#ffffff",
+      });
+    });
+    expect(problemsOf().join("\n")).toContain("the spawn point is inside a building");
+  });
+
+  it("rejects a location that is inside a building", () => {
+    edit("cities/lagos.json", (j) => {
+      const office = interactable(j, "job_site").position;
+      j["districts"][0].buildings.push({
+        id: "over-office", name: "Oops", x: office.x, z: office.z, halfWidth: 3, halfDepth: 3, height: 3, colour: "#ffffff",
+      });
+    });
+    expect(problemsOf().join("\n")).toContain('"yaba-office" is inside a building');
+  });
+
+  it("rejects a location walled in by buildings so nobody can walk to it", () => {
+    edit("cities/lagos.json", (j) => {
+      const { x, z } = interactable(j, "fuel_station").position;
+      const wallOf = (id: string, dx: number, dz: number, halfWidth: number, halfDepth: number) => ({
+        id, name: "Wall", x: x + dx, z: z + dz, halfWidth, halfDepth, height: 3, colour: "#ffffff",
+      });
+      j["districts"][0].buildings.push(
+        wallOf("w-north", 0, -8, 9, 0.5),
+        wallOf("w-south", 0, 8, 9, 0.5),
+        wallOf("w-east", 8, 0, 0.5, 9),
+        wallOf("w-west", -8, 0, 0.5, 9),
+      );
+    });
+    expect(problemsOf().join("\n")).toContain('"yaba-fuel-station" cannot be reached on foot');
+  });
+
+  it("rejects a building that sticks out of the district", () => {
+    edit("cities/lagos.json", (j) => {
+      j["districts"][0].buildings[0].x = 58;
+    });
+    expect(problemsOf().join("\n")).toContain("sticks out of the walkable area");
+  });
+
+  it("rejects an invalid building colour", () => {
+    edit("cities/lagos.json", (j) => (j["districts"][0].buildings[0].colour = "red"));
+    expect(problemsOf().join("\n")).toContain("buildings.0.colour");
+  });
+
+  it("rejects a location with no sign text", () => {
+    edit("cities/lagos.json", (j) => delete interactable(j, "bus_stop").label);
+    expect(problemsOf().join("\n")).toContain("label");
   });
 
   it("rejects duplicate ids", () => {

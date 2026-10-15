@@ -2,7 +2,9 @@ import { Client, type Room } from "@colyseus/sdk";
 import type { Server } from "@colyseus/core";
 import {
   DISTRICT_ROOM_NAME,
+  PLAYER_RADIUS,
   PLAYER_SPEED_UNITS_PER_SECOND,
+  type DistrictConfig,
   type NoticeMessage,
   type RejectedMessage,
   type StatsMessage,
@@ -20,8 +22,21 @@ let server: Server;
 const open: Room[] = [];
 
 beforeAll(async () => {
-  // Everything stands at the spawn point, so tests do not need to walk anywhere.
-  h = await createHarness(gatherEverythingAtSpawn);
+  // Everything stands at the spawn point, so tests do not need to walk anywhere,
+  // plus one long wall to the north (z = 6) for the collision test.
+  h = await createHarness((content) => {
+    gatherEverythingAtSpawn(content);
+    content.cities["lagos"]!.districts[0]!.buildings.push({
+      id: "test-wall",
+      name: "Test wall",
+      x: 0,
+      z: 6,
+      halfWidth: 30,
+      halfDepth: 1,
+      height: 3,
+      colour: "#ffffff",
+    });
+  });
   server = createGameServer(h.game);
   await server.listen(TEST_PORT);
 });
@@ -40,12 +55,14 @@ interface Session {
   stats: StatsMessage[];
   rejected: RejectedMessage[];
   notices: NoticeMessage[];
+  layouts: DistrictConfig[];
 }
 
 async function join(playerId: string): Promise<Session> {
   const room = await new Client(URL).joinOrCreate(DISTRICT_ROOM_NAME, { playerId });
   open.push(room);
-  const session: Session = { room, stats: [], rejected: [], notices: [] };
+  const session: Session = { room, stats: [], rejected: [], notices: [], layouts: [] };
+  room.onMessage("district", (m: DistrictConfig) => session.layouts.push(m));
   room.onMessage("stats", (m: StatsMessage) => session.stats.push(m));
   room.onMessage("rejected", (m: RejectedMessage) => session.rejected.push(m));
   room.onMessage("notice", (m: NoticeMessage) => session.notices.push(m));
@@ -189,6 +206,28 @@ describe("movement", () => {
     s.room.send("move", { seq: 1, dx: 1, dz: 1 });
     await until(() => s.rejected.length >= 1, "the rejection");
     expect(s.rejected[0]?.reason).toBe("invalid");
+  });
+
+  it("cannot be walked through a building: the server stops the player at its footprint", async () => {
+    const s = await join("wally");
+    await until(() => s.stats.length > 0, "stats");
+    s.room.send("move", { seq: 1, dx: 0, dz: 1 });
+    await sleep(2200); // 8.8 units of walking, but the wall's face is 5 units away
+    s.room.send("move", { seq: 2, dx: 0, dz: 0 });
+    await sleep(150);
+    const z = s.room.state.players.get(s.room.sessionId).z as number;
+    expect(z).toBeLessThanOrEqual(5 - PLAYER_RADIUS + 1e-6);
+    expect(z).toBeGreaterThan(3); // it did walk up to the wall
+  });
+
+  it("sends the district layout on join, so the client draws and predicts from one source", async () => {
+    const s = await join("layla");
+    await until(() => s.layouts.length > 0, "the district layout");
+    const layout = s.layouts[0]!;
+    expect(layout.id).toBe("yaba");
+    expect(layout.buildings.some((b) => b.id === "yaba-office-block")).toBe(true);
+    expect(layout.roads.length).toBeGreaterThan(0);
+    expect(layout.interactables.every((i) => i.label.length > 0)).toBe(true);
   });
 
   it("stays inside the district", async () => {

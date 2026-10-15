@@ -196,49 +196,71 @@ export type GameEventConfig = z.infer<typeof gameEventSchema>;
 // ---- cities/<id>.json: one district in Phase 1 ------------------------------------
 
 /** Something in the district the player can walk up to and `interact` with. */
+/** What every interactable has: an id, the text on its sign, and where the player stands to use it. */
+const signedSpot = {
+  id: contentIdSchema,
+  label: z.string().min(1).max(40),
+  position: positionSchema,
+};
+
 const interactableSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ ...signedSpot, kind: z.literal("job_site"), jobId: contentIdSchema }),
   z.strictObject({
-    id: contentIdSchema,
-    kind: z.literal("job_site"),
-    position: positionSchema,
-    jobId: contentIdSchema,
-  }),
-  z.strictObject({
-    id: contentIdSchema,
+    ...signedSpot,
     kind: z.literal("food_vendor"),
-    position: positionSchema,
     foodIds: z.array(contentIdSchema).min(1),
   }),
   /** Where the player lives (their room); rent is paid here and sleeping restores energy. */
-  z.strictObject({
-    id: contentIdSchema,
-    kind: z.literal("home"),
-    position: positionSchema,
-  }),
+  z.strictObject({ ...signedSpot, kind: z.literal("home") }),
   /** Where the player pays the bus fare (`busFareKobo`) to travel. */
+  z.strictObject({ ...signedSpot, kind: z.literal("bus_stop") }),
   z.strictObject({
-    id: contentIdSchema,
-    kind: z.literal("bus_stop"),
-    position: positionSchema,
-  }),
-  z.strictObject({
-    id: contentIdSchema,
+    ...signedSpot,
     kind: z.literal("fuel_station"),
-    position: positionSchema,
     shopItemIds: z.array(contentIdSchema).min(1),
   }),
 ]);
 
+const hexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+/**
+ * A building. The ONE definition of it: the client draws it from these numbers
+ * and the server (and the client's own prediction) stops the player at the same
+ * footprint, so what you see is exactly what blocks you. Centred on (x, z).
+ */
+export const buildingSchema = z.strictObject({
+  id: contentIdSchema,
+  name: z.string().min(1).max(60),
+  x: z.number(),
+  z: z.number(),
+  halfWidth: z.number().positive(),
+  halfDepth: z.number().positive(),
+  /** Drawn height only; the player cannot jump or climb, so it does not affect collision. */
+  height: z.number().positive().max(100),
+  colour: hexColour,
+});
+
+/** A flat strip of road. Walkable and purely visual. */
+export const roadSchema = z.strictObject({
+  x: z.number(),
+  z: z.number(),
+  halfWidth: z.number().positive(),
+  halfDepth: z.number().positive(),
+  colour: hexColour,
+});
+
 export const districtSchema = z.strictObject({
   id: contentIdSchema,
   name: z.string().min(1).max(60),
-  /** Walkable area is a rectangle centred on the origin; the server clamps movement to it. */
+  /** Walkable area is a rectangle centred on the origin; movement stops at its edge. */
   halfWidth: z.number().positive(),
   halfDepth: z.number().positive(),
   spawn: positionSchema,
   /** How far the player may be from an interactable for `interact` to count. */
   interactRadius: z.number().positive(),
   interactables: z.array(interactableSchema).min(1),
+  buildings: z.array(buildingSchema),
+  roads: z.array(roadSchema),
 });
 
 export const citySchema = z.strictObject({
@@ -253,3 +275,5 @@ export const citySchema = z.strictObject({
 export type CityConfig = z.infer<typeof citySchema>;
 export type DistrictConfig = z.infer<typeof districtSchema>;
 export type Interactable = z.infer<typeof interactableSchema>;
+export type Building = z.infer<typeof buildingSchema>;
+export type Road = z.infer<typeof roadSchema>;
