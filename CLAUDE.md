@@ -179,7 +179,13 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **TypeScript is pinned to `~6.0`** because `typescript-eslint` does not support TS 7 yet. Revisit when it does.
 - **`pnpm-workspace.yaml` `allowBuilds`:** `esbuild` is allowed; `prisma`, `@prisma/engines` and `msgpackr-extract` are declined. The first two are not needed (migrate and generate work). `msgpackr-extract` is an optional native speed-up for Colyseus with a JS fallback; revisit if message encoding shows up in profiling.
 - **CI needs a Postgres service** for the ledger tests, and `DATABASE_URL` set.
-- **Client bundle:** `@react-three/*` and `three` are installed but unused so far. Check the 15 MB initial-load budget when Slice 5 lands.
+- **Client bundle (2026-10-16):** the page shell is ~175 KB gzipped; the game (three.js, R3F, Colyseus, zod) is a lazy `next/dynamic` chunk of ~335 KB gzipped. Whole first visit is ~470 KB over the wire. `@react-three/drei` and `@react-three/rapier` are installed but unused (drei's `Text` would download a font; signs are canvas textures instead).
+
+### Client (`apps/client/game/`)
+- **The camera always faces north** (no orbit). Up on the joystick or W walks away from the camera. A rotating camera needs a second touch control and has to rotate the input direction too; revisit if play-testers find it limiting.
+- **Reconciliation is loose, not input-replay.** The server does not acknowledge move `seq`, so the client cannot replay unacknowledged inputs. Instead the prediction may lead the server by up to `MOVING_TOLERANCE` while walking, glides onto the server's spot when standing still, and snaps beyond `SNAP_DISTANCE` (`reconcile.ts`). Good enough for a non-competitive walk; revisit if players ever race or collide with each other.
+- **Other players are not drawn** (Phase 1). `SnapshotBuffer` is ready for them: render each remote player at `sample(now - INTERPOLATION_DELAY_MS)`.
+- **The touch joystick has not been play-tested yet,** on a phone or anywhere else. It only appears on `(pointer: coarse)` devices.
 
 ## Look-ahead: what to consider in later phases
 
@@ -205,7 +211,7 @@ Work one slice at a time on its own branch. "Slice 3" and similar always mean th
 | 2 | Ledger and NGN wallet | Prisma schema and migration, `Ledger`, `WalletService`, concurrency tests, seeded test player | Done |
 | 3 | Content config | Zod schemas in `packages/shared` and a server loader that validates `content/` JSON at boot (refuse to start on a bad file). Files Phase 1 needs: shift pay and starting balance, rent, food and other NGN prices, the black-tax and power-cut events, and `cities/lagos.json` (one district). No visa rules yet (Phase 2). Amounts are integers in kobo | Done (schemas in `packages/shared/src/content.ts`, loader in `apps/server/src/content/loadContent.ts`; all values are placeholder game-balance numbers, see Known limits) |
 | 4 | Server game systems | The server clock (with the dev-only time multiplier), `DistrictRoom` handlers that call `parseIntent`, and separate modules for jobs, rent, food and events, plus the earn rate limit. Capacity queue stub | Done (`apps/server/src/game/`, `rooms/DistrictRoom.ts`; migration `add_player_game_state`) |
-| 5 | Client | Walkable low-poly Lagos district, third-person controller with keyboard and touch joystick, interpolation, HUD (wallet, hunger, rent countdown, event toasts), 18+ gate stub, disclaimer | In progress. Done: shared collision, buildings/roads/signs in content, server enforcement, `district` layout message. Left: the R3F scene, controls, interpolation, HUD, 18+ gate, disclaimer |
+| 5 | Client | Walkable low-poly Lagos district, third-person controller with keyboard and touch joystick, interpolation, HUD (wallet, hunger, rent countdown, event toasts), 18+ gate stub, disclaimer | In progress. Done: shared collision, buildings/roads/signs in content, server enforcement, `district` layout message, the R3F scene (`apps/client/game/`), keyboard and touch joystick, client prediction plus reconciliation against interpolated server positions, follow camera. Left: HUD, 18+ gate, disclaimer |
 | 6 | Hardening | 15 MB budget check, fps check on a mid-range Android, abnormal-balance flagging, log hygiene | Not started |
 
 <!-- Phases to come:
