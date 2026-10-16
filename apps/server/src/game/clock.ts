@@ -5,6 +5,8 @@
  */
 export interface GameClock {
   now(): Date;
+  /** Game time per unit of real time: 1 in production, more under GAME_CLOCK. */
+  readonly speed: number;
 }
 
 /**
@@ -24,6 +26,10 @@ export class MultiplierClock implements GameClock {
     this.anchor = realNow();
   }
 
+  get speed(): number {
+    return this.multiplier;
+  }
+
   now(): Date {
     return new Date(this.anchor + (this.realNow() - this.anchor) * this.multiplier);
   }
@@ -31,6 +37,8 @@ export class MultiplierClock implements GameClock {
 
 /** A clock tests move by hand. */
 export class ManualClock implements GameClock {
+  readonly speed = 1;
+
   constructor(private current: Date = new Date("2026-10-15T08:00:00.000Z")) {}
 
   now(): Date {

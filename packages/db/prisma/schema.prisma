@@ -56,6 +56,7 @@ model Player {
   state        PlayerState?
   shifts       Shift[]
   eventFirings EventFiring[]
+  balanceFlags BalanceFlag[]
 }
 
 // ---- Game state (Phase 1, Slice 4) -------------------------------------------
@@ -110,6 +111,35 @@ model EventFiring {
 
   @@index([playerId, eventId, firedAt])
   @@index([playerId, endsAt])
+}
+
+// ---- Monitoring (Phase 1, Slice 6) -------------------------------------------
+// Not money: nothing here changes a balance. A flag is a lead for a human to
+// review, never an automatic penalty (decided 2026-10-16).
+
+/// Money a player received faster than the rules in content/ allow: the sum
+/// credited for one reason over a trailing real-time window exceeded its ceiling.
+/// One row per player, currency, reason and Lagos day, keeping the worst amount seen.
+model BalanceFlag {
+  id               String   @id @default(uuid(7))
+  playerId         String
+  currency         Currency
+  /// The ledger reason that went over its ceiling (a faucet, or e.g. player_transfer).
+  reason           String
+  /// Smallest unit. Sum credited for `reason` within the window.
+  receivedInWindow BigInt
+  /// Smallest unit. The most the rules allow for `reason` within the window.
+  ceiling          BigInt
+  windowStart      DateTime
+  windowEnd        DateTime
+  /// Lagos calendar day ("YYYY-MM-DD") the flag was raised on.
+  dayKey           String
+  createdAt        DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, currency, reason, dayKey])
+  @@index([createdAt])
 }
 
 model Wallet {

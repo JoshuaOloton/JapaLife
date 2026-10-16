@@ -101,13 +101,23 @@ function devPlayerId(): string {
   try {
     const saved = window.localStorage.getItem(DEV_PLAYER_KEY);
     if (saved) return saved;
-    const created = `dev-${crypto.randomUUID().slice(0, 8)}`;
+    const created = randomDevPlayerId();
     window.localStorage.setItem(DEV_PLAYER_KEY, created);
     return created;
   } catch {
     // Storage can be blocked (private mode); a fresh id per visit still works.
-    return `dev-${crypto.randomUUID().slice(0, 8)}`;
+    return randomDevPlayerId();
   }
+}
+
+/**
+ * Not `crypto.randomUUID()`: browsers only offer it on secure pages (https or
+ * localhost), so it is missing when a phone opens http://<lan-ip>:3000.
+ * `getRandomValues` works everywhere.
+ */
+function randomDevPlayerId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  return `dev-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 /** Joins the district room and waits for its layout. Leaves when the component unmounts. */

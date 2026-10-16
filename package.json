@@ -11,7 +11,10 @@
     "test": "pnpm -r --if-present test",
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
+    "budget": "pnpm --filter @japalife/client budget",
     "db:migrate": "pnpm --filter @japalife/db migrate",
+    "db:generate": "pnpm --filter @japalife/db generate",
+    "start:client": "pnpm --filter @japalife/client build && pnpm --filter @japalife/client start",
     "db:seed": "pnpm --filter @japalife/server seed"
   },
   "devDependencies": {
