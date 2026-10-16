@@ -3,7 +3,7 @@ import { DEFAULT_SERVER_PORT } from "@japalife/shared";
 import { loadContentOrExit } from "./content/loadContent";
 import { createGameServer } from "./createGameServer";
 import { loadRootEnv } from "./env";
-import { createGameSystems, startGameLoop } from "./game";
+import { createGameSystems, startBalanceWatch, startGameLoop } from "./game";
 
 loadRootEnv();
 
@@ -23,11 +23,13 @@ const db = createPrismaClient(databaseUrl);
 // Refuses to start if GAME_CLOCK is set in production.
 const game = createGameSystems({ db, content });
 const stopLoop = startGameLoop(game);
+const stopBalanceWatch = startBalanceWatch(game);
 
 const server = createGameServer(game);
 // Colyseus handles SIGINT/SIGTERM itself and calls this on the way out.
 server.onShutdown(async () => {
   stopLoop();
+  stopBalanceWatch();
   await db.$disconnect();
 });
 await server.listen(port);

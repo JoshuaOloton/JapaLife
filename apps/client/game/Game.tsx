@@ -4,6 +4,7 @@ import { type DistrictConfig, type Interactable, MAX_DEVICE_PIXEL_RATIO, type Po
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type DistrictRoom, type ServerInbox, useDistrictConnection } from "./connection";
+import { FpsProbe, useFpsMeterEnabled } from "./FpsMeter";
 import { Hud, useTicker } from "./Hud";
 import styles from "./hud.module.css";
 import { MoveInput } from "./input";
@@ -27,6 +28,8 @@ export default function Game() {
   const input = useMemo(() => new MoveInput(), []);
   const touch = useCoarsePointer();
   const predicted = useRef<Point>({ x: 0, z: 0 });
+  const showFps = useFpsMeterEnabled();
+  const fpsOutput = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => input.attachKeyboard(window), [input]);
 
@@ -56,8 +59,10 @@ export default function Game() {
         <directionalLight position={[20, 40, 10]} intensity={1.4} />
         <World district={connection.district} />
         <Player room={connection.room} district={connection.district} input={input} predicted={predicted} />
+        {showFps && <FpsProbe output={fpsOutput} />}
       </Canvas>
       {touch && <Joystick input={input} />}
+      {showFps && <p ref={fpsOutput} className={styles.fps} aria-hidden="true" />}
       <Overlay room={connection.room} inbox={connection.inbox} district={connection.district} predicted={predicted} />
     </div>
   );

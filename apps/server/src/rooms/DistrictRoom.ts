@@ -13,6 +13,7 @@ import {
 import { z } from "zod";
 import type { GameSystems } from "../game";
 import type { DistrictMap } from "../game/district";
+import { logError } from "../log";
 import { describeOffer } from "../game/offers";
 import type { Outcome } from "../game/outcome";
 import { TokenBucket } from "../game/tokenBucket";
@@ -161,7 +162,7 @@ export function createDistrictRoom(game: GameSystems) {
         .run(live.playerId, () => this.execute(client, live, intent))
         .catch((error: unknown) => {
           // Never echo internals to the client, and never log money details.
-          console.error(`intent ${type} failed:`, error instanceof Error ? error.message : "unknown error");
+          logError(`intent ${type.slice(0, 32)} failed`, error);
           this.reject(client, type, "invalid");
         });
     }
@@ -255,9 +256,7 @@ export function createDistrictRoom(game: GameSystems) {
             this.announce(client, await game.events.processDue(live.playerId, game.clock.now()));
             await this.sendStats(client, live);
           })
-          .catch((error: unknown) => {
-            console.error("event check failed:", error instanceof Error ? error.message : "unknown error");
-          });
+          .catch((error: unknown) => logError("event check failed", error));
       }
     }
 

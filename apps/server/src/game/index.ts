@@ -1,7 +1,9 @@
 import type { PrismaClient } from "@japalife/db";
+import { BalanceWatch } from "../economy/balanceWatch";
 import { Ledger } from "../economy/ledger";
 import { WalletService } from "../economy/wallet";
 import type { GameContent } from "../content/loadContent";
+import { logError } from "../log";
 import { type GameClock, createGameClock } from "./clock";
 import type { GameDeps } from "./deps";
 import { DistrictMap } from "./district";
@@ -29,6 +31,8 @@ export interface GameSystems {
   notices: NoticeBus;
   /** Serialises the work of one player (see KeyedMutex). */
   mutex: KeyedMutex;
+  /** Flags players who receive money faster than the rules allow. */
+  balanceWatch: BalanceWatch;
 }
 
 export interface GameSystemsOptions {
@@ -79,6 +83,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     stats,
     notices: new NoticeBus(),
     mutex: new KeyedMutex(),
+    balanceWatch: new BalanceWatch(db, content, clock.speed, lagos.timeZone),
   };
 }
 
@@ -102,9 +107,33 @@ export function startGameLoop(game: GameSystems, intervalMs = 30_000): () => voi
           });
         }
       })
-      .catch((error: unknown) => {
-        console.error("game loop: settling shifts failed", error instanceof Error ? error.message : error);
+      .catch((error: unknown) => logError("game loop: settling shifts failed", error))
+      .finally(() => {
+        running = false;
+      });
+  }, intervalMs);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+
+/**
+ * The scheduled abnormal-balance check. Flags are recorded for review and
+ * logged by player id and reason only (amounts stay in the database).
+ * Returns a function that stops it.
+ */
+export function startBalanceWatch(game: GameSystems, intervalMs = 10 * 60_000): () => void {
+  let running = false;
+  const timer = setInterval(() => {
+    if (running) return;
+    running = true;
+    game.balanceWatch
+      .scan()
+      .then((flags) => {
+        for (const flag of flags) {
+          console.warn(`balance flag: player ${flag.playerId} received too much ${flag.currency} as ${flag.reason}`);
+        }
       })
+      .catch((error: unknown) => logError("balance watch failed", error))
       .finally(() => {
         running = false;
       });
