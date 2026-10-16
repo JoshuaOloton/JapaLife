@@ -138,6 +138,7 @@ I'm an experienced full-stack developer but new to game development. Act as my l
 - After a change: run typecheck, lint, and tests. For gameplay changes, describe how to try it manually.
 - Ask before adding a new dependency or changing the stack.
 - Ask before any change that touches auth, payments, or the ledger schema.
+- Commit messages are one brief line (e.g. `feat: add HUD and place sheets`), with no body.
 
 ## Known limits of the current build
 
