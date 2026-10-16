@@ -19,6 +19,8 @@ export const REJECT_REASONS = [
   "insufficient_funds",
   "already_full",
   "rent_not_due",
+  /** The generator's jerrycan cannot hold that much more fuel. */
+  "tank_full",
 ] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
@@ -32,6 +34,18 @@ export interface StatsMessage {
   /** 0-100 whole numbers. Hunger is fullness: 0 means starving. */
   hunger: number;
   energy: number;
+  morale: number;
+  /** Relationship with family back home, 0-100. */
+  family: number;
+  /** True while morale is low enough to slow energy and cut shift pay. */
+  lowMorale: boolean;
+  /** The city's IANA time zone, for the HUD clock. */
+  timeZone: string;
+  /** The city's calendar day ("YYYY-MM-DD") the player started on: day 1. */
+  startedOn: string;
+  isNight: boolean;
+  /** Hours of generator running time in the tank, to one decimal place. */
+  generatorFuelHours: number;
   rentDueAt: string;
   rentStatus: RentStatus;
   rentAmountKobo: number;
@@ -39,8 +53,9 @@ export interface StatsMessage {
   shiftsToday: number;
   maxShiftsToday: number;
   blackoutEndsAt: string | null;
-  /** Percent added to food prices right now (0 when no price rise is active). */
+  /** Percent added to prices by all the rises so far, compounded, to one decimal place. */
   foodPriceRisePercent: number;
+  fuelPriceRisePercent: number;
 }
 
 /** A toast: something happened to the player (an event, a shift paid out). */
@@ -73,6 +88,14 @@ export interface MenuItem {
   energyRestored: number;
 }
 
+/** Something for sale at a shop, at the price the server will charge right now. */
+export interface ShopOffer {
+  itemId: string;
+  name: string;
+  priceKobo: number;
+  generatorHours: number;
+}
+
 /**
  * The player walked up to something and pressed interact. The reply carries
  * what the place offers, so the client never needs its own copy of prices or pay.
@@ -81,7 +104,8 @@ export interface MenuItem {
 export type InteractionMessage =
   | { targetId: string; kind: "job_site"; job: JobOffer }
   | { targetId: string; kind: "food_vendor"; menu: MenuItem[] }
-  | { targetId: string; kind: "home" | "bus_stop" | "fuel_station" };
+  | { targetId: string; kind: "fuel_station"; items: ShopOffer[] }
+  | { targetId: string; kind: "home" | "bus_stop" };
 
 export const SERVER_MESSAGES = {
   stats: "stats",

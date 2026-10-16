@@ -125,6 +125,27 @@ function Body({
     case "bus_stop":
       return <p className={styles.detail}>No buses yet. Danfos are coming in a later update.</p>;
     case "fuel_station":
-      return <p className={styles.detail}>The pump is not selling yet. Check back in a later update.</p>;
+      return (
+        <>
+          {interaction.items.map((item) => (
+            <div key={item.itemId} className={styles.row}>
+              <div>
+                <strong>{item.name}</strong>
+                <div className={styles.detail}>
+                  Runs your generator {item.generatorHours}h when NEPA takes light at night
+                  {stats ? ` · in your jerrycan: ${stats.generatorFuelHours}h` : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => room.send("buyItem", { itemId: item.itemId, quantity: 1 })}
+              >
+                {formatNaira(item.priceKobo)}
+              </button>
+            </div>
+          ))}
+        </>
+      );
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   INTENT_TYPES,
   MAX_FOOD_PURCHASE_QUANTITY,
+  MAX_SHOP_PURCHASE_QUANTITY,
   parseIntent,
 } from "./intents";
 
@@ -14,6 +15,7 @@ describe("parseIntent", () => {
       ["work", { jobId: "danfo-conductor" }],
       ["buyFood", { itemId: "jollof-rice", quantity: 2 }],
       ["payRent", {}],
+      ["buyItem", { itemId: "generator-petrol", quantity: 3 }],
     ];
     for (const [type, payload] of valid) {
       expect(parseIntent(type, payload).ok, type).toBe(true);
@@ -22,7 +24,7 @@ describe("parseIntent", () => {
 
   it("covers every declared intent type in the valid cases", () => {
     expect([...INTENT_TYPES].sort()).toEqual(
-      ["buyFood", "interact", "move", "payRent", "work"].sort(),
+      ["buyFood", "buyItem", "interact", "move", "payRent", "work"].sort(),
     );
   });
 
@@ -73,6 +75,14 @@ describe("parseIntent", () => {
         false,
       );
     }
+  });
+
+  it("rejects bad shop quantities and any price the client tries to set", () => {
+    const bad = [0, -1, 1.5, MAX_SHOP_PURCHASE_QUANTITY + 1, Number.MAX_SAFE_INTEGER, "2", null];
+    for (const quantity of bad) {
+      expect(parseIntent("buyItem", { itemId: "generator-petrol", quantity }).ok, String(quantity)).toBe(false);
+    }
+    expect(parseIntent("buyItem", { itemId: "generator-petrol", quantity: 1, priceKobo: 1 }).ok).toBe(false);
   });
 
   it("rejects ids that are empty, too long, or not slugs", () => {

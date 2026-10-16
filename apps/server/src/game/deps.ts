@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@japalife/db";
 import type { GameContent } from "../content/loadContent";
 import type { WalletService } from "../economy/wallet";
-import type { GameClock } from "./clock";
+import type { GameClock, NightHours } from "./clock";
 
 /** What every game system needs. Passed in, so tests can swap the clock, RNG and database. */
 export interface GameDeps {
@@ -14,4 +14,6 @@ export interface GameDeps {
   rng: () => number;
   /** IANA time zone for calendar logic (daily limits reset at midnight here). */
   timeZone: string;
+  /** When night falls and ends in that zone. */
+  night: NightHours;
 }

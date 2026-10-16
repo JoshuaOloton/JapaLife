@@ -315,19 +315,49 @@ describe("events", () => {
     expect(await balance()).toBe(STARTING_BALANCE);
   });
 
-  it("a power cut blocks starting a shift until it ends", async () => {
+  it("a power cut lasts its configured time and does not stop work at an office with its own generator", async () => {
     h.setRng([0.99, 0, 0.99]);
     h.clock.advance(HOUR_MS);
     await h.game.events.processDue(PLAYER, h.clock.now());
     const effects = await h.game.events.activeEffects(PLAYER, h.clock.now());
-    expect(effects.blackoutEndsAt?.getTime()).toBe(h.clock.now().getTime() + 45 * 60_000);
+    expect(effects.blackoutEndsAt?.getTime()).toBe(h.clock.now().getTime() + 6 * HOUR_MS);
+    expect(effects.blackoutBlocksShifts).toBe(false);
+    expect((await h.game.jobs.startShift(PLAYER, "office-assistant", h.clock.now())).ok).toBe(true);
+  });
 
+  it("a power cut configured to block work blocks starting a shift until it ends", async () => {
+    await h.close();
+    h = await createHarness((content) => {
+      const effect = content.events.power_cut.effect;
+      if (effect.type === "blackout") effect.blocksShifts = true;
+    });
+    await h.game.players.ensurePlayer(PLAYER);
+    h.setRng([0.99, 0, 0.99]);
+    h.clock.advance(HOUR_MS);
+    await h.game.events.processDue(PLAYER, h.clock.now());
     expect(await h.game.jobs.startShift(PLAYER, "office-assistant", h.clock.now())).toEqual({
       ok: false,
       reason: "blackout",
     });
-    h.clock.advance(46 * 60_000);
+    h.clock.advance(6 * HOUR_MS + 60_000);
     expect((await h.game.jobs.startShift(PLAYER, "office-assistant", h.clock.now())).ok).toBe(true);
+  });
+
+  it("a power cut lowers morale", async () => {
+    h.setRng([0.99, 0, 0.99]);
+    await h.game.events.processDue(PLAYER, new Date(h.clock.now().getTime() + 1000 * 2));
+    const stats = await h.game.stats.build(PLAYER, new Date(h.clock.now().getTime() + 1000 * 2));
+    expect(stats?.morale).toBe(70 - 3 - 1); // starting 70, minus 3, and a sliver of drift towards 60
+  });
+
+  it("a power cut at night slows energy recovery unless the generator has fuel", async () => {
+    // 20:00 Lagos time.
+    h.clock.set(new Date("2026-10-15T19:00:00Z"));
+    await setMeters(100, 40);
+    h.setRng([0.99, 0, 0.99]);
+    await h.game.events.processDue(PLAYER, h.clock.now());
+    h.clock.advance(4 * HOUR_MS);
+    expect((await h.game.stats.build(PLAYER, h.clock.now()))?.energy).toBe(46); // 4 hours at a quarter of 6/hour
   });
 
   it("a power cut does not stop a shift already under way from being paid", async () => {
@@ -340,17 +370,119 @@ describe("events", () => {
     expect(await balance()).toBe(STARTING_BALANCE + SHIFT_PAY);
   });
 
-  it("a food price rise raises prices for its duration, then ends", async () => {
+  it("food price rises are permanent and compound", async () => {
     h.setRng([0.99, 0.99, 0]);
     h.clock.advance(HOUR_MS);
     await h.game.events.processDue(PLAYER, h.clock.now());
-    expect((await h.game.events.activeEffects(PLAYER, h.clock.now())).foodPricePercent).toBe(15);
-
     await setMeters(10, 100);
-    const bought = await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now());
-    expect(bought).toEqual({ ok: true, priceKobo: 402_500n }); // 350,000 + 15%
+    expect(await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now())).toEqual({ ok: true, priceKobo: 360_500n }); // +3%
 
-    h.clock.advance(8 * DAY_MS);
-    expect((await h.game.events.activeEffects(PLAYER, h.clock.now())).foodPricePercent).toBe(0);
+    // A year later the first rise is still there, and a second one stacks on top of it.
+    h.clock.advance(365 * DAY_MS);
+    h.setRng([0.99, 0.99, 0]);
+    await h.game.events.processDue(PLAYER, h.clock.now());
+    await giveMoney(1_000_000n);
+    await setMeters(10, 100);
+    expect(await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now())).toEqual({ ok: true, priceKobo: 371_315n }); // 350,000 × 1.03 × 1.03
+
+    const stats = await h.game.stats.build(PLAYER, h.clock.now());
+    expect(stats).toMatchObject({ foodPriceRisePercent: 6, fuelPriceRisePercent: 0 }); // 6.09% shown as 6.0
+  });
+});
+
+describe("morale", () => {
+  async function setMorale(morale: number): Promise<void> {
+    await h.db.playerState.update({ where: { playerId: PLAYER }, data: { morale, statsAt: h.clock.now() } });
+  }
+
+  it("a good meal lifts it", async () => {
+    await setMeters(20, 50);
+    await setMorale(40);
+    await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now());
+    expect((await h.game.stats.build(PLAYER, h.clock.now()))?.morale).toBe(48);
+  });
+
+  it("when low, cuts the pay of a shift started then, and the ledger pays exactly that", async () => {
+    await setMorale(10);
+    const started = await h.game.jobs.startShift(PLAYER, "office-assistant", h.clock.now());
+    expect(started).toMatchObject({ ok: true, payKobo: (SHIFT_PAY * 80n) / 100n });
+    expect((await h.game.stats.build(PLAYER, h.clock.now()))?.lowMorale).toBe(true);
+
+    // Morale recovering mid-shift does not change the agreed pay.
+    await setMorale(90);
+    h.clock.advance(HOUR_MS);
+    await h.game.jobs.settleDueShifts(h.clock.now());
+    expect(await balance()).toBe(STARTING_BALANCE + (SHIFT_PAY * 80n) / 100n);
+  });
+
+  it("pays the full rate when morale is fine", async () => {
+    const started = await h.game.jobs.startShift(PLAYER, "office-assistant", h.clock.now());
+    expect(started).toMatchObject({ ok: true, payKobo: SHIFT_PAY });
+  });
+});
+
+describe("time in the HUD", () => {
+  it("reports the city's time zone, the day the player started and whether it is night", async () => {
+    // The harness clock starts at 09:00 Lagos time on 2026-10-15.
+    const morning = await h.game.stats.build(PLAYER, h.clock.now());
+    expect(morning).toMatchObject({ timeZone: "Africa/Lagos", startedOn: "2026-10-15", isNight: false });
+    const night = await h.game.stats.build(PLAYER, new Date("2026-10-16T21:00:00Z"));
+    expect(night).toMatchObject({ startedOn: "2026-10-15", isNight: true });
+  });
+});
+
+describe("shop (generator petrol)", () => {
+  const PETROL = 90_000n; // content/economy/ngn.json, 2 hours per litre, 12-hour tank
+
+  it("costs money and fills the generator's tank", async () => {
+    expect(await h.game.shop.buy(PLAYER, "generator-petrol", 2, h.clock.now())).toEqual({
+      ok: true,
+      priceKobo: 2n * PETROL,
+      generatorFuelHours: 4,
+    });
+    expect(await balance()).toBe(STARTING_BALANCE - 2n * PETROL);
+    expect((await h.game.stats.build(PLAYER, h.clock.now()))?.generatorFuelHours).toBe(4);
+  });
+
+  it("refuses to overfill the tank, and charges nothing for it", async () => {
+    await h.game.shop.buy(PLAYER, "generator-petrol", 6, h.clock.now()); // 12 hours: full
+    const before = await balance();
+    expect(await h.game.shop.buy(PLAYER, "generator-petrol", 1, h.clock.now())).toEqual({ ok: false, reason: "tank_full" });
+    expect(await balance()).toBe(before);
+  });
+
+  it("keeps fuel in the tank through the day: the generator only runs at night in a power cut", async () => {
+    await h.game.shop.buy(PLAYER, "generator-petrol", 1, h.clock.now());
+    h.clock.advance(5 * HOUR_MS); // 09:00 to 14:00, lights on
+    expect((await h.game.stats.build(PLAYER, h.clock.now()))?.generatorFuelHours).toBe(2);
+  });
+
+  it("refuses what the player cannot afford and changes nothing", async () => {
+    await h.wallet.debit({ playerId: PLAYER, currency: "NGN", amount: STARTING_BALANCE - 1n, reason: "food", reference: "spend" });
+    expect(await h.game.shop.buy(PLAYER, "generator-petrol", 1, h.clock.now())).toEqual({ ok: false, reason: "insufficient_funds" });
+    expect(await balance()).toBe(1n);
+    expect((await h.game.stats.build(PLAYER, h.clock.now()))?.generatorFuelHours).toBe(0);
+  });
+
+  it("cannot spend the same money twice under concurrent purchases, and never goes negative", async () => {
+    // Leave exactly enough for two litres, then try five purchases at once.
+    await h.wallet.debit({ playerId: PLAYER, currency: "NGN", amount: STARTING_BALANCE - 2n * PETROL, reason: "food", reference: "spend" });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => h.game.shop.buy(PLAYER, "generator-petrol", 1, h.clock.now())),
+    );
+    expect(results.filter((result) => result.ok)).toHaveLength(2);
+    expect(results.filter((result) => !result.ok)).toEqual(Array(3).fill({ ok: false, reason: "insufficient_funds" }));
+    expect(await balance()).toBe(0n);
+  });
+
+  it("charges the fuel price, which food price rises do not touch", async () => {
+    h.setRng([0.99, 0.99, 0]); // a food price rise
+    h.clock.advance(HOUR_MS);
+    await h.game.events.processDue(PLAYER, h.clock.now());
+    expect(await h.game.shop.buy(PLAYER, "generator-petrol", 1, h.clock.now())).toMatchObject({ ok: true, priceKobo: PETROL });
+  });
+
+  it("rejects items that do not exist", async () => {
+    expect(await h.game.shop.buy(PLAYER, "ghost-diesel", 1, h.clock.now())).toEqual({ ok: false, reason: "unknown_target" });
   });
 });

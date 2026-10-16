@@ -24,6 +24,38 @@ export function formatCountdown(milliseconds: number): string {
   return `${minutes}:${two(seconds)}`;
 }
 
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+const timeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(
+  cache: Map<string, Intl.DateTimeFormat>,
+  locale: string,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+) {
+  let format = cache.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, { timeZone, ...options });
+    cache.set(timeZone, format);
+  }
+  return format;
+}
+
+/**
+ * "Day 12 · 7:45 PM": the player's own day count (day 1 is the day they
+ * started, in the city's calendar) and the city's local time. `now` is server
+ * time, never the device clock.
+ */
+export function formatGameClock(now: number, startedOn: string, timeZone: string): string {
+  const today = formatterFor(dayFormatters, "en-CA", timeZone, {}).format(now); // en-CA gives YYYY-MM-DD
+  const day = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${startedOn}T00:00:00Z`)) / 86_400_000) + 1;
+  const time = formatterFor(timeFormatters, "en-US", timeZone, { hour: "numeric", minute: "2-digit", hour12: true })
+    .format(now)
+    // Some browsers put a narrow no-break space before AM/PM.
+    .replace(/\s/g, " ");
+  return `Day ${Math.max(1, day)} · ${time}`;
+}
+
 /** What to tell the player when the server refuses something. */
 export const REJECTION_TEXT: Record<RejectReason, string> = {
   invalid: "That didn't work. Try again.",
@@ -39,4 +71,5 @@ export const REJECTION_TEXT: Record<RejectReason, string> = {
   insufficient_funds: "Not enough money for that.",
   already_full: "You're already full.",
   rent_not_due: "Rent isn't due yet.",
+  tank_full: "Your jerrycan can't hold that much more.",
 };

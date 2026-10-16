@@ -87,3 +87,81 @@ export function calendarDay(date: Date, timeZone: string): string {
   // The en-CA locale formats dates as YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", { timeZone }).format(date);
 }
+
+/** The next calendar day after "YYYY-MM-DD" (pure date arithmetic, no time zone). */
+export function nextDay(day: string): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** How far ahead of UTC the zone's clocks are at `date`, in ms (Lagos: +1 hour). */
+function zoneOffsetMs(date: Date, timeZone: string): number {
+  let format = offsetFormatters.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    });
+    offsetFormatters.set(timeZone, format);
+  }
+  const part = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(format.formatToParts(date).find((p) => p.type === type)?.value);
+  const wallClockAsUtc = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"), part("second"));
+  return wallClockAsUtc - Math.floor(date.getTime() / 1000) * 1000;
+}
+
+/** The instant when the zone's clocks read `hour`:00 on `day`. Handles daylight saving (London, Toronto). */
+export function zonedInstant(day: string, hour: number, timeZone: string): Date {
+  const [year, month, date] = day.split("-").map(Number) as [number, number, number];
+  const wallClock = Date.UTC(year, month - 1, date, hour);
+  let instant = wallClock - zoneOffsetMs(new Date(wallClock), timeZone);
+  // Near a daylight-saving change the first guess uses the wrong offset; one correction fixes it.
+  const corrected = zoneOffsetMs(new Date(instant), timeZone);
+  instant = wallClock - corrected;
+  return new Date(instant);
+}
+
+export interface NightHours {
+  /** Local hour night starts, in the evening. */
+  startsHour: number;
+  /** Local hour night ends, the next morning. */
+  endsHour: number;
+}
+
+export interface Interval {
+  start: Date;
+  end: Date;
+}
+
+/** Every night (or part of one) between `from` and `to`, in the city's local time. */
+export function nightIntervals(from: Date, to: Date, timeZone: string, night: NightHours): Interval[] {
+  const nights: Interval[] = [];
+  if (to <= from) return nights;
+  // Start a day early: the night that began yesterday evening may still be running.
+  let day = calendarDay(new Date(from.getTime() - MS_PER_DAY), timeZone);
+  const lastDay = calendarDay(to, timeZone);
+  for (;;) {
+    const start = zonedInstant(day, night.startsHour, timeZone);
+    if (start >= to) break;
+    const end = zonedInstant(nextDay(day), night.endsHour, timeZone);
+    if (end > from) nights.push({ start: start < from ? from : start, end: end > to ? to : end });
+    if (day === lastDay) break;
+    day = nextDay(day);
+  }
+  return nights;
+}
+
+/** Whether it is night in the city at `date`. */
+export function isNight(date: Date, timeZone: string, night: NightHours): boolean {
+  const day = calendarDay(date, timeZone);
+  return date >= zonedInstant(day, night.startsHour, timeZone) || date < zonedInstant(day, night.endsHour, timeZone);
+}

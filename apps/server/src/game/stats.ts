@@ -1,9 +1,11 @@
 import type { StatsMessage } from "@japalife/shared";
+import { calendarDay, isNight } from "./clock";
 import type { GameDeps } from "./deps";
 import type { EventService } from "./events";
 import type { JobService } from "./jobs";
-import { displayMeters } from "./needs";
+import { displayNeeds, isLowMorale } from "./needs";
 import type { PlayerService } from "./players";
+import { risePercent } from "./prices";
 import type { RentService } from "./rent";
 
 /** Builds the snapshot the HUD shows. Read-only: it changes nothing. */
@@ -17,24 +19,32 @@ export class StatsService {
   ) {}
 
   async build(playerId: string, now: Date): Promise<StatsMessage | null> {
-    const { wallet, content } = this.deps;
+    const { wallet, content, timeZone, night } = this.deps;
     const state = await this.players.getState(playerId);
     if (!state) return null;
 
-    const [balance, active, shiftsToday, effects] = await Promise.all([
+    const [balance, active, shiftsToday, effects, current] = await Promise.all([
       wallet.getBalance(playerId, "NGN"),
       this.jobs.activeShift(playerId, now),
       this.jobs.shiftsToday(playerId, now),
       this.events.activeEffects(playerId, now),
+      this.players.currentNeeds(state, now),
     ]);
-    const { hunger, energy } = displayMeters(this.players.currentMeters(state, now));
+    const shown = displayNeeds(current);
 
     return {
       serverTime: now.toISOString(),
       // Safe as a number: balances are capped below Number.MAX_SAFE_INTEGER.
       balanceKobo: Number(balance),
-      hunger,
-      energy,
+      hunger: shown.hunger,
+      energy: shown.energy,
+      morale: shown.morale,
+      family: Math.floor(state.family),
+      lowMorale: isLowMorale(current.morale, content.needs),
+      timeZone,
+      startedOn: calendarDay(state.createdAt, timeZone),
+      isNight: isNight(now, timeZone, night),
+      generatorFuelHours: shown.generatorFuelHours,
       rentDueAt: state.rentDueAt.toISOString(),
       rentStatus: this.rent.status(state.rentDueAt, now),
       rentAmountKobo: content.ngn.rent.amountKobo,
@@ -43,7 +53,8 @@ export class StatsService {
       // Phase 1 has one job; with more, the cap becomes per job.
       maxShiftsToday: content.jobs.jobs.reduce((sum, job) => sum + job.maxShiftsPerDay, 0),
       blackoutEndsAt: effects.blackoutEndsAt?.toISOString() ?? null,
-      foodPriceRisePercent: effects.foodPricePercent,
+      foodPriceRisePercent: risePercent(effects.priceFactorBp.food),
+      fuelPriceRisePercent: risePercent(effects.priceFactorBp.fuel),
     };
   }
 }

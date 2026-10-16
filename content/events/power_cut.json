@@ -1,12 +1,15 @@
 {
-  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "meta": { "asOf": "2026-10-16", "basis": "game-balance" },
   "id": "power_cut",
   "title": "NEPA took light",
-  "message": "The power is out across the district.",
+  "message": "Power is gone across the district. If it lasts into the night, you won't sleep well without fuel in your generator.",
   "chancePerDay": 0.5,
   "minGapDays": 1,
   "effect": {
     "type": "blackout",
-    "durationMinutes": 45
-  }
+    "durationMinutes": 360,
+    "blocksShifts": false
+  },
+  "moraleChange": -3,
+  "todo": "TODO: how long and how often cuts last in Yaba; tune after play-testing"
 }
