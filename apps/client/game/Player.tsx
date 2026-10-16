@@ -8,7 +8,7 @@ import {
   moveWithCollisions,
 } from "@japalife/shared";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { type Group, PerspectiveCamera, Vector3 } from "three";
 import { fitCamera } from "./camera";
 import type { DistrictRoom } from "./connection";
@@ -37,7 +37,18 @@ const MAX_FRAME_SECONDS = 0.25;
  *  3. nudges the prediction toward the server's interpolated position, which is the truth,
  *  4. moves the camera smoothly after it.
  */
-export function Player({ room, district, input }: { room: DistrictRoom; district: DistrictConfig; input: MoveInput }) {
+export function Player({
+  room,
+  district,
+  input,
+  predicted,
+}: {
+  room: DistrictRoom;
+  district: DistrictConfig;
+  input: MoveInput;
+  /** Where the player is drawn. Owned by the parent so the HUD can see which place is near. */
+  predicted: { current: Point };
+}) {
   const body = useRef<Group>(null);
   const camera = useThree((three) => three.camera);
   const aspect = useThree((three) => three.size.width / three.size.height);
@@ -49,7 +60,6 @@ export function Player({ room, district, input }: { room: DistrictRoom; district
     }
     return CAMERA_OFFSET.clone().multiplyScalar(distanceScale);
   }, [aspect, camera]);
-  const predicted = useRef<Point>({ ...district.spawn });
   const heading = useRef(Math.PI); // facing north, away from the camera
   const sender = useMemo(() => new MoveSender(room), [room]);
   const server = useMemo(() => new SnapshotBuffer(), []);
@@ -77,12 +87,17 @@ export function Player({ room, district, input }: { room: DistrictRoom; district
     return () => document.removeEventListener("visibilitychange", onHidden);
   }, [input, sender]);
 
+  // The server spawns every joining player here; start the prediction at the same spot.
+  useLayoutEffect(() => {
+    predicted.current = { ...district.spawn };
+  }, [district, predicted]);
+
   // Put the camera in place before the first frame, so the scene does not swoop in.
   useEffect(() => {
     const { x, z } = predicted.current;
     camera.position.set(x + offset.x, offset.y, z + offset.z);
     camera.lookAt(x, 1, z);
-  }, [camera, offset]);
+  }, [camera, offset, predicted]);
 
   useFrame((_, frameSeconds) => {
     const dt = Math.min(frameSeconds, MAX_FRAME_SECONDS);

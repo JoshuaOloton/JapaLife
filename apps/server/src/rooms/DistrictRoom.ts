@@ -13,6 +13,7 @@ import {
 import { z } from "zod";
 import type { GameSystems } from "../game";
 import type { DistrictMap } from "../game/district";
+import { describeOffer } from "../game/offers";
 import type { Outcome } from "../game/outcome";
 import { TokenBucket } from "../game/tokenBucket";
 import { DistrictState, PlayerPosition } from "./DistrictState";
@@ -178,7 +179,8 @@ export function createDistrictRoom(game: GameSystems) {
           if (!this.district.nearest(position, (thing) => thing.id === target.id)) {
             return this.reject(client, intent.type, "too_far");
           }
-          client.send(SERVER_MESSAGES.interaction, { targetId: target.id, kind: target.kind });
+          const { foodPricePercent } = await game.events.activeEffects(playerId, now);
+          client.send(SERVER_MESSAGES.interaction, describeOffer(target, game.content, foodPricePercent));
           return;
         }
         case "work": {

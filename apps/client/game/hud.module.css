@@ -1,0 +1,212 @@
+/* Everything drawn over the 3D view. Dark translucent panels keep text readable over any scene colour. */
+
+.hud {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  left: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  font: 14px/1.3 system-ui, sans-serif;
+  color: #fff;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(20, 28, 36, 0.72);
+}
+
+.money {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.rent {
+  justify-self: end;
+  text-align: right;
+  font-size: 13px;
+}
+
+.rentDue {
+  color: #ffd166;
+  font-weight: 600;
+}
+
+.rentOverdue {
+  color: #ff7b6b;
+  font-weight: 700;
+}
+
+.meters {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.track {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(20, 28, 36, 0.72);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chipWarn {
+  background: rgba(150, 60, 30, 0.85);
+}
+
+.toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.toast {
+  max-width: 420px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(20, 28, 36, 0.88);
+  border-left: 4px solid #8ab4f8;
+}
+
+.toast strong {
+  display: block;
+}
+
+.toastGood {
+  border-left-color: #6fcf97;
+}
+
+.toastRefused {
+  border-left-color: #ffd166;
+}
+
+.use {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(40px, env(safe-area-inset-bottom));
+  min-height: 48px;
+  max-width: calc(100% - 200px);
+  min-width: 120px;
+  padding: 10px 16px;
+  border: 2px solid #fff;
+  border-radius: 12px;
+  background: #2f5d8a;
+  color: #fff;
+  font: 600 15px system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  max-width: 480px;
+  max-height: 55dvh;
+  overflow-y: auto;
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+  border-radius: 16px 16px 0 0;
+  background: #fbf7ef;
+  color: #1d2b36;
+  font: 15px/1.4 system-ui, sans-serif;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.sheetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sheetHeader h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.close {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: #e7e0d2;
+  font-size: 20px;
+  color: #1d2b36;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid #e7e0d2;
+}
+
+.detail {
+  font-size: 13px;
+  color: #5a6670;
+}
+
+.action {
+  flex: none;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #2e7d4f;
+  color: #fff;
+  font: 600 15px system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+.action:disabled {
+  background: #a9b2a9;
+}
+
+.disclaimer {
+  position: absolute;
+  right: 8px;
+  bottom: max(6px, env(safe-area-inset-bottom));
+  margin: 0;
+  font: 11px system-ui, sans-serif;
+  color: rgba(29, 43, 54, 0.8);
+  pointer-events: none;
+}
