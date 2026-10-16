@@ -8,7 +8,8 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      {/* The game fills the screen; nothing should scroll or bounce under a thumb. */}
+      <body style={{ margin: 0, overflow: "hidden", overscrollBehavior: "none" }}>{children}</body>
     </html>
   );
 }

@@ -55,11 +55,33 @@ export interface RejectedMessage {
   reason: RejectReason;
 }
 
-/** The player walked up to something and pressed interact. */
-export interface InteractionMessage {
-  targetId: string;
-  kind: "job_site" | "food_vendor" | "home" | "bus_stop" | "fuel_station";
+/** A shift on offer at a job site. */
+export interface JobOffer {
+  jobId: string;
+  name: string;
+  payKobo: number;
+  shiftMinutes: number;
+  energyCost: number;
 }
+
+/** One dish on a vendor's menu, at the price the server will charge right now (price rises included). */
+export interface MenuItem {
+  itemId: string;
+  name: string;
+  priceKobo: number;
+  hungerRestored: number;
+  energyRestored: number;
+}
+
+/**
+ * The player walked up to something and pressed interact. The reply carries
+ * what the place offers, so the client never needs its own copy of prices or pay.
+ * Rent is not repeated here: it is in `StatsMessage`.
+ */
+export type InteractionMessage =
+  | { targetId: string; kind: "job_site"; job: JobOffer }
+  | { targetId: string; kind: "food_vendor"; menu: MenuItem[] }
+  | { targetId: string; kind: "home" | "bus_stop" | "fuel_station" };
 
 export const SERVER_MESSAGES = {
   stats: "stats",

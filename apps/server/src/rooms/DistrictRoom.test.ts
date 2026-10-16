@@ -5,6 +5,7 @@ import {
   PLAYER_RADIUS,
   PLAYER_SPEED_UNITS_PER_SECOND,
   type DistrictConfig,
+  type InteractionMessage,
   type NoticeMessage,
   type RejectedMessage,
   type StatsMessage,
@@ -173,6 +174,28 @@ describe("intents", () => {
     await until(() => interactions.length >= 1 && s.rejected.length >= 1, "both answers");
     expect(interactions[0]).toEqual({ targetId: "yaba-bus-stop", kind: "bus_stop" });
     expect(s.rejected[0]?.reason).toBe("unknown_target");
+  });
+
+  it("answers interact with the shift on offer and the menu at today's prices", async () => {
+    const s = await join("ines");
+    const interactions: InteractionMessage[] = [];
+    s.room.onMessage("interaction", (m: InteractionMessage) => interactions.push(m));
+    await until(() => s.stats.length > 0, "stats");
+    s.room.send("interact", { targetId: "yaba-office" });
+    s.room.send("interact", { targetId: "mama-put-buka" });
+    await until(() => interactions.length >= 2, "both answers");
+    const office = interactions.find((m) => m.kind === "job_site");
+    const buka = interactions.find((m) => m.kind === "food_vendor");
+    expect(office?.kind === "job_site" && office.job).toMatchObject({
+      jobId: "office-assistant",
+      payKobo: 500_000,
+      shiftMinutes: 30,
+      energyCost: 30,
+    });
+    expect(buka?.kind === "food_vendor" && buka.menu.find((item) => item.itemId === "agege-bread")).toMatchObject({
+      priceKobo: 150_000,
+      hungerRestored: 20,
+    });
   });
 
   it("rate-limits a client that floods intents", async () => {
