@@ -113,6 +113,15 @@ export const ngnEconomySchema = z.strictObject({
     periodDays: z.int().min(1).max(366),
     /** Real days after the due date before the missed payment has consequences. */
     graceDays: z.int().min(0).max(31),
+    /** Charged when the grace period ends, then every `everyDays` until the rent is paid. */
+    lateFee: z.strictObject({
+      amountKobo: smallestUnits,
+      everyDays: z.int().min(1).max(31),
+      /** Morale change when the fee is charged. */
+      moraleChange: z.int().min(-50).max(0),
+      /** Morale change when the player cannot pay the fee: nothing is taken, the landlord shouts instead. */
+      brokeMoraleChange: z.int().min(-50).max(0),
+    }),
   }),
   food: z.array(foodItemSchema).min(1),
   shop: z.array(shopItemSchema),

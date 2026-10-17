@@ -1,8 +1,8 @@
 "use client";
 
-import type { InteractionMessage, StatsMessage } from "@japalife/shared";
+import type { InboxEntry, InteractionMessage, StatsMessage } from "@japalife/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ServerInbox } from "./connection";
+import type { MessageBuffer } from "./connection";
 import { rejectionText } from "./format";
 
 export interface Toast {
@@ -28,10 +28,11 @@ export interface ServerStats {
   serverNow: () => number;
 }
 
-export function useGameMessages(inbox: ServerInbox) {
+export function useGameMessages(messages: MessageBuffer) {
   const [server, setServer] = useState<ServerStats | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [interaction, setInteraction] = useState<InteractionMessage | null>(null);
+  const [inbox, setInbox] = useState<InboxEntry[] | null>(null);
   const nextToastId = useRef(1);
 
   const pushToast = useCallback((toast: Omit<Toast, "id">) => {
@@ -42,7 +43,7 @@ export function useGameMessages(inbox: ServerInbox) {
 
   useEffect(
     () =>
-      inbox.listen((event) => {
+      messages.listen((event) => {
         switch (event.type) {
           case "stats": {
             const serverTime = Date.parse(event.stats.serverTime);
@@ -63,10 +64,20 @@ export function useGameMessages(inbox: ServerInbox) {
           case "interaction":
             setInteraction(event.interaction);
             return;
+          case "inbox":
+            setInbox(event.inbox.messages);
+            return;
         }
       }),
-    [inbox, pushToast],
+    [messages, pushToast],
   );
 
-  return { server, toasts, interaction, closeInteraction: useCallback(() => setInteraction(null), []) };
+  return {
+    server,
+    toasts,
+    interaction,
+    closeInteraction: useCallback(() => setInteraction(null), []),
+    inbox,
+    closeInbox: useCallback(() => setInbox(null), []),
+  };
 }

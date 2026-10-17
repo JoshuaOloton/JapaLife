@@ -58,6 +58,7 @@ model Player {
   eventFirings EventFiring[]
   balanceFlags BalanceFlag[]
   eventChoices EventChoice[]
+  inbox        InboxMessage[]
 }
 
 // ---- Game state (Phase 1, Slice 4) -------------------------------------------
@@ -78,11 +79,37 @@ model PlayerState {
   family          Float
   /// When the next rent payment is due.
   rentDueAt       DateTime
+  /// When the next late fee is charged if rent is still unpaid: the end of the
+  /// grace period, then every few days after. Moves on when a fee is charged or rent is paid.
+  lateFeeDueAt    DateTime
   /// Random events have been evaluated up to this moment.
   eventsCheckedAt DateTime
   createdAt       DateTime @default(now())
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@index([lateFeeDueAt])
+}
+
+/// Something that happened to the player, kept so they see it when they come
+/// back (time passes while they are offline). The text is stored as shown at
+/// the time. Only the latest few per player are kept.
+model InboxMessage {
+  id        String    @id @default(uuid(7))
+  playerId  String
+  /// "event", "shift_paid" or "rent" (NOTICE_KINDS in packages/shared).
+  kind      String
+  title     String
+  message   String
+  /// Game time it happened.
+  createdAt DateTime
+  /// Set when the player saw it, as a toast or by opening the inbox.
+  readAt    DateTime?
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@index([playerId, createdAt])
+  @@index([playerId, readAt])
 }
 
 /// One work shift. Energy is spent at the start; pay is credited through the

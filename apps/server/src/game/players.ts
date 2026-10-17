@@ -39,6 +39,8 @@ export class PlayerService {
 
     const now = clock.now();
     const { needs } = content;
+    const { periodDays, graceDays } = content.ngn.rent;
+    const rentDueAt = addDays(now, periodDays);
     await db.playerState.upsert({
       where: { playerId },
       update: {},
@@ -50,7 +52,8 @@ export class PlayerService {
         generatorFuelHours: 0,
         family: needs.startingFamily,
         statsAt: now,
-        rentDueAt: addDays(now, content.ngn.rent.periodDays),
+        rentDueAt,
+        lateFeeDueAt: addDays(rentDueAt, graceDays),
         eventsCheckedAt: now,
         // Game time, not the database's clock: "Day 1" starts here, also under GAME_CLOCK.
         createdAt: now,

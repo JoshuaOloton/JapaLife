@@ -3,6 +3,7 @@ import type { ChoiceService } from "./choices";
 import { calendarDay, isNight } from "./clock";
 import type { GameDeps } from "./deps";
 import type { EventService } from "./events";
+import type { InboxService } from "./inbox";
 import type { JobService } from "./jobs";
 import { displayNeeds, isLowMorale } from "./needs";
 import type { PlayerService } from "./players";
@@ -18,6 +19,7 @@ export class StatsService {
     private readonly rent: RentService,
     private readonly events: EventService,
     private readonly choices: ChoiceService,
+    private readonly inbox: InboxService,
   ) {}
 
   async build(playerId: string, now: Date): Promise<StatsMessage | null> {
@@ -25,13 +27,14 @@ export class StatsService {
     const state = await this.players.getState(playerId);
     if (!state) return null;
 
-    const [balance, active, shiftsToday, effects, current, pendingChoice] = await Promise.all([
+    const [balance, active, shiftsToday, effects, current, pendingChoice, unreadInbox] = await Promise.all([
       wallet.getBalance(playerId, "NGN"),
       this.jobs.activeShift(playerId, now),
       this.jobs.shiftsToday(playerId, now),
       this.events.activeEffects(playerId, now),
       this.players.currentNeeds(state, now),
       this.choices.pending(playerId, now),
+      this.inbox.unreadCount(playerId),
     ]);
     const shown = displayNeeds(current);
 
@@ -51,6 +54,9 @@ export class StatsService {
       rentDueAt: state.rentDueAt.toISOString(),
       rentStatus: this.rent.status(state.rentDueAt, now),
       rentAmountKobo: content.ngn.rent.amountKobo,
+      rentLateFeeAt: state.lateFeeDueAt.toISOString(),
+      rentLateFeeKobo: content.ngn.rent.lateFee.amountKobo,
+      unreadInbox,
       activeShift: active ? { jobId: active.jobId, endsAt: active.endsAt.toISOString() } : null,
       shiftsToday,
       // Phase 1 has one job; with more, the cap becomes per job.

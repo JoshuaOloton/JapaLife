@@ -6,7 +6,8 @@
   "rent": {
     "amountKobo": 4000000,
     "periodDays": 30,
-    "graceDays": 3
+    "graceDays": 3,
+    "lateFee": { "amountKobo": 400000, "everyDays": 7, "moraleChange": -5, "brokeMoraleChange": -10 }
   },
   "food": [
     { "id": "agege-bread", "name": "Agege bread and tea", "priceKobo": 150000, "hungerRestored": 20, "energyRestored": 5, "moraleRestored": 1, "todo": "TODO: unsure of 2026 price" },

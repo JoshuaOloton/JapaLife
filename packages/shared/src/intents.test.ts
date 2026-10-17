@@ -18,6 +18,7 @@ describe("parseIntent", () => {
       ["buyItem", { itemId: "generator-petrol", quantity: 3 }],
       ["answerEvent", { choiceId: "0199f0a0-1234-7abc-8def-0123456789ab", answer: "pay" }],
       ["answerEvent", { choiceId: "0199f0a0-1234-7abc-8def-0123456789ab", answer: "decline" }],
+      ["openInbox", {}],
     ];
     for (const [type, payload] of valid) {
       expect(parseIntent(type, payload).ok, type).toBe(true);
@@ -26,7 +27,7 @@ describe("parseIntent", () => {
 
   it("covers every declared intent type in the valid cases", () => {
     expect([...INTENT_TYPES].sort()).toEqual(
-      ["answerEvent", "buyFood", "buyItem", "interact", "move", "payRent", "work"].sort(),
+      ["answerEvent", "buyFood", "buyItem", "interact", "move", "openInbox", "payRent", "work"].sort(),
     );
   });
 
@@ -58,6 +59,7 @@ describe("parseIntent", () => {
 
   it("rejects extra fields so a client cannot smuggle in outcomes", () => {
     expect(parseIntent("payRent", { amount: 1 }).ok).toBe(false);
+    expect(parseIntent("openInbox", { playerId: "someone-else" }).ok).toBe(false);
     expect(parseIntent("work", { jobId: "danfo-conductor", pay: 999999 }).ok).toBe(false);
     expect(parseIntent("buyFood", { itemId: "x", quantity: 1, price: 0 }).ok).toBe(false);
   });

@@ -8,12 +8,13 @@ import {
 } from "@japalife/shared";
 import { InsufficientFundsError } from "../economy/money";
 import type { GameDeps } from "./deps";
+import type { InboxService } from "./inbox";
 import { type Outcome, reject } from "./outcome";
 import type { PlayerService } from "./players";
 
 type RequestEffect = Extract<GameEventConfig["effect"], { type: "request" }>;
 
-/** What happened to a request, as a toast for the player. */
+/** What happened to a request. The player has already been told (toast and inbox). */
 export interface ChoiceResult {
   playerId: string;
   title: string;
@@ -30,6 +31,7 @@ export class ChoiceService {
   constructor(
     private readonly deps: GameDeps,
     private readonly players: PlayerService,
+    private readonly inbox: InboxService,
   ) {}
 
   /** The request waiting for an answer, as the HUD's event card shows it. */
@@ -83,12 +85,12 @@ export class ChoiceService {
       }
       await db.eventFiring.update({ where: { id: choice.firingId }, data: { amountKobo: choice.amountKobo } });
       await this.players.applyChange(playerId, { family: effect.pay.familyChange, morale: effect.pay.moraleChange }, now);
-      return { ok: true, playerId, title: event.title, message: withAmount(effect.pay.message, choice.amountKobo) };
+      return this.tell(playerId, event.title, withAmount(effect.pay.message, choice.amountKobo), now);
     }
 
     const outcome = await this.declineOutcome(choice, effect);
     await this.players.applyChange(playerId, { family: outcome.familyChange, morale: outcome.moraleChange }, now);
-    return { ok: true, playerId, title: event.title, message: withAmount(outcome.message, choice.amountKobo) };
+    return this.tell(playerId, event.title, withAmount(outcome.message, choice.amountKobo), now);
   }
 
   /** Players with a request past its time, for the scheduled job. */
@@ -122,7 +124,13 @@ export class ChoiceService {
     const { event, effect } = this.requestFor(choice);
     const outcome = await this.declineOutcome(choice, effect);
     await this.players.applyChange(choice.playerId, { family: outcome.familyChange, morale: outcome.moraleChange }, now);
-    return { playerId: choice.playerId, title: event.title, message: withAmount(effect.expiredMessage, choice.amountKobo) };
+    return this.tell(choice.playerId, event.title, withAmount(effect.expiredMessage, choice.amountKobo), now);
+  }
+
+  /** Tells the player what happened (toast and inbox) and returns it. */
+  private async tell(playerId: string, title: string, message: string, now: Date): Promise<ChoiceResult & { ok: true }> {
+    await this.inbox.deliver(playerId, { kind: "event", title, message }, now);
+    return { ok: true, playerId, title, message };
   }
 
   /** Saying no hurts less when the player could not have paid anyway. */
