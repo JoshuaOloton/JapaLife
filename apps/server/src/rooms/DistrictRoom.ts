@@ -108,6 +108,7 @@ export function createDistrictRoom(game: GameSystems) {
           await game.players.ensurePlayer(playerId);
           const now = game.clock.now();
           await game.jobs.settleDueShifts(now, playerId);
+          this.announce(client, await game.choices.expireDue(playerId, now));
           this.announce(client, await game.events.processDue(playerId, now));
         });
       } catch (error) {
@@ -231,6 +232,13 @@ export function createDistrictRoom(game: GameSystems) {
           outcome = await game.rent.payRent(playerId, now);
           break;
         }
+        case "answerEvent": {
+          // A phone call: answered from anywhere, no walking needed.
+          const answered = await game.choices.answer(playerId, intent.payload.choiceId, intent.payload.answer, now);
+          if (answered.ok) this.announce(client, [answered]);
+          outcome = answered;
+          break;
+        }
         case "move":
           return;
       }
@@ -269,7 +277,9 @@ export function createDistrictRoom(game: GameSystems) {
         if (!client) continue;
         game.mutex
           .run(live.playerId, async () => {
-            this.announce(client, await game.events.processDue(live.playerId, game.clock.now()));
+            const now = game.clock.now();
+            this.announce(client, await game.choices.expireDue(live.playerId, now));
+            this.announce(client, await game.events.processDue(live.playerId, now));
             await this.sendStats(client, live);
           })
           .catch((error: unknown) => logError("event check failed", error));
@@ -285,8 +295,10 @@ export function createDistrictRoom(game: GameSystems) {
       }
     }
 
-    private announce(client: Client, fired: { title: string; message: string }[]): void {
+    private announce(client: Client, fired: { title: string; message: string; asksChoice?: boolean }[]): void {
       for (const event of fired) {
+        // A question shows as the event card (in the stats), not as a toast.
+        if (event.asksChoice) continue;
         const notice: NoticeMessage = { kind: "event", title: event.title, message: event.message };
         client.send(SERVER_MESSAGES.notice, notice);
       }

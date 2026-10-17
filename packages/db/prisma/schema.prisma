@@ -57,6 +57,7 @@ model Player {
   shifts       Shift[]
   eventFirings EventFiring[]
   balanceFlags BalanceFlag[]
+  eventChoices EventChoice[]
 }
 
 // ---- Game state (Phase 1, Slice 4) -------------------------------------------
@@ -116,9 +117,35 @@ model EventFiring {
   amountKobo BigInt?
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  choice EventChoice?
 
   @@index([playerId, eventId, firedAt])
   @@index([playerId, endsAt])
+}
+
+/// An event that asks the player to choose (black tax: pay or decline). Kept
+/// here, not in the room, so the question waits while the player is offline.
+model EventChoice {
+  id         String    @id @default(uuid(7))
+  playerId   String
+  firingId   String    @unique
+  eventId    String
+  /// How much is asked for. Paying debits exactly this.
+  amountKobo BigInt
+  /// Which of the event's `asks` texts was picked.
+  variant    Int
+  askedAt    DateTime
+  /// After this the request counts as declined.
+  expiresAt  DateTime
+  /// "pay", "decline" or "expired". Null while waiting for an answer.
+  answer     String?
+  answeredAt DateTime?
+
+  player Player      @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  firing EventFiring @relation(fields: [firingId], references: [id], onDelete: Restrict)
+
+  @@index([playerId, answer])
+  @@index([answer, expiresAt])
 }
 
 // ---- Monitoring (Phase 1, Slice 6) -------------------------------------------

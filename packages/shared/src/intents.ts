@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EVENT_ANSWERS } from "./content";
 
 /**
  * Messages the client sends to the server. They are intents, never outcomes:
@@ -55,6 +56,12 @@ export const buyItemIntentSchema = z.strictObject({
   quantity: z.int().min(1).max(MAX_SHOP_PURCHASE_QUANTITY),
 });
 
+/** Answering a request the server asked (black tax): pay or decline. The amount is the server's, never sent. */
+export const answerEventIntentSchema = z.strictObject({
+  choiceId: z.uuid(),
+  answer: z.enum(EVENT_ANSWERS),
+});
+
 export const intentSchemas = {
   move: moveIntentSchema,
   interact: interactIntentSchema,
@@ -62,6 +69,7 @@ export const intentSchemas = {
   buyFood: buyFoodIntentSchema,
   payRent: payRentIntentSchema,
   buyItem: buyItemIntentSchema,
+  answerEvent: answerEventIntentSchema,
 } as const;
 
 export type IntentType = keyof typeof intentSchemas;

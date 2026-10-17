@@ -1,6 +1,8 @@
 "use client";
 
+import type { EventAnswer } from "@japalife/shared";
 import { useEffect, useState } from "react";
+import { EventCard } from "./EventCard";
 import { formatCountdown, formatGameClock, formatNaira } from "./format";
 import styles from "./hud.module.css";
 import type { ServerStats, Toast } from "./useGameMessages";
@@ -15,15 +17,27 @@ export function Hud({
   now,
   toasts,
   districtName,
+  onAnswer,
 }: {
   server: ServerStats | null;
   now: number;
   toasts: Toast[];
   districtName: string;
+  onAnswer: (choiceId: string, answer: EventAnswer) => void;
 }) {
+  const choice = server?.stats.pendingChoice;
   return (
     <div className={styles.hud}>
       {server ? <Stats server={server} now={now} /> : <div className={styles.bar}>{districtName}</div>}
+      {server && choice && (
+        <EventCard
+          choice={choice}
+          balanceKobo={server.stats.balanceKobo}
+          statsAt={server.stats.serverTime}
+          now={now}
+          onAnswer={onAnswer}
+        />
+      )}
       <div className={styles.toasts} aria-live="polite">
         {toasts.map((toast) => (
           <div

@@ -1,5 +1,7 @@
+import type { PendingChoice } from "@japalife/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { DAY_MS, HOUR_MS, createHarness, type Harness } from "../test/gameHarness";
+import { createGameSystems, expireDueChoices } from "./index";
 
 const PLAYER = "tester";
 const STARTING_BALANCE = 2_000_000n; // content/economy/ngn.json
@@ -26,6 +28,28 @@ async function giveMoney(kobo: bigint, reference = `test-gift:${Math.random()}`)
     amount: kobo,
     reason: "salary",
     reference,
+  });
+}
+
+/** Moves an hour on and has black tax ask for its smallest amount (nothing else fires). Returns the card. */
+async function askBlackTax(playerId = PLAYER): Promise<PendingChoice> {
+  // Draws in order: black tax chance, amount, which ask; power cut chance; price rise chance.
+  h.setRng([0, 0, 0, 0.99, 0.99]);
+  h.clock.advance(HOUR_MS);
+  const fired = await h.game.events.processDue(playerId, h.clock.now());
+  expect(fired).toEqual([expect.objectContaining({ eventId: "black_tax", asksChoice: true })]);
+  const choice = (await h.game.stats.build(playerId, h.clock.now()))?.pendingChoice;
+  if (!choice) throw new Error("black tax did not ask");
+  return choice;
+}
+
+async function spendAllBut(kobo: bigint): Promise<void> {
+  await h.wallet.debit({
+    playerId: PLAYER,
+    currency: "NGN",
+    amount: STARTING_BALANCE - kobo,
+    reason: "food",
+    reference: `test-spend:${Math.random()}`,
   });
 }
 
@@ -282,40 +306,17 @@ describe("food", () => {
 });
 
 describe("events", () => {
-  it("black tax takes an amount within its range, through the ledger", async () => {
-    // Draws in order: black tax chance, black tax amount, power cut chance, price rise chance.
-    h.setRng([0, 0, 0.99, 0.99]); // black tax fires for the smallest amount; the others do not
-    const fired = await h.game.events.processDue(PLAYER, new Date(h.clock.now().getTime() + HOUR_MS));
-    expect(fired.map((e) => e.eventId)).toEqual(["black_tax"]);
-    expect(await balance()).toBe(STARTING_BALANCE - 200_000n);
-  });
-
-  it("black tax never takes more than the player has", async () => {
-    await h.wallet.debit({
-      playerId: PLAYER,
-      currency: "NGN",
-      amount: STARTING_BALANCE - 50_000n, // leaves 50,000 kobo; black tax asks for 200,000
-      reason: "food",
-      reference: "test-spend",
+  it("black tax asks instead of taking: nothing leaves the wallet until the player answers", async () => {
+    const choice = await askBlackTax();
+    expect(choice).toMatchObject({
+      title: "Family call",
+      amountKobo: 200_000,
+      payLabel: "Send it",
+      declineLabel: "Not this time",
+      expiresAt: new Date(h.clock.now().getTime() + 48 * HOUR_MS).toISOString(),
     });
-    h.setRng([0, 0, 0.99, 0.99]);
-    await h.game.events.processDue(PLAYER, new Date(h.clock.now().getTime() + HOUR_MS));
-    expect(await balance()).toBe(0n);
-  });
-
-  it("black tax takes nothing from an empty wallet but still counts as having happened", async () => {
-    await h.wallet.debit({
-      playerId: PLAYER,
-      currency: "NGN",
-      amount: STARTING_BALANCE,
-      reason: "food",
-      reference: "test-spend-all",
-    });
-    h.setRng([0, 0, 0.99, 0.99]);
-    await h.game.events.processDue(PLAYER, new Date(h.clock.now().getTime() + HOUR_MS));
-    const firing = await h.db.eventFiring.findFirstOrThrow({ where: { eventId: "black_tax" } });
-    expect(firing.amountKobo).toBe(0n);
-    expect(await balance()).toBe(0n);
+    expect(choice.message).toContain("₦2,000");
+    expect(await balance()).toBe(STARTING_BALANCE);
   });
 
   it("respects the minimum gap between firings", async () => {
@@ -510,5 +511,138 @@ describe("shop (generator petrol)", () => {
 
   it("rejects items that do not exist", async () => {
     expect(await h.game.shop.buy(PLAYER, "ghost-diesel", 1, h.clock.now())).toEqual({ ok: false, reason: "unknown_target" });
+  });
+});
+
+describe("event choices (black tax)", () => {
+  // Starting family 60 and morale 70; askBlackTax moves an hour on, so morale has drifted to 69.
+  const meters = async () => {
+    const stats = await h.game.stats.build(PLAYER, h.clock.now());
+    return { family: stats?.family, morale: stats?.morale, card: stats?.pendingChoice ?? null };
+  };
+
+  it("paying sends exactly the amount through the ledger and brings the family closer", async () => {
+    const choice = await askBlackTax();
+    const paid = await h.game.choices.answer(PLAYER, choice.choiceId, "pay", h.clock.now());
+    expect(paid).toMatchObject({ ok: true, message: "You sent ₦2,000. They're praying for you." });
+    expect(await balance()).toBe(STARTING_BALANCE - 200_000n);
+    expect(await meters()).toEqual({ family: 68, morale: 69, card: null });
+    const firing = await h.db.eventFiring.findFirstOrThrow({ where: { eventId: "black_tax" } });
+    expect(firing.amountKobo).toBe(200_000n);
+  });
+
+  it("declining keeps the money but costs morale and family", async () => {
+    const choice = await askBlackTax();
+    expect((await h.game.choices.answer(PLAYER, choice.choiceId, "decline", h.clock.now())).ok).toBe(true);
+    expect(await balance()).toBe(STARTING_BALANCE);
+    expect(await meters()).toEqual({ family: 54, morale: 64, card: null });
+  });
+
+  it("declining when the player could not have paid hurts less", async () => {
+    await spendAllBut(50_000n);
+    const choice = await askBlackTax();
+    const declined = await h.game.choices.answer(PLAYER, choice.choiceId, "decline", h.clock.now());
+    expect(declined).toMatchObject({ ok: true, message: expect.stringContaining("don't have it") });
+    expect(await meters()).toEqual({ family: 58, morale: 67, card: null });
+  });
+
+  it("paying without the money is refused, changes nothing, and the player can still decline", async () => {
+    await spendAllBut(50_000n);
+    const choice = await askBlackTax();
+    expect(await h.game.choices.answer(PLAYER, choice.choiceId, "pay", h.clock.now())).toEqual({
+      ok: false,
+      reason: "insufficient_funds",
+    });
+    expect(await balance()).toBe(50_000n);
+    expect((await meters()).card?.choiceId).toBe(choice.choiceId);
+    expect((await h.game.choices.answer(PLAYER, choice.choiceId, "decline", h.clock.now())).ok).toBe(true);
+  });
+
+  it("a second answer is refused and never pays twice", async () => {
+    const choice = await askBlackTax();
+    await h.game.choices.answer(PLAYER, choice.choiceId, "pay", h.clock.now());
+    for (const answer of ["pay", "decline"] as const) {
+      expect(await h.game.choices.answer(PLAYER, choice.choiceId, answer, h.clock.now())).toEqual({
+        ok: false,
+        reason: "already_answered",
+      });
+    }
+    expect(await balance()).toBe(STARTING_BALANCE - 200_000n);
+    expect((await meters()).family).toBe(68);
+  });
+
+  it("answers racing each other settle the request once (no double spend)", async () => {
+    const choice = await askBlackTax();
+    // No mutex here on purpose: the conditional claim alone must hold.
+    const answers = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        h.game.choices.answer(PLAYER, choice.choiceId, i % 2 === 0 ? "pay" : "decline", h.clock.now()),
+      ),
+    );
+    expect(answers.filter((a) => a.ok)).toHaveLength(1);
+    const debits = await h.db.transaction.count({ where: { reference: `event:${choice.choiceId}` } });
+    expect(debits).toBeLessThanOrEqual(1);
+    const paid = debits === 1;
+    expect(await balance()).toBe(paid ? STARTING_BALANCE - 200_000n : STARTING_BALANCE);
+    expect((await meters()).family).toBe(paid ? 68 : 54);
+  });
+
+  it("nobody can answer someone else's request", async () => {
+    await h.game.players.ensurePlayer("someone-else");
+    const choice = await askBlackTax();
+    expect(await h.game.choices.answer("someone-else", choice.choiceId, "decline", h.clock.now())).toEqual({
+      ok: false,
+      reason: "unknown_target",
+    });
+    expect((await meters()).card?.choiceId).toBe(choice.choiceId);
+    expect(
+      await h.game.choices.answer(PLAYER, "0199f0a0-0000-7000-8000-000000000000", "pay", h.clock.now()),
+    ).toEqual({ ok: false, reason: "unknown_target" });
+  });
+
+  it("asks one thing at a time: no new request while one is waiting", async () => {
+    await askBlackTax();
+    h.clock.advance(6 * DAY_MS); // past black tax's 5-day gap
+    h.setRng(0);
+    // The old request has not been settled (answered or expired), so it still blocks a new one.
+    await h.game.events.processDue(PLAYER, h.clock.now());
+    expect(await h.db.eventChoice.count()).toBe(1);
+  });
+
+  it("an unanswered request expires as a decline, once, even for an offline player", async () => {
+    const choice = await askBlackTax();
+    h.clock.advance(48 * HOUR_MS);
+    const published: string[] = [];
+    h.game.notices.subscribe(PLAYER, (notice) => published.push(notice.message));
+    await expireDueChoices(h.game, h.clock.now());
+    await expireDueChoices(h.game, h.clock.now());
+    expect(published).toEqual(["You didn't get back to them in time. The family noticed."]);
+    expect(await h.db.eventChoice.findUniqueOrThrow({ where: { id: choice.choiceId } })).toMatchObject({ answer: "expired" });
+    expect(await balance()).toBe(STARTING_BALANCE);
+    expect((await meters()).family).toBe(54);
+    expect((await meters()).card).toBeNull();
+    expect(await h.game.choices.answer(PLAYER, choice.choiceId, "pay", h.clock.now())).toEqual({
+      ok: false,
+      reason: "already_answered",
+    });
+  });
+
+  it("an answer that arrives after the deadline is refused and counts as the expiry", async () => {
+    const choice = await askBlackTax();
+    h.clock.advance(48 * HOUR_MS + 1);
+    expect(await h.game.choices.answer(PLAYER, choice.choiceId, "pay", h.clock.now())).toEqual({
+      ok: false,
+      reason: "choice_expired",
+    });
+    expect(await balance()).toBe(STARTING_BALANCE);
+    expect((await meters()).family).toBe(54);
+  });
+
+  it("the request survives a server restart", async () => {
+    const choice = await askBlackTax();
+    const restarted = createGameSystems({ db: h.db, content: h.content, clock: h.clock, wallet: h.wallet });
+    expect((await restarted.stats.build(PLAYER, h.clock.now()))?.pendingChoice?.choiceId).toBe(choice.choiceId);
+    expect((await restarted.choices.answer(PLAYER, choice.choiceId, "pay", h.clock.now())).ok).toBe(true);
+    expect(await balance()).toBe(STARTING_BALANCE - 200_000n);
   });
 });

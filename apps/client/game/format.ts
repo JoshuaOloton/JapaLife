@@ -1,15 +1,6 @@
 import type { RejectReason } from "@japalife/shared";
 
-const NAIRA = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 });
-const NAIRA_WITH_KOBO = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 2 });
-
-/**
- * Kobo to "₦20,000". Display only: dividing by 100 in floating point is fine for
- * showing a number, never for money maths (the server does all of that in integers).
- */
-export function formatNaira(kobo: number): string {
-  return kobo % 100 === 0 ? NAIRA.format(kobo / 100) : NAIRA_WITH_KOBO.format(kobo / 100);
-}
+export { formatNaira } from "@japalife/shared";
 
 /** A countdown: "29d 23h", "5h 03m", or "12:34" under an hour. Negative becomes zero. */
 export function formatCountdown(milliseconds: number): string {
@@ -72,4 +63,6 @@ export const REJECTION_TEXT: Record<RejectReason, string> = {
   already_full: "You're too full for that. Try something lighter, or wait small.",
   rent_not_due: "Rent isn't due yet.",
   tank_full: "Your jerrycan can't hold that much more.",
+  already_answered: "You've already answered that.",
+  choice_expired: "Too late. They've stopped waiting for an answer.",
 };

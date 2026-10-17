@@ -187,14 +187,41 @@ export type JobsConfig = z.infer<typeof jobsSchema>;
 
 // ---- events/<id>.json: black tax, power cuts ------------------------------------
 
+/** What answering a request does to the player. `{amount}` in the message becomes the naira amount. */
+const choiceOutcomeSchema = z.strictObject({
+  familyChange: z.int().min(-100).max(100),
+  moraleChange: z.int().min(-100).max(100),
+  message: z.string().min(1).max(280),
+});
+
+/** The answers a player can give to a request. Shared with the `answerEvent` intent. */
+export const EVENT_ANSWERS = ["pay", "decline"] as const;
+export type EventAnswer = (typeof EVENT_ANSWERS)[number];
+
 const eventEffectSchema = z.discriminatedUnion("type", [
-  /** Money leaves the wallet, logged under `reason` (a real ledger sink). */
+  /**
+   * Someone asks the player for money (black tax). The player chooses: pay,
+   * logged under `reason` (a real ledger sink), or decline. The request waits
+   * in the database, so it survives the player going offline.
+   */
   z
     .strictObject({
-      type: z.literal("debit"),
+      type: z.literal("request"),
       reason: z.enum(SINK_REASONS),
       minKobo: smallestUnits,
       maxKobo: smallestUnits,
+      /** Who is asking and why; one is picked at random. `{amount}` becomes the naira amount. */
+      asks: z.array(z.string().min(1).max(200)).min(1).max(20),
+      /** Real hours to answer. An unanswered request counts as declined. */
+      answerWithinHours: z.int().min(1).max(14 * 24),
+      payLabel: z.string().min(1).max(30),
+      declineLabel: z.string().min(1).max(30),
+      pay: choiceOutcomeSchema,
+      decline: choiceOutcomeSchema,
+      /** Declining when the player could not have paid: the family understands, mostly. */
+      declineBroke: choiceOutcomeSchema,
+      /** The request ran out unanswered. Effects are the decline (or declineBroke) ones. */
+      expiredMessage: z.string().min(1).max(280),
     })
     .refine((effect) => effect.minKobo <= effect.maxKobo, {
       message: "minKobo must not exceed maxKobo",

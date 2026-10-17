@@ -108,7 +108,13 @@ function Overlay({
 
   return (
     <>
-      <Hud server={server} now={now} toasts={toasts} districtName={district.name} />
+      <Hud
+        server={server}
+        now={now}
+        toasts={toasts}
+        districtName={district.name}
+        onAnswer={(choiceId, answer) => room.send("answerEvent", { choiceId, answer })}
+      />
       {near && !interaction && (
         <button type="button" className={styles.use} onClick={() => open(near)}>
           {near.label}
