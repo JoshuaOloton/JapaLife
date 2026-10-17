@@ -224,11 +224,42 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 
 ## Current phase
 
+**Phase 2: documents, routes and applications (planning, 2026-10-17).** Phase 1 is done and play-tested. Phase 2 covers design-doc Stages 2–4: gathering documents in Lagos, choosing a route, applying, waiting in real time, and being approved, refused or asked for more. No code until the decisions below are answered.
+
+### Phase 2 decisions needed before code (recommendation in brackets)
+
+- **Pacing: how long should the first route take to afford?** Real fees against Phase 1 pay do not fit. A player nets about N90,000 a real month (two N5,000 shifts a day, minus food and rent). UK Skilled Worker costs about £3,900 up front (visa £819 plus 3 years of £1,035 health surcharge), about N7.8m, which is about 7 years of play. Canada Express Entry needs about CAD 1,525 in fees plus CAD 15,263 of settlement funds, about N18m. [Keep real fees. Add job progression with realistic Lagos professional salaries and side hustles so a committed player can afford the cheapest route in about 3 real months. Retune after play-testing.]
+- **Which route first?** [Canada Express Entry: it needs no job offer, so no job-hunting system yet, and it uses every document (ECA, English test, police clearance, medical, funds). The points pool with periodic draws suits real-time waiting. UK Skilled Worker comes second, because it needs a sponsor job hunt. The student routes wait for Phase 3, because they need tuition and proof of funds.]
+- **Paying fees in pounds and Canadian dollars before Phase 3 builds conversion.** [Charge the fee in naira at the day's simulated card rate, the way a Nigerian card pays UKVI or IRCC. Record the rate on the document or application row. Wallets stay NGN-only until Phase 3's `convert()`.]
+- **Where documents happen.** [At real places in Yaba the player walks to: NIMC office, passport office, police station, a clinic, an English test centre, and a cyber café for online forms (transcripts, credential evaluation, the visa form). Walking somewhere is the game's core verb. The visa application centre for biometrics stays in Yaba for now; in reality it is in Victoria Island or Ikoyi, so it moves when there is a second district.]
+- **What starts the japa.** [A story event about 3 days after starting, such as a friend posting their arrival photo from London, which unlocks the route picker. A dev command can unlock it at once.]
+
+### Phase 2 slices (draft, reorder after the decisions)
+
+"Slice 2.3" and similar mean this table. One branch per slice, as in Phase 1.
+
+| # | Slice | What it covers |
+|---|---|---|
+| 2.1 | Real rules research | Real 2026 values, each with `source` URL and `asOf`, in `content/rules/nigeria.json` (NIN, passport, police certificate, medical), `canada.json` (Express Entry fees, the CRS points grid, settlement funds by family size, ECA, IELTS/CELPIP, panel medical) and `uk.json` (for 2.9). Seed exchange rates (NGN per GBP and CAD) in `content/economy/`. Zod schemas in `packages/shared`. No gameplay |
+| 2.2 | Exchange rates | Simulated daily rates from the seed, drifting daily with shock events, and per-channel spreads. Read-only: a `RateService` and a rate in the HUD. Foreign fees are charged in naira at the card rate. No conversion or new wallets yet |
+| 2.3 | Earning more | Whatever the pacing decision needs: job progression (promotions, better jobs) and side hustles, with earn-rate limits and `earningCeilings` updated so `BalanceWatch` does not flag them. Also fixes "prices outrun wages" |
+| 2.4 | Documents | A `Document` table (type, status, `readyAt`, `expiresAt`, rate used) and a `DocumentService`. Covers prerequisites (NIN before passport), fees as sinks, real-time waits, expiry, and failure events from content (a NIN name mismatch blocks the passport, a transcript sent to the wrong address). New Yaba places, a documents folder in the HUD, and inbox messages when something is ready, fails or expires. The passport-office "agent" is a scam trap: the money is lost, and nothing gets faster |
+| 2.5 | English test | Study sessions (time and energy, like shifts) raise preparation. Booking and sitting the test, then a server-rolled band score that depends on preparation. Results expire after 2 years, and a band short means a resit |
+| 2.6 | Choosing a route | The japa trigger event and a route picker. An eligibility checklist showing what the player has, what is missing and what it costs |
+| 2.7 | Canada Express Entry | A profile with a CRS score computed from the player's documents and stats. The pool, with draws on a schedule and a cut-off that moves (config). Invitations expire after 60 days |
+| 2.8 | Apply and wait | A generic application engine: form and fees, a biometrics appointment, and a real-time wait. The decision is rolled on the server with a logged seed and computed from application strength (documents complete and unexpired, funds held long enough from ledger history, test scores, history). Refusal reasons are data in `content/refusals/`. A refusal loses the fee and must be declared on later applications. Fake documents mean a long ban. The outcome reaches the player through the inbox. Ends Phase 2 for Canada |
+| 2.9 | UK Skilled Worker | A sponsor job hunt (applications, interviews, Certificate of Sponsorship), fake job offers as traps, the B2 English level, the salary threshold and the health surcharge, all through the 2.8 engine |
+| 2.10 | Hardening | A dev command to skip a wait, a play-test of a full route under `GAME_CLOCK`, refusal and approval balance, and a bundle check |
+
+Phase 2 is done when a player can go from Lagos to an approval (or a refusal with reasons) on both routes. Leaving the country is Phase 3.
+
+### Phase 1 (done)
+
 **Phase 1: Lagos single-player core loop.** One walkable Lagos district, a third-person character with touch + keyboard controls, one job that pays per shift, rent due on a timer, food to buy, black-tax and power-cut events, and an NGN wallet backed by the ledger. Server-authoritative from the start, but no other players visible yet.
 
-### Phase 1 slices (the plan, kept here so it survives `/clear`)
+#### Phase 1 slices
 
-Work one slice at a time on its own branch. "Slice 3" and similar always mean this table.
+"Slice 3" and similar with no phase number mean this table.
 
 | # | Slice | What it covers | Status |
 |---|---|---|---|
