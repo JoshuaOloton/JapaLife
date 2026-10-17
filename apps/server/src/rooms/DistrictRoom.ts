@@ -1,9 +1,9 @@
 import { type Client, Room, ServerError } from "@colyseus/core";
 import {
+  type InboxMessage,
   type Intent,
   type Interactable,
   MAX_PLAYERS_PER_ROOM,
-  type NoticeMessage,
   PLAYER_SPEED_UNITS_PER_SECOND,
   POSITION_UPDATE_HZ,
   type RejectReason,
@@ -97,25 +97,18 @@ export function createDistrictRoom(game: GameSystems) {
         dz: 0,
         lastMoveSeq: -1,
         bucket: new TokenBucket(INTENT_BUCKET_CAPACITY, INTENT_BUCKET_REFILL_PER_SECOND, Date.now()),
-        unsubscribeNotices: game.notices.subscribe(playerId, (notice) =>
-          client.send(SERVER_MESSAGES.notice, notice),
-        ),
+        unsubscribeNotices: () => {},
       };
 
       // Catch up on whatever happened while the player was away, then show the HUD.
-      try {
-        await game.mutex.run(playerId, async () => {
-          await game.players.ensurePlayer(playerId);
-          const now = game.clock.now();
-          await game.jobs.settleDueShifts(now, playerId);
-          this.announce(client, await game.choices.expireDue(playerId, now));
-          this.announce(client, await game.events.processDue(playerId, now));
-        });
-      } catch (error) {
-        live.unsubscribeNotices();
-        throw error;
-      }
+      // Not subscribed to toasts yet: what the catch-up finds was missed, so it
+      // waits in the inbox as unread instead of flashing past as toasts.
+      await game.mutex.run(playerId, async () => {
+        await game.players.ensurePlayer(playerId);
+        await this.catchUp(playerId);
+      });
 
+      live.unsubscribeNotices = game.notices.subscribe(playerId, (notice) => client.send(SERVER_MESSAGES.notice, notice));
       this.live.set(client.sessionId, live);
       const position = new PlayerPosition();
       position.x = live.x;
@@ -234,9 +227,13 @@ export function createDistrictRoom(game: GameSystems) {
         }
         case "answerEvent": {
           // A phone call: answered from anywhere, no walking needed.
-          const answered = await game.choices.answer(playerId, intent.payload.choiceId, intent.payload.answer, now);
-          if (answered.ok) this.announce(client, [answered]);
-          outcome = answered;
+          outcome = await game.choices.answer(playerId, intent.payload.choiceId, intent.payload.answer, now);
+          break;
+        }
+        case "openInbox": {
+          const inbox: InboxMessage = { messages: await game.inbox.open(playerId, now) };
+          client.send(SERVER_MESSAGES.inbox, inbox);
+          outcome = { ok: true };
           break;
         }
         case "move":
@@ -277,13 +274,24 @@ export function createDistrictRoom(game: GameSystems) {
         if (!client) continue;
         game.mutex
           .run(live.playerId, async () => {
-            const now = game.clock.now();
-            this.announce(client, await game.choices.expireDue(live.playerId, now));
-            this.announce(client, await game.events.processDue(live.playerId, now));
+            await this.catchUp(live.playerId);
             await this.sendStats(client, live);
           })
           .catch((error: unknown) => logError("event check failed", error));
       }
+    }
+
+    /**
+     * Everything time has made due for one player: shift pay, expired requests,
+     * random events and late rent fees. Each tells the player itself, through
+     * the inbox. Run under the player's mutex.
+     */
+    private async catchUp(playerId: string): Promise<void> {
+      const now = game.clock.now();
+      await game.jobs.settleDueShifts(now, playerId);
+      await game.choices.expireDue(playerId, now);
+      await game.events.processDue(playerId, now);
+      await game.rent.chargeLateFees(playerId, now);
     }
 
     // ---- messages to the client --------------------------------------------------
@@ -292,15 +300,6 @@ export function createDistrictRoom(game: GameSystems) {
       const stats = await game.stats.build(live.playerId, game.clock.now());
       if (stats && this.live.get(client.sessionId) === live) {
         client.send(SERVER_MESSAGES.stats, stats);
-      }
-    }
-
-    private announce(client: Client, fired: { title: string; message: string; asksChoice?: boolean }[]): void {
-      for (const event of fired) {
-        // A question shows as the event card (in the stats), not as a toast.
-        if (event.asksChoice) continue;
-        const notice: NoticeMessage = { kind: "event", title: event.title, message: event.message };
-        client.send(SERVER_MESSAGES.notice, notice);
       }
     }
 

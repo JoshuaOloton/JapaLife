@@ -1,7 +1,8 @@
 import type { PendingChoice } from "@japalife/shared";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { DAY_MS, HOUR_MS, createHarness, type Harness } from "../test/gameHarness";
-import { createGameSystems, expireDueChoices } from "./index";
+import { MAX_INBOX_MESSAGES } from "./inbox";
+import { chargeDueLateFees, createGameSystems, expireDueChoices } from "./index";
 
 const PLAYER = "tester";
 const STARTING_BALANCE = 2_000_000n; // content/economy/ngn.json
@@ -644,5 +645,153 @@ describe("event choices (black tax)", () => {
     expect((await restarted.stats.build(PLAYER, h.clock.now()))?.pendingChoice?.choiceId).toBe(choice.choiceId);
     expect((await restarted.choices.answer(PLAYER, choice.choiceId, "pay", h.clock.now())).ok).toBe(true);
     expect(await balance()).toBe(STARTING_BALANCE - 200_000n);
+  });
+});
+
+describe("rent late fees", () => {
+  const LATE_FEE = 400_000n; // content/economy/ngn.json
+  const morale = async (): Promise<number> => (await h.game.stats.build(PLAYER, h.clock.now()))?.morale ?? -1;
+  const feesCharged = (): Promise<number> => h.db.transaction.count({ where: { reason: "rent_late_fee" } });
+
+  /** Moves to `ms` after the end of the grace period (30 days to the due date, plus 3 days' grace). */
+  async function toAfterGrace(ms: number): Promise<void> {
+    const state = await h.game.players.getState(PLAYER);
+    h.clock.set(new Date(state!.rentDueAt.getTime() + 3 * DAY_MS + ms));
+  }
+
+  it("charges nothing during the grace period", async () => {
+    await toAfterGrace(-60_000);
+    expect(await h.game.rent.chargeLateFees(PLAYER, h.clock.now())).toBe(0);
+    expect(await balance()).toBe(STARTING_BALANCE);
+    expect((await h.game.stats.build(PLAYER, h.clock.now()))?.rentStatus).toBe("due");
+  });
+
+  it("charges one fee when the grace period ends, lowers morale, and tells the player", async () => {
+    await toAfterGrace(0);
+    const before = await morale();
+    expect(await h.game.rent.chargeLateFees(PLAYER, h.clock.now())).toBe(1);
+    expect(await balance()).toBe(STARTING_BALANCE - LATE_FEE);
+    expect(await morale()).toBe(before - 5);
+    const stats = await h.game.stats.build(PLAYER, h.clock.now());
+    expect(stats?.rentLateFeeAt).toBe(new Date(h.clock.now().getTime() + 7 * DAY_MS).toISOString());
+    expect(stats?.unreadInbox).toBe(1);
+    const [entry] = await h.game.inbox.open(PLAYER, h.clock.now());
+    expect(entry).toMatchObject({ kind: "rent", title: "Rent overdue", unread: true });
+    expect(entry?.message).toContain("₦4,000 late fee");
+  });
+
+  it("catches up on every week the player was away, once each", async () => {
+    await toAfterGrace(15 * DAY_MS); // fees fell due at 0, 7 and 14 days
+    expect(await h.game.rent.chargeLateFees(PLAYER, h.clock.now())).toBe(3);
+    expect(await h.game.rent.chargeLateFees(PLAYER, h.clock.now())).toBe(0);
+    expect(await balance()).toBe(STARTING_BALANCE - 3n * LATE_FEE);
+  });
+
+  it("charges a fee once when the room and the scheduled job race for it", async () => {
+    await toAfterGrace(HOUR_MS);
+    const counts = await Promise.all(
+      Array.from({ length: 10 }, () => h.game.rent.chargeLateFees(PLAYER, h.clock.now())),
+    );
+    expect(counts.reduce((sum, n) => sum + n, 0)).toBe(1);
+    expect(await feesCharged()).toBe(1);
+    expect(await balance()).toBe(STARTING_BALANCE - LATE_FEE);
+  });
+
+  it("never takes a player below zero: a broke player loses more morale instead", async () => {
+    await spendAllBut(100_000n);
+    await toAfterGrace(0);
+    const before = await morale();
+    expect(await h.game.rent.chargeLateFees(PLAYER, h.clock.now())).toBe(1);
+    expect(await balance()).toBe(100_000n);
+    expect(await feesCharged()).toBe(0);
+    expect(await morale()).toBe(before - 10);
+    const [entry] = await h.game.inbox.open(PLAYER, h.clock.now());
+    expect(entry?.message).toContain("couldn't pay");
+  });
+
+  it("stops once the rent is paid, and the next fee waits for the next missed month", async () => {
+    await giveMoney(10_000_000n);
+    await toAfterGrace(HOUR_MS);
+    await h.game.rent.chargeLateFees(PLAYER, h.clock.now());
+    const paid = await h.game.rent.payRent(PLAYER, h.clock.now());
+    if (!paid.ok) throw new Error("rent not paid");
+
+    const state = await h.game.players.getState(PLAYER);
+    expect(state?.lateFeeDueAt).toEqual(new Date(paid.nextDueAt.getTime() + 3 * DAY_MS));
+    h.clock.advance(7 * DAY_MS);
+    expect(await h.game.rent.chargeLateFees(PLAYER, h.clock.now())).toBe(0);
+    expect(await feesCharged()).toBe(1);
+  });
+
+  it("the scheduled job charges players who are offline", async () => {
+    await toAfterGrace(HOUR_MS);
+    expect(await h.game.rent.playersWithLateFeesDue(h.clock.now())).toEqual([PLAYER]);
+    await chargeDueLateFees(h.game, h.clock.now());
+    expect(await balance()).toBe(STARTING_BALANCE - LATE_FEE);
+    expect(await h.game.rent.playersWithLateFeesDue(h.clock.now())).toEqual([]);
+  });
+});
+
+describe("inbox", () => {
+  const unread = async (): Promise<number> => (await h.game.stats.build(PLAYER, h.clock.now()))?.unreadInbox ?? -1;
+
+  it("keeps what happened while the player was offline, unread until they open it", async () => {
+    await h.game.jobs.startShift(PLAYER, "office-assistant", h.clock.now());
+    h.clock.advance(HOUR_MS);
+    await h.game.jobs.settleDueShifts(h.clock.now()); // the scheduled job, nobody connected
+    expect(await unread()).toBe(1);
+
+    const opened = await h.game.inbox.open(PLAYER, h.clock.now());
+    expect(opened).toEqual([
+      expect.objectContaining({ kind: "shift_paid", message: "You earned ₦5,000 for your shift.", unread: true }),
+    ]);
+    expect(await unread()).toBe(0);
+    expect((await h.game.inbox.open(PLAYER, h.clock.now()))[0]?.unread).toBe(false);
+  });
+
+  it("shows a connected player a toast and stores it already read", async () => {
+    const toasts: string[] = [];
+    const stop = h.game.notices.subscribe(PLAYER, (notice) => toasts.push(notice.message));
+    await h.game.jobs.startShift(PLAYER, "office-assistant", h.clock.now());
+    h.clock.advance(HOUR_MS);
+    await h.game.jobs.settleDueShifts(h.clock.now());
+    stop();
+    expect(toasts).toEqual(["You earned ₦5,000 for your shift."]);
+    expect(await unread()).toBe(0);
+    expect(await h.db.inboxMessage.count({ where: { playerId: PLAYER } })).toBe(1);
+  });
+
+  it("keeps a family request with its amount, but shows no toast for it (the card shows it)", async () => {
+    const toasts: string[] = [];
+    const stop = h.game.notices.subscribe(PLAYER, (notice) => toasts.push(notice.message));
+    await askBlackTax();
+    stop();
+    expect(toasts).toEqual([]);
+    const [entry] = await h.game.inbox.open(PLAYER, h.clock.now());
+    expect(entry).toMatchObject({ kind: "event", title: "Family call" });
+    expect(entry?.message).toContain("₦2,000");
+  });
+
+  it("an offline player finds an expired request in the inbox", async () => {
+    await askBlackTax();
+    h.clock.advance(48 * HOUR_MS + 1);
+    await expireDueChoices(h.game, h.clock.now());
+    const [latest] = await h.game.inbox.open(PLAYER, h.clock.now());
+    expect(latest).toMatchObject({ unread: true, message: "You didn't get back to them in time. The family noticed." });
+  });
+
+  it("keeps only the latest messages per player, and never another player's", async () => {
+    await h.game.players.ensurePlayer("other");
+    await h.game.inbox.deliver("other", { kind: "event", title: "t", message: "not yours" }, h.clock.now());
+    for (let i = 0; i < MAX_INBOX_MESSAGES + 5; i += 1) {
+      h.clock.advance(1000);
+      await h.game.inbox.deliver(PLAYER, { kind: "event", title: "t", message: `m${i}` }, h.clock.now());
+    }
+    const opened = await h.game.inbox.open(PLAYER, h.clock.now());
+    expect(opened).toHaveLength(MAX_INBOX_MESSAGES);
+    expect(opened[0]?.message).toBe(`m${MAX_INBOX_MESSAGES + 4}`);
+    expect(opened.at(-1)?.message).toBe("m5");
+    expect(await h.db.inboxMessage.count({ where: { playerId: PLAYER } })).toBe(MAX_INBOX_MESSAGES);
+    expect(await h.db.inboxMessage.count({ where: { playerId: "other" } })).toBe(1);
   });
 });

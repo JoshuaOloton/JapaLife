@@ -62,6 +62,9 @@ export const answerEventIntentSchema = z.strictObject({
   answer: z.enum(EVENT_ANSWERS),
 });
 
+/** Show the inbox; the server replies with the latest messages and marks them read. */
+export const openInboxIntentSchema = z.strictObject({});
+
 export const intentSchemas = {
   move: moveIntentSchema,
   interact: interactIntentSchema,
@@ -70,6 +73,7 @@ export const intentSchemas = {
   payRent: payRentIntentSchema,
   buyItem: buyItemIntentSchema,
   answerEvent: answerEventIntentSchema,
+  openInbox: openInboxIntentSchema,
 } as const;
 
 export type IntentType = keyof typeof intentSchemas;

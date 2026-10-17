@@ -6,6 +6,7 @@ import {
   DEFAULT_SERVER_PORT,
   DISTRICT_ROOM_NAME,
   type DistrictConfig,
+  type InboxMessage,
   type InteractionMessage,
   type NoticeMessage,
   type RejectedMessage,
@@ -26,13 +27,14 @@ export type DistrictRoom = Room<unknown, DistrictStateView>;
 export type Connection =
   | { status: "connecting" }
   | { status: "failed"; message: string }
-  | { status: "connected"; room: DistrictRoom; district: DistrictConfig; inbox: ServerInbox };
+  | { status: "connected"; room: DistrictRoom; district: DistrictConfig; messages: MessageBuffer };
 
-export type InboxEvent =
+export type ServerEvent =
   | { type: "stats"; stats: StatsMessage; receivedAt: number }
   | { type: "notice"; notice: NoticeMessage }
   | { type: "rejected"; rejected: RejectedMessage }
-  | { type: "interaction"; interaction: InteractionMessage };
+  | { type: "interaction"; interaction: InteractionMessage }
+  | { type: "inbox"; inbox: InboxMessage };
 
 /** More than a join could ever produce; a cap only so a stalled UI cannot grow it forever. */
 const MAX_BUFFERED = 50;
@@ -43,9 +45,9 @@ const MAX_BUFFERED = 50;
  * and Colyseus drops messages nobody is listening for, so they wait here until
  * the HUD subscribes.
  */
-export class ServerInbox {
-  private buffered: InboxEvent[] = [];
-  private listener: ((event: InboxEvent) => void) | undefined;
+export class MessageBuffer {
+  private buffered: ServerEvent[] = [];
+  private listener: ((event: ServerEvent) => void) | undefined;
 
   constructor(room: DistrictRoom) {
     room.onMessage(SERVER_MESSAGES.stats, (stats: StatsMessage) =>
@@ -58,10 +60,11 @@ export class ServerInbox {
     room.onMessage(SERVER_MESSAGES.interaction, (interaction: InteractionMessage) =>
       this.deliver({ type: "interaction", interaction }),
     );
+    room.onMessage(SERVER_MESSAGES.inbox, (inbox: InboxMessage) => this.deliver({ type: "inbox", inbox }));
   }
 
   /** One listener at a time (the HUD). Anything that arrived earlier is handed over first. */
-  listen(listener: (event: InboxEvent) => void): () => void {
+  listen(listener: (event: ServerEvent) => void): () => void {
     this.listener = listener;
     const waiting = this.buffered;
     this.buffered = [];
@@ -71,7 +74,7 @@ export class ServerInbox {
     };
   }
 
-  private deliver(event: InboxEvent): void {
+  private deliver(event: ServerEvent): void {
     if (this.listener) {
       this.listener(event);
       return;
@@ -137,13 +140,13 @@ export function useDistrictConnection(): Connection {
           void room.leave();
           return;
         }
-        const inbox = new ServerInbox(room as DistrictRoom);
+        const messages = new MessageBuffer(room as DistrictRoom);
         room.onMessage(SERVER_MESSAGES.district, (payload: unknown) => {
           const parsed = districtSchema.safeParse(payload);
           if (cancelled) return;
           setConnection(
             parsed.success
-              ? { status: "connected", room: room as DistrictRoom, district: parsed.data, inbox }
+              ? { status: "connected", room: room as DistrictRoom, district: parsed.data, messages }
               : { status: "failed", message: COPY.app.badDistrict },
           );
         });

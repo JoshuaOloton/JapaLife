@@ -5,6 +5,7 @@ import {
   PLAYER_RADIUS,
   PLAYER_SPEED_UNITS_PER_SECOND,
   type DistrictConfig,
+  type InboxMessage,
   type InteractionMessage,
   type NoticeMessage,
   type RejectedMessage,
@@ -175,6 +176,25 @@ describe("intents", () => {
     expect(s.rejected[0]?.reason).toBe("already_answered");
     expect(s.notices[0]?.message).toContain("You sent ₦2,000");
     expect(s.stats.at(-1)).toMatchObject({ balanceKobo: 2_000_000 - 200_000, pendingChoice: null, family: 68 });
+  });
+
+  it("a returning player finds what they missed in the inbox, not as toasts, and opening it clears the badge", async () => {
+    await h.game.players.ensurePlayer("jude");
+    // Jude's rent went unpaid past the grace period while he was away.
+    await h.db.playerState.update({
+      where: { playerId: "jude" },
+      data: { lateFeeDueAt: new Date(h.clock.now().getTime() - HOUR_MS) },
+    });
+    const s = await join("jude");
+    const inboxes: InboxMessage[] = [];
+    s.room.onMessage("inbox", (m: InboxMessage) => inboxes.push(m));
+    await until(() => s.stats.length > 0, "stats");
+    expect(s.stats.at(-1)).toMatchObject({ unreadInbox: 1, balanceKobo: 2_000_000 - 400_000 });
+    expect(s.notices).toEqual([]);
+
+    s.room.send("openInbox", {});
+    await until(() => inboxes.length > 0 && s.stats.at(-1)?.unreadInbox === 0, "the inbox");
+    expect(inboxes[0]?.messages).toEqual([expect.objectContaining({ kind: "rent", unread: true })]);
   });
 
   it("buys food, charging the server's price", async () => {

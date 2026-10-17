@@ -1,6 +1,7 @@
-import { GAME_EVENT_IDS, type GameEventConfig, type GameEventId, type PriceCategory } from "@japalife/shared";
+import { GAME_EVENT_IDS, type GameEventConfig, type GameEventId, type PriceCategory, withAmount } from "@japalife/shared";
 import { addDays, MS_PER_DAY, MS_PER_HOUR } from "./clock";
 import type { GameDeps } from "./deps";
+import type { InboxService } from "./inbox";
 import type { PlayerService } from "./players";
 import { compoundRise, NO_RISE_BP } from "./prices";
 
@@ -35,6 +36,7 @@ export class EventService {
   constructor(
     private readonly deps: GameDeps,
     private readonly players: PlayerService,
+    private readonly inbox: InboxService,
   ) {}
 
   async processDue(playerId: string, now: Date): Promise<FiredEvent[]> {
@@ -126,11 +128,16 @@ export class EventService {
   }
 
   private async fire(playerId: string, event: GameEventConfig, now: Date): Promise<void> {
-    await this.applyEffect(playerId, event, now);
+    const message = await this.applyEffect(playerId, event, now);
     if (event.moraleChange !== 0) await this.players.applyChange(playerId, { morale: event.moraleChange }, now);
+    // A request shows as the HUD's event card, so it gets no toast; the inbox still keeps it.
+    await this.inbox.deliver(playerId, { kind: "event", title: event.title, message }, now, {
+      toast: event.effect.type !== "request",
+    });
   }
 
-  private async applyEffect(playerId: string, event: GameEventConfig, now: Date): Promise<void> {
+  /** Records the event's effect and returns what the player is told. */
+  private async applyEffect(playerId: string, event: GameEventConfig, now: Date): Promise<string> {
     const { db, rng } = this.deps;
     const effect = event.effect;
 
@@ -154,7 +161,7 @@ export class EventService {
           },
         });
       });
-      return;
+      return withAmount(effect.asks[variant] ?? event.message, asked);
     }
 
     // A price rise without a duration is permanent: no end date.
@@ -167,5 +174,6 @@ export class EventService {
     await db.eventFiring.create({
       data: { playerId, eventId: event.id, firedAt: now, endsAt },
     });
+    return event.message;
   }
 }

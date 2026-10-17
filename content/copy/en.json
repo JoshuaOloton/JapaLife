@@ -27,7 +27,7 @@
     "clock": "Day {day} · {time}",
     "clockAtNight": "{clock} · night",
     "rentIn": "Rent in {time}",
-    "rentDueNow": "Rent due now",
+    "rentDueNow": "Rent due · late fee in {time}",
     "rentOverdue": "Rent overdue!",
     "hunger": "Hunger",
     "energy": "Energy",
@@ -43,7 +43,14 @@
     "shiftsToday": "Shifts today {done}/{max}",
     "disclaimer": "A game, not immigration advice",
     "joystick": "Movement joystick",
-    "close": "Close"
+    "close": "Close",
+    "inbox": "Inbox",
+    "inboxUnread": "Inbox, {count} new"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "empty": "Nothing yet. News about your shifts, rent and family shows up here.",
+    "new": "New"
   },
   "places": {
     "prompts": {
@@ -62,6 +69,7 @@
     "rentDueIn": "{amount} · due in {time}",
     "rentDueNow": "{amount} · due now",
     "rentOverdue": "{amount} · overdue",
+    "rentLateFee": "Pay within {time} or the landlord adds a {fee} late fee",
     "payRent": "Pay rent",
     "noBuses": "No danfo yet. They're coming in a later update.",
     "fuelRuns": "Runs your gen {hours}h when NEPA takes light at night",
@@ -73,7 +81,10 @@
   },
   "notices": {
     "shiftPaidTitle": "Shift pay",
-    "shiftPaid": "You earned {amount} for your shift."
+    "shiftPaid": "You earned {amount} for your shift.",
+    "rentLateFeeTitle": "Rent overdue",
+    "rentLateFee": "Your landlord added a {amount} late fee. Pay your rent at home to stop more fees.",
+    "rentLateFeeBroke": "Your landlord came for a {amount} late fee you couldn't pay, and the whole compound heard. Pay your rent at home."
   },
   "rejections": {
     "invalid": "That didn't work. Try again.",

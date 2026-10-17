@@ -71,7 +71,7 @@ export const copySchema = z.strictObject({
     clock: text(["day", "time"]),
     clockAtNight: text(["clock"]),
     rentIn: text(["time"]),
-    rentDueNow: text(),
+    rentDueNow: text(["time"]),
     rentOverdue: text(),
     hunger: text(),
     energy: text(),
@@ -88,6 +88,13 @@ export const copySchema = z.strictObject({
     disclaimer: text(),
     joystick: text(),
     close: text(),
+    inbox: text(),
+    inboxUnread: text(["count"]),
+  }),
+  inbox: z.strictObject({
+    title: text(),
+    empty: text(),
+    new: text(),
   }),
   places: z.strictObject({
     /** The action button's text for each kind of place, unless the place sets its own `prompt`. */
@@ -101,6 +108,7 @@ export const copySchema = z.strictObject({
     rentDueIn: text(["amount", "time"]),
     rentDueNow: text(["amount"]),
     rentOverdue: text(["amount"]),
+    rentLateFee: text(["fee", "time"]),
     payRent: text(),
     noBuses: text(),
     fuelRuns: text(["hours"]),
@@ -113,6 +121,9 @@ export const copySchema = z.strictObject({
   notices: z.strictObject({
     shiftPaidTitle: text(),
     shiftPaid: text(["amount"]),
+    rentLateFeeTitle: text(),
+    rentLateFee: text(["amount"]),
+    rentLateFeeBroke: text(["amount"]),
   }),
   /** What the player is told when the server refuses an intent, one per reason. */
   rejections: rejectionsSchema,

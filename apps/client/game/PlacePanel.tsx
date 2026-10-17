@@ -123,6 +123,14 @@ function Body({
                     })}
               </div>
             )}
+            {stats && stats.rentStatus !== "ok" && (
+              <div className={styles.detail}>
+                {fill(text.rentLateFee, {
+                  fee: formatNaira(stats.rentLateFeeKobo),
+                  time: formatCountdown(Date.parse(stats.rentLateFeeAt) - now),
+                })}
+              </div>
+            )}
           </div>
           <button type="button" className={styles.action} onClick={() => room.send("payRent", {})}>
             {text.payRent}

@@ -53,6 +53,11 @@ export interface StatsMessage {
   rentDueAt: string;
   rentStatus: RentStatus;
   rentAmountKobo: number;
+  /** When the next late fee is charged if rent is still unpaid, and how much it is. */
+  rentLateFeeAt: string;
+  rentLateFeeKobo: number;
+  /** Inbox messages the player has not seen (things that happened while away). */
+  unreadInbox: number;
   activeShift: { jobId: string; endsAt: string } | null;
   shiftsToday: number;
   maxShiftsToday: number;
@@ -77,11 +82,28 @@ export interface PendingChoice {
   declineLabel: string;
 }
 
-/** A toast: something happened to the player (an event, a shift paid out). */
+export const NOTICE_KINDS = ["event", "shift_paid", "rent"] as const;
+export type NoticeKind = (typeof NOTICE_KINDS)[number];
+
+/** A toast: something happened to the player (an event, a shift paid out, a late fee). Also kept in the inbox. */
 export interface NoticeMessage {
-  kind: "event" | "shift_paid";
+  kind: NoticeKind;
   title: string;
   message: string;
+}
+
+/** One message in the player's inbox. */
+export interface InboxEntry extends NoticeMessage {
+  id: string;
+  /** When it happened, on the server clock. */
+  at: string;
+  /** Not seen before this inbox was opened. */
+  unread: boolean;
+}
+
+/** Reply to `openInbox`: the latest messages, newest first. Opening marks them all read. */
+export interface InboxMessage {
+  messages: InboxEntry[];
 }
 
 export interface RejectedMessage {
@@ -131,6 +153,7 @@ export const SERVER_MESSAGES = {
   notice: "notice",
   rejected: "rejected",
   interaction: "interaction",
+  inbox: "inbox",
   /**
    * Sent once on join. The payload is the district's `DistrictConfig`: its
    * buildings, roads, signs and walkable area. The client draws the world and

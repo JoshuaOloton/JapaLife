@@ -1,8 +1,9 @@
 import type { Shift } from "@japalife/db";
-import type { NeedsConfig } from "@japalife/shared";
+import { type NeedsConfig, withAmount } from "@japalife/shared";
 import { calendarDay } from "./clock";
 import type { GameDeps } from "./deps";
 import type { EventService } from "./events";
+import type { InboxService } from "./inbox";
 import { shiftPayPercent } from "./needs";
 import { type Outcome, reject } from "./outcome";
 import type { PlayerService } from "./players";
@@ -31,6 +32,7 @@ export class JobService {
     private readonly deps: GameDeps,
     private readonly players: PlayerService,
     private readonly events: EventService,
+    private readonly inbox: InboxService,
   ) {}
 
   async startShift(
@@ -124,6 +126,12 @@ export class JobService {
           // Safe as a number: one shift's pay is far below the balance cap.
           amountKobo: Number(amount),
         });
+        const { notices } = content.copy;
+        await this.inbox.deliver(
+          shift.playerId,
+          { kind: "shift_paid", title: notices.shiftPaidTitle, message: withAmount(notices.shiftPaid, amount) },
+          now,
+        );
       }
     }
     return paid;

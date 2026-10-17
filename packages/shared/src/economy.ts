@@ -39,6 +39,8 @@ export const FAUCET_REASONS = INCOME_REASONS;
 /** Everyday living costs, in Lagos and abroad. */
 const LIVING_REASONS = [
   "rent",
+  /** Charged every so often while rent is overdue. */
+  "rent_late_fee",
   "food",
   "black_tax",
   "transport",

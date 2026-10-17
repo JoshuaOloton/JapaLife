@@ -3,11 +3,12 @@
 import { COPY, type DistrictConfig, type Interactable, MAX_DEVICE_PIXEL_RATIO, type Point } from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type DistrictRoom, type ServerInbox, useDistrictConnection } from "./connection";
+import { type DistrictRoom, type MessageBuffer, useDistrictConnection } from "./connection";
 import { placePrompt } from "./format";
 import { FpsProbe, useFpsMeterEnabled } from "./FpsMeter";
 import { Hud, useTicker } from "./Hud";
 import styles from "./hud.module.css";
+import { InboxPanel } from "./InboxPanel";
 import { MoveInput } from "./input";
 import { Joystick } from "./Joystick";
 import { nearestPlace } from "./nearby";
@@ -64,7 +65,7 @@ export default function Game() {
       </Canvas>
       {touch && <Joystick input={input} />}
       {showFps && <p ref={fpsOutput} className={styles.fps} aria-hidden="true" />}
-      <Overlay room={connection.room} inbox={connection.inbox} district={connection.district} predicted={predicted} />
+      <Overlay room={connection.room} messages={connection.messages} district={connection.district} predicted={predicted} />
     </div>
   );
 }
@@ -75,16 +76,16 @@ export default function Game() {
  */
 function Overlay({
   room,
-  inbox,
+  messages,
   district,
   predicted,
 }: {
   room: DistrictRoom;
-  inbox: ServerInbox;
+  messages: MessageBuffer;
   district: DistrictConfig;
   predicted: { current: Point };
 }) {
-  const { server, toasts, interaction, closeInteraction } = useGameMessages(inbox);
+  const { server, toasts, interaction, closeInteraction, inbox, closeInbox } = useGameMessages(messages);
   const now = useTicker(server);
   const near = useNearbyPlace(district, predicted);
 
@@ -99,11 +100,14 @@ function Overlay({
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if ((event.code === "KeyE" || event.code === "Enter") && near && !interaction) room.send("interact", { targetId: near.id });
-      if (event.code === "Escape") closeInteraction();
+      if (event.code === "Escape") {
+        closeInteraction();
+        closeInbox();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [near, interaction, room, closeInteraction]);
+  }, [near, interaction, room, closeInteraction, closeInbox]);
 
   const openPlace = interaction ? district.interactables.find((place) => place.id === interaction.targetId) : undefined;
 
@@ -115,13 +119,18 @@ function Overlay({
         toasts={toasts}
         districtName={district.name}
         onAnswer={(choiceId, answer) => room.send("answerEvent", { choiceId, answer })}
+        onOpenInbox={() => {
+          closeInteraction();
+          room.send("openInbox", {});
+        }}
       />
-      {near && !interaction && (
+      {near && !interaction && !inbox && (
         <button type="button" className={styles.use} onClick={() => open(near)}>
           {placePrompt(near)}
         </button>
       )}
-      {interaction && openPlace && (
+      {inbox && <InboxPanel messages={inbox} stats={server?.stats ?? null} onClose={closeInbox} />}
+      {interaction && openPlace && !inbox && (
         <PlacePanel
           interaction={interaction}
           label={openPlace.label}
@@ -131,7 +140,7 @@ function Overlay({
           onClose={closeInteraction}
         />
       )}
-      {!interaction && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
+      {!interaction && !inbox && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
     </>
   );
 }
