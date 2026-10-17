@@ -2,6 +2,7 @@
 
 import { Client, type Room } from "@colyseus/sdk";
 import {
+  COPY,
   DEFAULT_SERVER_PORT,
   DISTRICT_ROOM_NAME,
   type DistrictConfig,
@@ -143,15 +144,15 @@ export function useDistrictConnection(): Connection {
           setConnection(
             parsed.success
               ? { status: "connected", room: room as DistrictRoom, district: parsed.data, inbox }
-              : { status: "failed", message: "The server sent a district this client does not understand." },
+              : { status: "failed", message: COPY.app.badDistrict },
           );
         });
         room.onLeave(() => {
-          if (!cancelled) setConnection({ status: "failed", message: "Lost connection to the server." });
+          if (!cancelled) setConnection({ status: "failed", message: COPY.app.connectionLost });
         });
       })
       .catch(() => {
-        if (!cancelled) setConnection({ status: "failed", message: "Could not reach the JapaLife server." });
+        if (!cancelled) setConnection({ status: "failed", message: COPY.app.serverUnreachable });
       });
 
     return () => {

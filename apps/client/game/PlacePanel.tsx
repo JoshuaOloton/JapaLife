@@ -1,9 +1,11 @@
 "use client";
 
-import type { InteractionMessage, StatsMessage } from "@japalife/shared";
+import { COPY, fill, type InteractionMessage, type StatsMessage } from "@japalife/shared";
 import { formatCountdown, formatNaira } from "./format";
 import styles from "./hud.module.css";
 import type { DistrictRoom } from "./connection";
+
+const text = COPY.places;
 
 /**
  * The sheet that opens at a place: the office's shift, the buka's menu, or your
@@ -29,7 +31,7 @@ export function PlacePanel({
     <section className={styles.sheet} aria-label={label}>
       <div className={styles.sheetHeader}>
         <h2>{label}</h2>
-        <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+        <button type="button" className={styles.close} onClick={onClose} aria-label={COPY.hud.close}>
           ×
         </button>
       </div>
@@ -58,11 +60,11 @@ function Body({
           <div>
             <strong>{job.name}</strong>
             <div className={styles.detail}>
-              {formatNaira(job.payKobo)} for {job.shiftMinutes} min · uses {job.energyCost} energy
+              {fill(text.jobTerms, { pay: formatNaira(job.payKobo), minutes: job.shiftMinutes, energy: job.energyCost })}
             </div>
             {stats && (
               <div className={styles.detail}>
-                Shifts today: {stats.shiftsToday} of {stats.maxShiftsToday}
+                {fill(text.jobShiftsToday, { done: stats.shiftsToday, max: stats.maxShiftsToday })}
               </div>
             )}
           </div>
@@ -74,7 +76,7 @@ function Body({
           >
             {working && stats?.activeShift
               ? formatCountdown(Date.parse(stats.activeShift.endsAt) - now)
-              : "Start shift"}
+              : text.startShift}
           </button>
         </div>
       );
@@ -87,7 +89,10 @@ function Body({
               <div>
                 <strong>{item.name}</strong>
                 <div className={styles.detail}>
-                  +{item.hungerRestored} hunger{item.energyRestored > 0 ? ` · +${item.energyRestored} energy` : ""}
+                  {[
+                    fill(text.foodHunger, { hunger: item.hungerRestored }),
+                    ...(item.energyRestored > 0 ? [fill(text.foodEnergy, { energy: item.energyRestored })] : []),
+                  ].join(" · ")}
                 </div>
               </div>
               <button
@@ -105,25 +110,27 @@ function Body({
       return (
         <div className={styles.row}>
           <div>
-            <strong>Rent</strong>
+            <strong>{text.rent}</strong>
             {stats && (
               <div className={styles.detail}>
-                {formatNaira(stats.rentAmountKobo)} ·{" "}
                 {stats.rentStatus === "ok"
-                  ? `due in ${formatCountdown(Date.parse(stats.rentDueAt) - now)}`
-                  : stats.rentStatus === "due"
-                    ? "due now"
-                    : "overdue"}
+                  ? fill(text.rentDueIn, {
+                      amount: formatNaira(stats.rentAmountKobo),
+                      time: formatCountdown(Date.parse(stats.rentDueAt) - now),
+                    })
+                  : fill(stats.rentStatus === "due" ? text.rentDueNow : text.rentOverdue, {
+                      amount: formatNaira(stats.rentAmountKobo),
+                    })}
               </div>
             )}
           </div>
           <button type="button" className={styles.action} onClick={() => room.send("payRent", {})}>
-            Pay rent
+            {text.payRent}
           </button>
         </div>
       );
     case "bus_stop":
-      return <p className={styles.detail}>No buses yet. Danfos are coming in a later update.</p>;
+      return <p className={styles.detail}>{text.noBuses}</p>;
     case "fuel_station":
       return (
         <>
@@ -132,8 +139,10 @@ function Body({
               <div>
                 <strong>{item.name}</strong>
                 <div className={styles.detail}>
-                  Runs your generator {item.generatorHours}h when NEPA takes light at night
-                  {stats ? ` · in your jerrycan: ${stats.generatorFuelHours}h` : ""}
+                  {[
+                    fill(text.fuelRuns, { hours: item.generatorHours }),
+                    ...(stats ? [fill(text.fuelInTank, { hours: stats.generatorFuelHours })] : []),
+                  ].join(" · ")}
                 </div>
               </div>
               <button

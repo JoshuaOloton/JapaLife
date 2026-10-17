@@ -74,6 +74,13 @@ describe("loadContent (broken content)", () => {
     expect(problemsOf().join("\n")).toContain("economy/jobs.json at meta");
   });
 
+  it("refuses to boot on a copy file with a misspelled placeholder", () => {
+    edit("copy/en.json", (j) => (j["notices"].shiftPaid = "You earned {amout}."));
+    const problems = problemsOf().join("\n");
+    expect(problems).toContain("copy/en.json at notices.shiftPaid: must contain {amount}");
+    expect(problems).toContain("unknown placeholder {amout}");
+  });
+
   it("rejects a request with no asks to pick from", () => {
     edit("events/black_tax.json", (j) => (j["effect"].asks = []));
     expect(problemsOf().join("\n")).toContain("events/black_tax.json at effect.asks");

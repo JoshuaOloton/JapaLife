@@ -1,5 +1,6 @@
 "use client";
 
+import { COPY } from "@japalife/shared";
 import { type PointerEvent, useRef, useState } from "react";
 import type { MoveInput } from "./input";
 
@@ -48,7 +49,7 @@ export function Joystick({ input }: { input: MoveInput }) {
   return (
     <div
       ref={pad}
-      aria-label="Movement joystick"
+      aria-label={COPY.hud.joystick}
       onPointerDown={(event) => {
         if (activePointer.current !== null) return;
         activePointer.current = event.pointerId;

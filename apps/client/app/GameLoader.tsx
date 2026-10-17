@@ -1,5 +1,6 @@
 "use client";
 
+import { COPY } from "@japalife/shared/copy";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { Welcome } from "./Welcome";
@@ -12,7 +13,7 @@ const loadGame = () => import("../game/Game");
  */
 const Game = dynamic(loadGame, {
   ssr: false,
-  loading: () => <p style={{ padding: 16, font: "600 16px system-ui, sans-serif" }}>Loading Yaba...</p>,
+  loading: () => <p style={{ padding: 16, font: "600 16px system-ui, sans-serif" }}>{COPY.app.loading}</p>,
 });
 
 const AGE_CONFIRMED_KEY = "japalife.ageConfirmed";

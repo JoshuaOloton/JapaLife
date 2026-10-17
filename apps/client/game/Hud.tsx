@@ -1,11 +1,13 @@
 "use client";
 
-import type { EventAnswer } from "@japalife/shared";
+import { COPY, fill, type EventAnswer } from "@japalife/shared";
 import { useEffect, useState } from "react";
 import { EventCard } from "./EventCard";
 import { formatCountdown, formatGameClock, formatNaira } from "./format";
 import styles from "./hud.module.css";
 import type { ServerStats, Toast } from "./useGameMessages";
+
+const hud = COPY.hud;
 
 /**
  * The always-visible numbers: money, hunger, energy, rent, and anything running
@@ -64,33 +66,38 @@ function Stats({ server, now }: { server: ServerStats; now: number }) {
     stats.rentStatus === "overdue" ? styles.rentOverdue : stats.rentStatus === "due" ? styles.rentDue : "";
   const rentText =
     stats.rentStatus === "overdue"
-      ? "Rent overdue!"
+      ? hud.rentOverdue
       : stats.rentStatus === "due"
-        ? "Rent due now"
-        : `Rent in ${formatCountdown(rentLeft)}`;
+        ? hud.rentDueNow
+        : fill(hud.rentIn, { time: formatCountdown(rentLeft) });
 
   const chips: { key: string; text: string; warn?: boolean }[] = [];
   if (stats.activeShift) {
-    chips.push({ key: "shift", text: `At work · ${formatCountdown(Date.parse(stats.activeShift.endsAt) - now)} left` });
+    chips.push({ key: "shift", text: fill(hud.atWork, { time: formatCountdown(Date.parse(stats.activeShift.endsAt) - now) }) });
   }
-  const fuel = `${stats.generatorFuelHours}h fuel`;
+  const hours = stats.generatorFuelHours;
   if (stats.blackoutEndsAt) {
-    const left = formatCountdown(Date.parse(stats.blackoutEndsAt) - now);
-    if (!stats.isNight) chips.push({ key: "light", text: `No light · ${left}`, warn: true });
-    else if (stats.generatorFuelHours > 0) chips.push({ key: "light", text: `No light · gen on · ${fuel}` });
-    else chips.push({ key: "light", text: `No light · no fuel, sleeping badly`, warn: true });
-  } else if (stats.generatorFuelHours > 0) {
-    chips.push({ key: "fuel", text: `Gen · ${fuel}` });
+    const time = formatCountdown(Date.parse(stats.blackoutEndsAt) - now);
+    if (!stats.isNight) chips.push({ key: "light", text: fill(hud.noLight, { time }), warn: true });
+    else if (hours > 0) chips.push({ key: "light", text: fill(hud.generatorRunning, { hours }) });
+    else chips.push({ key: "light", text: hud.noFuel, warn: true });
+  } else if (hours > 0) {
+    chips.push({ key: "fuel", text: fill(hud.generatorFuel, { hours }) });
   }
-  if (stats.lowMorale) chips.push({ key: "morale", text: "Low morale · resting slower, earning less", warn: true });
-  if (stats.foodPriceRisePercent > 0) chips.push({ key: "food", text: `Food prices +${stats.foodPriceRisePercent}%` });
-  if (stats.fuelPriceRisePercent > 0) chips.push({ key: "fuelPrice", text: `Fuel prices +${stats.fuelPriceRisePercent}%` });
-  chips.push({ key: "shifts", text: `Shifts today ${stats.shiftsToday}/${stats.maxShiftsToday}` });
+  if (stats.lowMorale) chips.push({ key: "morale", text: hud.lowMorale, warn: true });
+  if (stats.foodPriceRisePercent > 0) {
+    chips.push({ key: "food", text: fill(hud.foodPrices, { percent: stats.foodPriceRisePercent }) });
+  }
+  if (stats.fuelPriceRisePercent > 0) {
+    chips.push({ key: "fuelPrice", text: fill(hud.fuelPrices, { percent: stats.fuelPriceRisePercent }) });
+  }
+  chips.push({ key: "shifts", text: fill(hud.shiftsToday, { done: stats.shiftsToday, max: stats.maxShiftsToday }) });
 
+  const clock = formatGameClock(now, stats.startedOn, stats.timeZone);
   return (
     <>
       <div className={styles.bar}>
-        <span className={styles.money} aria-label="Wallet">
+        <span className={styles.money} aria-label={hud.wallet}>
           {formatNaira(stats.balanceKobo)}
         </span>
         <span className={`${styles.rent} ${rentClass}`}>
@@ -98,14 +105,11 @@ function Stats({ server, now }: { server: ServerStats; now: number }) {
           <br />
           {formatNaira(stats.rentAmountKobo)}
         </span>
-        <span className={styles.clock}>
-          {formatGameClock(now, stats.startedOn, stats.timeZone)}
-          {stats.isNight ? " · night" : ""}
-        </span>
+        <span className={styles.clock}>{stats.isNight ? fill(hud.clockAtNight, { clock }) : clock}</span>
         <div className={styles.meters}>
-          <Meter label="Hunger" value={stats.hunger} />
-          <Meter label="Energy" value={stats.energy} />
-          <Meter label="Morale" value={stats.morale} />
+          <Meter label={hud.hunger} value={stats.hunger} />
+          <Meter label={hud.energy} value={stats.energy} />
+          <Meter label={hud.morale} value={stats.morale} />
         </div>
       </div>
       <div className={styles.chips}>

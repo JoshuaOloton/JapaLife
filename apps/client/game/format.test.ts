@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Interactable } from "@japalife/shared";
-import { formatCountdown, formatGameClock, formatNaira } from "./format";
+import type { Interactable, RejectReason } from "@japalife/shared";
+import { formatCountdown, formatGameClock, formatNaira, placePrompt, rejectionText } from "./format";
 
 describe("formatGameClock", () => {
   it("counts days from the player's first day in Lagos and shows Lagos time", () => {
@@ -32,6 +32,30 @@ describe("nearestPlace", () => {
     const places = [place("far", 2.9), place("near", 1)];
     expect(nearestPlace({ x: 0, z: 0 }, places, 3)?.id).toBe("near");
     expect(nearestPlace({ x: -5, z: 0 }, places, 3)).toBeUndefined();
+  });
+});
+
+describe("placePrompt", () => {
+  const at = { x: 0, z: 0 };
+
+  it("uses the place's own prompt when it has one", () => {
+    expect(placePrompt({ id: "buka", label: "Mama Put Buka", prompt: "Buy food at Mama Put", kind: "food_vendor", position: at, foodIds: ["suya"] })).toBe(
+      "Buy food at Mama Put",
+    );
+  });
+
+  it("otherwise fills the template for its kind", () => {
+    expect(placePrompt({ id: "office", label: "Yaba Office", kind: "job_site", position: at, jobId: "x" })).toBe(
+      "Work a shift at Yaba Office",
+    );
+    expect(placePrompt({ id: "room", label: "Your room", kind: "home", position: at })).toBe("Go home");
+  });
+});
+
+describe("rejectionText", () => {
+  it("explains a refusal, and falls back for a reason this client does not know", () => {
+    expect(rejectionText("too_far")).toBe("Come closer first.");
+    expect(rejectionText("from_the_future" as RejectReason)).toBe("That didn't work. Try again.");
   });
 });
 

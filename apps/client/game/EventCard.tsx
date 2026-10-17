@@ -1,6 +1,6 @@
 "use client";
 
-import type { EventAnswer, PendingChoice } from "@japalife/shared";
+import { COPY, fill, type EventAnswer, type PendingChoice } from "@japalife/shared";
 import { useState } from "react";
 import { formatCountdown, formatNaira } from "./format";
 import styles from "./hud.module.css";
@@ -39,7 +39,9 @@ export function EventCard({
       <strong>{choice.title}</strong>
       <p className={styles.cardText}>{choice.message}</p>
       <p className={styles.cardHint}>
-        {canPay ? `Reply within ${formatCountdown(Date.parse(choice.expiresAt) - now)}` : `You don't have ${formatNaira(choice.amountKobo)} right now`}
+        {canPay
+          ? fill(COPY.eventCard.replyWithin, { time: formatCountdown(Date.parse(choice.expiresAt) - now) })
+          : fill(COPY.eventCard.cannotAfford, { amount: formatNaira(choice.amountKobo) })}
       </p>
       <div className={styles.cardButtons}>
         <button type="button" className={styles.action} disabled={sent || !canPay} onClick={() => send("pay")}>
