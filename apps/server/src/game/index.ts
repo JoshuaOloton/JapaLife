@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@japalife/db";
-import { formatNaira } from "@japalife/shared";
+import { withAmount } from "@japalife/shared";
 import { BalanceWatch } from "../economy/balanceWatch";
 import { Ledger } from "../economy/ledger";
 import { WalletService } from "../economy/wallet";
@@ -126,10 +126,11 @@ export function startGameLoop(game: GameSystems, intervalMs = 30_000): () => voi
       .settleDueShifts(now)
       .then((paid) => {
         for (const shift of paid) {
+          const { notices } = game.content.copy;
           game.notices.publish(shift.playerId, {
             kind: "shift_paid",
-            title: "Shift pay",
-            message: `You earned ${formatNaira(shift.amountKobo)} for your shift.`,
+            title: notices.shiftPaidTitle,
+            message: withAmount(notices.shiftPaid, shift.amountKobo),
           });
         }
       })

@@ -272,6 +272,11 @@ export type GameEventConfig = z.infer<typeof gameEventSchema>;
 const signedSpot = {
   id: contentIdSchema,
   label: z.string().min(1).max(40),
+  /**
+   * What the action button says when the player stands here, e.g. "Buy food at
+   * Mama Put". Without it, the kind's template in `copy/en.json` is used.
+   */
+  prompt: z.string().min(1).max(40).optional(),
   position: positionSchema,
 };
 

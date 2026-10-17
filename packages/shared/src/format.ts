@@ -1,3 +1,5 @@
+import { fill } from "./copyText";
+
 const NAIRA = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 });
 const NAIRA_WITH_KOBO = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 2 });
 
@@ -12,5 +14,5 @@ export function formatNaira(kobo: number | bigint): string {
 
 /** Fills `{amount}` in a content string with the naira amount. */
 export function withAmount(text: string, kobo: number | bigint): string {
-  return text.replaceAll("{amount}", formatNaira(kobo));
+  return fill(text, { amount: formatNaira(kobo) });
 }

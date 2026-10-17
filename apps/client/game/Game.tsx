@@ -1,9 +1,10 @@
 "use client";
 
-import { type DistrictConfig, type Interactable, MAX_DEVICE_PIXEL_RATIO, type Point } from "@japalife/shared";
+import { COPY, type DistrictConfig, type Interactable, MAX_DEVICE_PIXEL_RATIO, type Point } from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type DistrictRoom, type ServerInbox, useDistrictConnection } from "./connection";
+import { placePrompt } from "./format";
 import { FpsProbe, useFpsMeterEnabled } from "./FpsMeter";
 import { Hud, useTicker } from "./Hud";
 import styles from "./hud.module.css";
@@ -37,7 +38,7 @@ export default function Game() {
     return (
       <div style={{ position: "fixed", inset: 0, background: SKY_COLOUR }}>
         <p role="status" style={{ margin: 16, font: "600 16px system-ui, sans-serif", color: "#1d2b36" }}>
-          {connection.status === "connecting" ? "Connecting..." : connection.message}
+          {connection.status === "connecting" ? COPY.app.connecting : connection.message}
         </p>
       </div>
     );
@@ -117,7 +118,7 @@ function Overlay({
       />
       {near && !interaction && (
         <button type="button" className={styles.use} onClick={() => open(near)}>
-          {near.label}
+          {placePrompt(near)}
         </button>
       )}
       {interaction && openPlace && (
@@ -130,7 +131,7 @@ function Overlay({
           onClose={closeInteraction}
         />
       )}
-      {!interaction && <p className={styles.disclaimer}>A game, not immigration advice</p>}
+      {!interaction && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
     </>
   );
 }

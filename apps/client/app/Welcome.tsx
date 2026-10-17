@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { COPY } from "@japalife/shared/copy";
+import { Fragment, useState } from "react";
 import styles from "./welcome.module.css";
+
+const text = COPY.welcome;
 
 /**
  * 18+ GATE STUB and the disclaimer. Players must be 18 or older (CLAUDE.md).
@@ -15,40 +18,43 @@ export function Welcome({ onEnter }: { onEnter: () => void }) {
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <h1 className={styles.title}>JapaLife</h1>
-        <p className={styles.lead}>Hustle in Lagos, sort your papers, japa, and build a life abroad.</p>
+        <h1 className={styles.title}>{text.title}</h1>
+        <p className={styles.lead}>{text.lead}</p>
 
         <section className={styles.disclaimer} aria-labelledby="disclaimer-heading">
-          <h2 id="disclaimer-heading">This is a game, not immigration advice</h2>
-          <p>
-            Fees, rules, waiting times and prices in JapaLife are simplified, can be out of date, and some are made up
-            for gameplay. Never use them to plan a real move.
-          </p>
-          <p>
-            For real decisions, use official sources only: <strong>gov.uk</strong> for the UK and{" "}
-            <strong>canada.ca</strong> for Canada. Nobody can genuinely guarantee you a visa, so treat any
-            agent who promises one as a scam.
-          </p>
+          <h2 id="disclaimer-heading">{text.disclaimerHeading}</h2>
+          {text.disclaimer.map((paragraph) => (
+            <p key={paragraph}>
+              <WithBold text={paragraph} />
+            </p>
+          ))}
         </section>
 
         {underage ? (
           <p className={styles.underage} role="alert">
-            Sorry, JapaLife is only for players aged 18 and over.
+            {text.underage}
           </p>
         ) : (
           <>
-            <p className={styles.question}>JapaLife is for players aged 18 and over. Are you 18 or older?</p>
+            <p className={styles.question}>{text.ageQuestion}</p>
             <div className={styles.buttons}>
               <button type="button" className={styles.primary} onClick={onEnter}>
-                Yes, I'm 18 or older
+                {text.ageYes}
               </button>
               <button type="button" className={styles.secondary} onClick={() => setUnderage(true)}>
-                No
+                {text.ageNo}
               </button>
             </div>
           </>
         )}
       </div>
     </main>
+  );
+}
+
+/** Shows `**text**` in bold. Plain text otherwise: copy never carries HTML. */
+function WithBold({ text: line }: { text: string }) {
+  return line.split(/\*\*(.+?)\*\*/).map((part, index) =>
+    index % 2 === 1 ? <strong key={index}>{part}</strong> : <Fragment key={index}>{part}</Fragment>,
   );
 }

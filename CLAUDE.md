@@ -61,6 +61,7 @@ content/
   events/        Random life events (black tax, NEPA, policy changes, scams)
   refusals/      Refusal reasons and what fixes them
   economy/       Starting exchange rates, volatility, price tables, inflation
+  copy/          Every player-facing string, one file per language (en.json)
 ```
 
 ## Commands
@@ -130,6 +131,7 @@ Ports: `DEFAULT_CLIENT_PORT` and `DEFAULT_SERVER_PORT` live in `packages/shared`
 - Shared types and message schemas live in `packages/shared`. Never duplicate them between client and server.
 - Small, focused modules. Game systems (economy, documents, applications, remittances, credit, housing, events) are separate server modules with their own tests.
 - Prefer clear names over comments, and add comments where the reason isn't obvious.
+- Never write player-facing text in code. Add it to `content/copy/en.json` and its schema (`copySchema` in `packages/shared/src/copy.ts`), with `{placeholders}` filled by `fill`. Names of places, food, jobs and event text stay in their own content files. Developer-only text (logs, the `?fps` meter, script output) stays in code.
 
 ## Working with me
 I'm an experienced full-stack developer but new to game development. Act as my lead game developer and mentor:
@@ -181,6 +183,8 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 
 ### Content
 - **Phase 1 numbers are placeholders.** Everything in `content/economy/`, `content/events/` and `content/cities/lagos.json` is marked `"basis": "game-balance"` instead of a `source` URL: starting balance, rent, food prices, shift pay, event amounts and frequencies are tuning guesses, not researched Lagos prices. Retune them after play-testing. Real rules (Phase 2) must use `source` plus `asOf`.
+- **Copy (decided 2026-10-17): plain English with light Nigerian touches** ("chop", "wait small", "NEPA has taken light"); the flavour comes from specifics, not heavy Pidgin. A Pidgin version would be its own language file (`pcm.json`), not a mix. The client bundles `en.json` at build time (the welcome screen needs it before connecting), so changing copy needs a rebuild, not a code change. The browser imports it from `@japalife/shared/copy`, which has no zod, so the first download stays small; the schema runs at server boot and in `pnpm test`. Only English exists, and nothing picks a language yet.
+- **Action prompts:** the button at a place shows its `prompt` from the city file ("Buy food at Mama Put"), or its kind's template from `copy/en.json` ("Work a shift at {place}").
 - **Content is loaded once at boot** by `loadContent()` and handed to the game systems. Unknown fields are rejected, and cross-references (job sites, food vendors, fuel station items, event files per `GAME_EVENT_IDS`) are checked.
 - **Meters (decided 2026-10-15, extended 2026-10-16):** hunger drains 4 points an hour, so a 45-point meal lasts about half a real day; a meal (the whole order) is refused with `already_full` if it would fill hunger more than `overeatAllowance` (10) past 100, so a full player cannot keep eating or farm morale from food (decided 2026-10-17); energy regenerates 6 an hour; morale drifts 1 an hour back towards 60, food lifts it, and events can lower it. Below 30 morale, energy recovers at half speed and a shift started then pays 80% (the pay is fixed on the `Shift` row when it starts). All in `content/economy/needs.json` and `content/events/`, marked TODO for tuning.
 - **Power cuts (changed 2026-10-16):** they now last 6 hours and **no longer block work** (`blocksShifts: false`: offices run their own generators). Their effect is at night (19:00–06:00 Lagos, `night` in `lagos.json`): energy recovers at 25% unless the player's generator has fuel, which it burns only while it is both night and dark. Petrol costs N900 a litre and runs it 2 hours; the tank holds 12 hours. Morale -3 per cut.
@@ -194,7 +198,7 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **`pnpm-workspace.yaml` `allowBuilds`:** `esbuild` is allowed; `prisma`, `@prisma/engines` and `msgpackr-extract` are declined. The first two are not needed (migrate and generate work). `msgpackr-extract` is an optional native speed-up for Colyseus with a JS fallback; revisit if message encoding shows up in profiling.
 - **CI needs a Postgres service** for the ledger tests, and `DATABASE_URL` set.
 - **Prisma 7's `migrate dev` does not regenerate the client.** After a schema change, run `pnpm db:generate` (or `pnpm install`), or the new models are `undefined` at runtime.
-- **Client bundle (2026-10-16):** the page shell is ~175 KB gzipped; the game (three.js, R3F, Colyseus, zod) is a lazy `next/dynamic` chunk of ~335 KB gzipped. Whole first visit is ~470 KB over the wire. `pnpm budget` builds the client and fails above 15 MB, counting every static chunk, the HTML and `public/` (an upper bound: 1.85 MB raw, 0.53 MB gzipped on 2026-10-16). CDN city assets are outside the build and will need their own per-district budget. `@react-three/drei` and `@react-three/rapier` are installed but unused (drei's `Text` would download a font; signs are canvas textures instead).
+- **Client bundle (2026-10-16):** the page shell is ~175 KB gzipped; the game (three.js, R3F, Colyseus, zod) is a lazy `next/dynamic` chunk of ~335 KB gzipped. Whole first visit is ~470 KB over the wire. `pnpm budget` builds the client and fails above 15 MB, counting every static chunk, the HTML and `public/` (an upper bound: 1.85 MB raw, 0.53 MB gzipped on 2026-10-16; 1.86 MB raw on 2026-10-17 after the copy moved to content, which adds a ~4 KB gzipped chunk to the first visit while zod stays in the lazy game chunk). CDN city assets are outside the build and will need their own per-district budget. `@react-three/drei` and `@react-three/rapier` are installed but unused (drei's `Text` would download a font; signs are canvas textures instead).
 
 ### Client (`apps/client/game/`)
 - **The camera always faces north** (no orbit). Up on the joystick or W walks away from the camera. A rotating camera needs a second touch control and has to rotate the input direction too; revisit if play-testers find it limiting.
@@ -236,7 +240,7 @@ Work one slice at a time on its own branch. "Slice 3" and similar always mean th
 | 6 | Hardening | 15 MB budget check, fps check on a mid-range Android, abnormal-balance flagging, log hygiene | Done (`pnpm budget`, `?fps` meter, `BalanceWatch` with migration `add_balance_flags`, `logError`). Measured on a vivo Y29: 60 fps, low 60 (see Known limits, Client); joystick play-tested and fine |
 | 7 | Stats and time | Morale and family-relationship stats; low morale slows energy recovery and cuts shift pay; day/night on Lagos time with "Day N · 7:45 PM" in the HUD; power cuts slow night-time energy recovery unless the player runs a generator, with petrol bought at the fuel station (`buyItem` intent); price rises permanent and compounding; morale bar | Built (`needs.ts`, `prices.ts`, `shop.ts`, night helpers in `clock.ts`; migration `add_morale_family_generator`). Play-tested on the phone 2026-10-17; fullness limit added after |
 | 8 | Event choices | Events that ask the player to choose, stored in the database so a choice survives going offline; black tax becomes pay (money down, family up) or decline (morale and family down); an `answerEvent` intent and an event card with buttons in the HUD | Built (`choices.ts`, `EventCard.tsx`, migration `add_event_choices`, `pnpm fire-event`). Play-tested on the phone 2026-10-17 |
-| 9 | Copy in content | Every player-facing string (welcome screen, HUD labels, refusals, place sheets, notices) moves into `content/`; action prompts such as "Buy food at Mama Put" | Not started |
+| 9 | Copy in content | Every player-facing string (welcome screen, HUD labels, refusals, place sheets, notices) moves into `content/`; action prompts such as "Buy food at Mama Put" | Built (`content/copy/en.json`, `copySchema`, `COPY` and `fill` in `@japalife/shared/copy`, `placePrompt`). Not yet play-tested on the phone |
 
 Slices 7–9 come from the original Phase 1 brief (events with choices, morale, a mobile-first HUD, copy in content), which Slices 0–6 had narrowed. Design decisions for them (2026-10-16): low morale slows energy recovery and pays less per shift; family relationship has no mechanical effect yet and is read by the Phase 4 family-reunion chain; price rises are permanent and compound, about once a month; the HUD clock is Lagos time, with days counted from when the player started.
 

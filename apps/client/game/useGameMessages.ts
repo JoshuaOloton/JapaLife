@@ -3,7 +3,7 @@
 import type { InteractionMessage, StatsMessage } from "@japalife/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ServerInbox } from "./connection";
-import { REJECTION_TEXT } from "./format";
+import { rejectionText } from "./format";
 
 export interface Toast {
   id: number;
@@ -58,7 +58,7 @@ export function useGameMessages(inbox: ServerInbox) {
             });
             return;
           case "rejected":
-            pushToast({ tone: "refused", title: "", message: REJECTION_TEXT[event.rejected.reason] ?? REJECTION_TEXT.invalid });
+            pushToast({ tone: "refused", title: "", message: rejectionText(event.rejected.reason) });
             return;
           case "interaction":
             setInteraction(event.interaction);

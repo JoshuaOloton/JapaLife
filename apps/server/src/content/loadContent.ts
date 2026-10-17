@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import {
   GAME_EVENT_IDS,
   citySchema,
+  copySchema,
+  type Copy,
   gameEventSchema,
   jobsSchema,
   needsSchema,
@@ -24,6 +26,8 @@ export type GameContent = {
   jobs: JobsConfig;
   events: Record<GameEventId, GameEventConfig>;
   cities: Record<string, CityConfig>;
+  /** Player-facing text. The client bundles the same file; checking it here stops a bad edit at boot. */
+  copy: Copy;
   /** Values flagged `TODO` in the files, unsure and waiting for review. Printed at boot. */
   todos: string[];
 };
@@ -101,6 +105,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   const ngn = readJson("economy/ngn.json", ngnEconomySchema);
   const needs = readJson("economy/needs.json", needsSchema);
   const jobs = readJson("economy/jobs.json", jobsSchema);
+  const copy = readJson("copy/en.json", copySchema);
 
   const events: Partial<Record<GameEventId, GameEventConfig>> = {};
   for (const file of jsonFilesIn("events")) {
@@ -130,7 +135,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
 
   if (ngn && jobs) problems.push(...crossCheck(ngn, jobs, Object.values(cities)));
 
-  if (problems.length > 0 || !ngn || !needs || !jobs) throw new ContentError(problems);
+  if (problems.length > 0 || !ngn || !needs || !jobs || !copy) throw new ContentError(problems);
   const allEvents = events as Record<GameEventId, GameEventConfig>;
   return {
     ngn,
@@ -138,6 +143,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
     jobs,
     events: allEvents,
     cities,
+    copy,
     todos: collectTodos(ngn, needs, jobs, allEvents),
   };
 }

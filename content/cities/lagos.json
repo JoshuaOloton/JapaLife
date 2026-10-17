@@ -16,9 +16,9 @@
       "interactables": [
         { "id": "face-me-face-you", "label": "Your room", "kind": "home", "position": { "x": -5, "z": -25 } },
         { "id": "yaba-office", "label": "Yaba Office", "kind": "job_site", "position": { "x": 20, "z": -10 }, "jobId": "office-assistant" },
-        { "id": "mama-put-buka", "label": "Mama Put Buka", "kind": "food_vendor", "position": { "x": -15, "z": 12 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] },
+        { "id": "mama-put-buka", "label": "Mama Put Buka", "prompt": "Buy food at Mama Put", "kind": "food_vendor", "position": { "x": -15, "z": 12 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] },
         { "id": "yaba-bus-stop", "label": "Bus Stop", "kind": "bus_stop", "position": { "x": 8, "z": 25 } },
-        { "id": "yaba-fuel-station", "label": "Fuel Station", "kind": "fuel_station", "position": { "x": 30, "z": 20 }, "shopItemIds": ["generator-petrol"] }
+        { "id": "yaba-fuel-station", "label": "Fuel Station", "prompt": "Buy petrol for your gen", "kind": "fuel_station", "position": { "x": 30, "z": 20 }, "shopItemIds": ["generator-petrol"] }
       ],
       "roads": [
         { "x": 0, "z": 0, "halfWidth": 60, "halfDepth": 4, "colour": "#4a4a4f" },

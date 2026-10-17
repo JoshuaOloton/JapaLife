@@ -1,4 +1,4 @@
-import type { RejectReason } from "@japalife/shared";
+import { COPY, fill, type Interactable, type RejectReason } from "@japalife/shared";
 
 export { formatNaira } from "@japalife/shared";
 
@@ -44,25 +44,16 @@ export function formatGameClock(now: number, startedOn: string, timeZone: string
     .format(now)
     // Some browsers put a narrow no-break space before AM/PM.
     .replace(/\s/g, " ");
-  return `Day ${Math.max(1, day)} · ${time}`;
+  return fill(COPY.hud.clock, { day: Math.max(1, day), time });
 }
 
 /** What to tell the player when the server refuses something. */
-export const REJECTION_TEXT: Record<RejectReason, string> = {
-  invalid: "That didn't work. Try again.",
-  rate_limited: "Easy. One thing at a time.",
-  unknown_target: "There's nothing to do here.",
-  too_far: "Move closer first.",
-  not_signed_in: "You're not signed in.",
-  starving: "You're too hungry to work. Go and chop something first.",
-  no_energy: "You're too tired to work. Rest a bit first.",
-  blackout: "NEPA has taken light. No work until power comes back.",
-  shift_active: "You're already on a shift.",
-  daily_limit: "That's enough work for today. Come back tomorrow.",
-  insufficient_funds: "Not enough money for that.",
-  already_full: "You're too full for that. Try something lighter, or wait small.",
-  rent_not_due: "Rent isn't due yet.",
-  tank_full: "Your jerrycan can't hold that much more.",
-  already_answered: "You've already answered that.",
-  choice_expired: "Too late. They've stopped waiting for an answer.",
-};
+export function rejectionText(reason: RejectReason): string {
+  // A newer server may send a reason this client does not know yet.
+  return Object.hasOwn(COPY.rejections, reason) ? COPY.rejections[reason] : COPY.rejections.invalid;
+}
+
+/** The action button's text at a place: its own prompt, or its kind's template. */
+export function placePrompt(place: Interactable): string {
+  return place.prompt ?? fill(COPY.places.prompts[place.kind], { place: place.label });
+}

@@ -1,0 +1,96 @@
+{
+  "language": "en",
+  "app": {
+    "title": "JapaLife",
+    "description": "A life simulator about the japa journey.",
+    "loading": "Loading Lagos...",
+    "connecting": "Connecting...",
+    "serverUnreachable": "We couldn't reach the JapaLife server. Check your data and try again.",
+    "connectionLost": "Connection lost. Refresh to get back in.",
+    "badDistrict": "This version of the game is out of date. Refresh the page."
+  },
+  "welcome": {
+    "title": "JapaLife",
+    "lead": "Hustle in Lagos, sort your papers, japa, and build a life abroad.",
+    "disclaimerHeading": "This is a game, not immigration advice",
+    "disclaimer": [
+      "Fees, rules, waiting times and prices in JapaLife are simplified, can be out of date, and some are made up for gameplay. Never use them to plan a real move.",
+      "For real decisions, use official sources only: **gov.uk** for the UK and **canada.ca** for Canada. Nobody can genuinely guarantee you a visa, so treat any agent who promises one as a scam."
+    ],
+    "ageQuestion": "JapaLife is for players aged 18 and over. Are you 18 or older?",
+    "ageYes": "Yes, I'm 18 or older",
+    "ageNo": "No",
+    "underage": "Sorry, JapaLife is only for players aged 18 and over."
+  },
+  "hud": {
+    "wallet": "Wallet",
+    "clock": "Day {day} · {time}",
+    "clockAtNight": "{clock} · night",
+    "rentIn": "Rent in {time}",
+    "rentDueNow": "Rent due now",
+    "rentOverdue": "Rent overdue!",
+    "hunger": "Hunger",
+    "energy": "Energy",
+    "morale": "Morale",
+    "atWork": "At work · {time} left",
+    "noLight": "No light · {time}",
+    "generatorRunning": "No light · gen on · {hours}h fuel",
+    "noFuel": "No light · no fuel, sleeping badly",
+    "generatorFuel": "Gen · {hours}h fuel",
+    "lowMorale": "Low morale · resting slower, earning less",
+    "foodPrices": "Food prices +{percent}%",
+    "fuelPrices": "Fuel prices +{percent}%",
+    "shiftsToday": "Shifts today {done}/{max}",
+    "disclaimer": "A game, not immigration advice",
+    "joystick": "Movement joystick",
+    "close": "Close"
+  },
+  "places": {
+    "prompts": {
+      "job_site": "Work a shift at {place}",
+      "food_vendor": "Buy food at {place}",
+      "home": "Go home",
+      "bus_stop": "Wait for a danfo",
+      "fuel_station": "Buy petrol at {place}"
+    },
+    "jobTerms": "{pay} for {minutes} min · uses {energy} energy",
+    "jobShiftsToday": "Shifts today: {done} of {max}",
+    "startShift": "Start shift",
+    "foodHunger": "+{hunger} hunger",
+    "foodEnergy": "+{energy} energy",
+    "rent": "Rent",
+    "rentDueIn": "{amount} · due in {time}",
+    "rentDueNow": "{amount} · due now",
+    "rentOverdue": "{amount} · overdue",
+    "payRent": "Pay rent",
+    "noBuses": "No danfo yet. They're coming in a later update.",
+    "fuelRuns": "Runs your gen {hours}h when NEPA takes light at night",
+    "fuelInTank": "in your jerrycan: {hours}h"
+  },
+  "eventCard": {
+    "replyWithin": "Reply within {time}",
+    "cannotAfford": "You don't have {amount} right now"
+  },
+  "notices": {
+    "shiftPaidTitle": "Shift pay",
+    "shiftPaid": "You earned {amount} for your shift."
+  },
+  "rejections": {
+    "invalid": "That didn't work. Try again.",
+    "rate_limited": "Easy, one thing at a time.",
+    "unknown_target": "There's nothing to do here.",
+    "too_far": "Come closer first.",
+    "not_signed_in": "You're not signed in.",
+    "starving": "You're too hungry to work. Go and chop something first.",
+    "no_energy": "You're too tired to work. Rest a bit first.",
+    "blackout": "NEPA has taken light. No work until power comes back.",
+    "shift_active": "You're already on a shift.",
+    "daily_limit": "That's enough work for today. Come back tomorrow.",
+    "insufficient_funds": "Your money isn't enough for that.",
+    "already_full": "You're too full for that. Try something lighter, or wait small.",
+    "rent_not_due": "Rent isn't due yet. Landlord can wait.",
+    "tank_full": "Your jerrycan can't hold that much more.",
+    "already_answered": "You've already answered that.",
+    "choice_expired": "Too late. They've stopped waiting for an answer."
+  }
+}
