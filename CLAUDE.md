@@ -224,7 +224,26 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 
 ## Current phase
 
-**Phase 2: documents, routes and applications (started 2026-10-17).** Phase 1 is done and play-tested. Phase 2 covers design-doc Stages 2–4: gathering documents in Lagos, choosing a route, applying, waiting in real time, and being approved, refused or asked for more.
+**Slice 11: Look and feel (planned 2026-10-17, not started), then Phase 2.** Phase 2 waits until Slice 11 is done. Goal: make Yaba look and feel like Lagos and replace the capsule with a rigged, customisable character, within the 15 MB / 30 fps budget. Full plan: `~/.claude/plans/add-a-look-and-crystalline-penguin.md`.
+
+Decisions (2026-10-17):
+- A starter set of outfits and hair is free at creation and can be changed for free at home. Extra outfits (agbada, iro and buba with gele, aso-ebi) are sold at the market later as a money sink.
+- **Start on free tiers:** Slice 11 uses free asset tiers and free tools only. Paid tiers or commissioning may come later, and swap in through catalog entries. Sources (all CC0, free tiers): Quaternius Universal Base Characters (2 bodies, 5 hairstyles) and Universal Animation Library (45 clips, same rig, no retargeting), KayKit City Builder Bits, Kenney City and Car Kits.
+- We make the Nigerian items ourselves: danfo, keke and okada kitbashed in Blender, short Black hairstyles painted on the scalp and volume styles as low-poly meshes, and Ankara patterns painted in code on a canvas (original designs, zero download).
+- Not used: Ready Player Me (shut down 2026-01-31), and Mixamo as a main source (redistribution terms).
+- Asset tooling (approved 2026-10-17): `@gltf-transform/cli` (MIT) is a root dev dependency (`pnpm exec gltf-transform`). Its KTX2 texture step needs the `toktx` system tool (KTX-Software, Apache 2.0), which Homebrew does not package; install it from the KhronosGroup/KTX-Software GitHub releases (`KTX-Software-<version>-Darwin-arm64.pkg`). Together they compress and measure models at build time; neither ships to players.
+
+| # | Slice | What it covers |
+|---|---|---|
+| 11a | Pipeline + character | `pnpm assets` (gltf-transform: Draco, KTX2, generated `content/cities/models.json`), self-hosted decoders, a Quaternius body replacing the capsule, idle/walk/work animations (work = active shift at the job site), walk speed matched to `PLAYER_SPEED_UNITS_PER_SECOND` |
+| 11b | Yaba looks like Lagos | Building `model`/`rotation` in `lagos.json` with a footprint-fits-box check (the footprint stays the collision truth), laterite ground, gutters, Lagos day/night lighting, windows dark during power cuts |
+| 11c | Street life, static | `propSchema` and `districtObstacles` (buildings plus blocking props, used by server, client prediction and `checkLayout`), props and trees, static NPCs |
+| 11d | Customisation | `content/characters/catalog.json`, a `PlayerAppearance` table, the `setAppearance` intent and `AppearanceService`, a character creator after the welcome screen, "Change clothes" at home, appearance code in `PlayerPosition` for Phase 5 |
+| 11e | Moving life | Client-only cosmetic traffic (instanced vehicles on lanes) and pedestrians, adaptive quality |
+| 11f | Nigerian assets (DIY) | Our own danfo, keke, okada, Black hairstyles, Ankara outfits and Lagos facades, swapped in through catalog entries |
+| 11g | Hardening | vivo Y29 fps and draw calls (< 80), per-district asset budget (Yaba ≤ 6 MB, characters ≤ 1.5 MB), CLAUDE.md Known limits |
+
+**Phase 2: documents, routes and applications (planned 2026-10-17, starts after Slice 11).** Phase 1 is done and play-tested. Phase 2 covers design-doc Stages 2–4: gathering documents in Lagos, choosing a route, applying, waiting in real time, and being approved, refused or asked for more.
 
 ### Phase 2 decisions (2026-10-17)
 
