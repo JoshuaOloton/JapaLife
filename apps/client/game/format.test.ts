@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Interactable } from "@japalife/shared";
-import { formatCountdown, formatNaira } from "./format";
+import { formatCountdown, formatGameClock, formatNaira } from "./format";
+
+describe("formatGameClock", () => {
+  it("counts days from the player's first day in Lagos and shows Lagos time", () => {
+    expect(formatGameClock(Date.parse("2026-10-15T08:05:00Z"), "2026-10-15", "Africa/Lagos")).toBe("Day 1 · 9:05 AM");
+    expect(formatGameClock(Date.parse("2026-10-26T18:45:00Z"), "2026-10-15", "Africa/Lagos")).toBe("Day 12 · 7:45 PM");
+  });
+
+  it("turns the day over at midnight Lagos time, not UTC", () => {
+    // 23:30 UTC is 00:30 the next day in Lagos.
+    expect(formatGameClock(Date.parse("2026-10-15T23:30:00Z"), "2026-10-15", "Africa/Lagos")).toBe("Day 2 · 12:30 AM");
+  });
+});
 import { nearestPlace } from "./nearby";
 
 describe("formatNaira", () => {

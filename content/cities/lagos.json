@@ -3,6 +3,7 @@
   "id": "lagos",
   "name": "Lagos",
   "timeZone": "Africa/Lagos",
+  "night": { "startsHour": 19, "endsHour": 6 },
   "currency": "NGN",
   "districts": [
     {

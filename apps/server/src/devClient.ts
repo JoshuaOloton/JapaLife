@@ -45,7 +45,8 @@ function printStats(): void {
   console.log(
     [
       `  money   ${naira(s.balanceKobo)}`,
-      `  hunger  ${s.hunger}/100 (0 = starving)   energy ${s.energy}/100`,
+      `  hunger  ${s.hunger}/100 (0 = starving)   energy ${s.energy}/100   morale ${s.morale}/100   family ${s.family}/100`,
+      `  ${s.isNight ? "night" : "day"}, generator fuel ${s.generatorFuelHours}h`,
       `  rent    ${naira(s.rentAmountKobo)} due ${s.rentDueAt} (${s.rentStatus})`,
       `  shifts  ${s.shiftsToday}/${s.maxShiftsToday} today` +
         (s.activeShift ? `, working until ${s.activeShift.endsAt}` : ""),

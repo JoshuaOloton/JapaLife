@@ -11,5 +11,6 @@
     "minKobo": 200000,
     "maxKobo": 500000
   },
+  "moraleChange": 0,
   "todo": "TODO: unsure how much and how often to ask; tune after play-testing"
 }

@@ -14,6 +14,7 @@ import { KeyedMutex } from "./keyedMutex";
 import { NoticeBus } from "./noticeBus";
 import { PlayerService } from "./players";
 import { RentService } from "./rent";
+import { ShopService } from "./shop";
 import { StatsService } from "./stats";
 
 /** Every game system, wired together. Rooms receive this and call into it. */
@@ -26,6 +27,7 @@ export interface GameSystems {
   jobs: JobService;
   rent: RentService;
   food: FoodService;
+  shop: ShopService;
   events: EventService;
   stats: StatsService;
   notices: NoticeBus;
@@ -57,13 +59,15 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     wallet: options.wallet ?? new WalletService(new Ledger(db)),
     rng: options.rng ?? Math.random,
     timeZone: lagos.timeZone,
+    night: lagos.night,
   };
 
   const players = new PlayerService(deps);
-  const events = new EventService(deps);
+  const events = new EventService(deps, players);
   const jobs = new JobService(deps, players, events);
   const rent = new RentService(deps);
   const food = new FoodService(deps, players, events);
+  const shop = new ShopService(deps, players, events);
   const stats = new StatsService(deps, players, jobs, rent, events);
 
   const districts = new Map<string, DistrictMap>();
@@ -79,6 +83,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     jobs,
     rent,
     food,
+    shop,
     events,
     stats,
     notices: new NoticeBus(),

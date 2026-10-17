@@ -9,6 +9,9 @@ import { z } from "zod";
 /** Largest food quantity a player can ask for in one purchase. */
 export const MAX_FOOD_PURCHASE_QUANTITY = 10;
 
+/** Largest shop quantity (litres of petrol) a player can ask for in one purchase. */
+export const MAX_SHOP_PURCHASE_QUANTITY = 10;
+
 /** Content ids (jobs, items, entities) are short lowercase slugs. */
 const contentId = z
   .string()
@@ -46,12 +49,19 @@ export const buyFoodIntentSchema = z.strictObject({
 
 export const payRentIntentSchema = z.strictObject({});
 
+/** Buying from a shop, e.g. petrol for the generator at the fuel station. */
+export const buyItemIntentSchema = z.strictObject({
+  itemId: contentId,
+  quantity: z.int().min(1).max(MAX_SHOP_PURCHASE_QUANTITY),
+});
+
 export const intentSchemas = {
   move: moveIntentSchema,
   interact: interactIntentSchema,
   work: workIntentSchema,
   buyFood: buyFoodIntentSchema,
   payRent: payRentIntentSchema,
+  buyItem: buyItemIntentSchema,
 } as const;
 
 export type IntentType = keyof typeof intentSchemas;

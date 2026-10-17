@@ -1,15 +1,15 @@
 {
-  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "meta": { "asOf": "2026-10-16", "basis": "game-balance" },
   "id": "food_price_rise",
   "title": "Market wahala",
-  "message": "Food prices have gone up again. Everything in the buka costs more this week.",
-  "chancePerDay": 0.1,
-  "minGapDays": 14,
+  "message": "Food prices have gone up again, and this time they're not coming back down.",
+  "chancePerDay": 0.033,
+  "minGapDays": 21,
   "effect": {
     "type": "price_rise",
     "category": "food",
-    "percent": 15,
-    "durationDays": 7
+    "percent": 3
   },
-  "todo": "TODO: unsure how often and how sharply Lagos food prices jump; tune after play-testing"
+  "moraleChange": -2,
+  "todo": "TODO: about one 3% rise a month, roughly in line with recent Nigerian food inflation; there are no pay rises yet to keep up"
 }

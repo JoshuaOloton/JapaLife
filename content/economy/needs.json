@@ -1,8 +1,19 @@
 {
-  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "meta": { "asOf": "2026-10-16", "basis": "game-balance" },
   "startingHunger": 80,
   "startingEnergy": 100,
+  "startingMorale": 70,
   "hungerDecayPerHour": 4,
   "energyRegenPerHour": 6,
-  "todo": "TODO: feel values. A 45-point meal lasts about half a real day at 4/hour; retune after play-testing"
+  "moraleRestingLevel": 60,
+  "moraleDriftPerHour": 1,
+  "lowMorale": {
+    "below": 30,
+    "energyRegenPercent": 50,
+    "shiftPayPercent": 80
+  },
+  "blackoutNightEnergyRegenPercent": 25,
+  "generatorTankHours": 12,
+  "startingFamily": 60,
+  "todo": "TODO: feel values. A 45-point meal lasts about half a real day at 4/hour; morale fades back to 60 at 1/hour; retune after play-testing"
 }

@@ -78,8 +78,14 @@ export const foodItemSchema = z.strictObject({
   hungerRestored: z.int().min(1).max(100),
   /** How much of the 0-100 energy meter one portion refills. */
   energyRestored: z.int().min(0).max(100),
+  /** How much of the 0-100 morale meter one portion lifts. A good plate of jollof helps. */
+  moraleRestored: z.int().min(0).max(100),
   todo: todoNote,
 });
+
+/** What a price rise event can apply to. Food is sold at bukas; fuel at the fuel station. */
+export const PRICE_CATEGORIES = ["food", "fuel"] as const;
+export type PriceCategory = (typeof PRICE_CATEGORIES)[number];
 
 /** Non-food goods sold in the district, e.g. petrol for the generator. */
 export const shopItemSchema = z.strictObject({
@@ -88,6 +94,10 @@ export const shopItemSchema = z.strictObject({
   priceKobo: smallestUnits,
   /** Ledger sink the purchase is logged under. */
   reason: z.enum(SINK_REASONS),
+  /** Which price rises apply to it. */
+  priceCategory: z.enum(PRICE_CATEGORIES),
+  /** Hours of generator running time one unit adds to the player's tank. */
+  generatorHours: z.number().positive().max(24),
   todo: todoNote,
 });
 
@@ -114,16 +124,36 @@ export type ShopItem = z.infer<typeof shopItemSchema>;
 // ---- economy/needs.json: hunger and energy meters ---------------------------------
 
 /**
- * Both meters run 0-100 in real time. Hunger is fullness (100 is full) and
- * drains; energy regenerates while the player rests. Values are computed from a
- * stored timestamp when needed, so they keep moving while the player is offline.
+ * The meters run 0-100 in real time. Hunger is fullness (100 is full) and
+ * drains; energy regenerates while the player rests; morale drifts back towards
+ * a resting level. Values are computed from a stored timestamp when needed, so
+ * they keep moving while the player is offline.
  */
 export const needsSchema = z.strictObject({
   meta: contentMetaSchema,
   startingHunger: z.int().min(1).max(100),
   startingEnergy: z.int().min(1).max(100),
+  startingMorale: z.int().min(0).max(100),
   hungerDecayPerHour: z.number().min(0).max(100),
   energyRegenPerHour: z.number().min(0).max(100),
+  /** Where morale settles with time: good and bad moments fade. */
+  moraleRestingLevel: z.int().min(0).max(100),
+  moraleDriftPerHour: z.number().min(0).max(100),
+  /** Below `below` morale, energy recovers slower and shifts pay less. */
+  lowMorale: z.strictObject({
+    below: z.int().min(1).max(100),
+    energyRegenPercent: z.int().min(0).max(100),
+    shiftPayPercent: z.int().min(1).max(100),
+  }),
+  /**
+   * Energy recovery at night during a power cut with no generator running, as a
+   * percent of normal: a hot room with no fan is hard to sleep in.
+   */
+  blackoutNightEnergyRegenPercent: z.int().min(0).max(100),
+  /** Most generator running time a player can hold, in hours (the size of the jerrycan). */
+  generatorTankHours: z.number().positive().max(72),
+  /** The player's relationship with family back home, 0-100. No effect yet; Phase 4 reads it. */
+  startingFamily: z.int().min(0).max(100),
   todo: todoNote,
 });
 export type NeedsConfig = z.infer<typeof needsSchema>;
@@ -164,17 +194,25 @@ const eventEffectSchema = z.discriminatedUnion("type", [
     .refine((effect) => effect.minKobo <= effect.maxKobo, {
       message: "minKobo must not exceed maxKobo",
     }),
-  /** The district loses power for a real-time stretch. */
+  /**
+   * The district loses power for a real-time stretch. At night, energy recovers
+   * slower unless the player's generator has fuel.
+   */
   z.strictObject({
     type: z.literal("blackout"),
     durationMinutes: z.int().min(1).max(24 * 60),
+    /** Whether work stops too. Offices with their own generator keep going. */
+    blocksShifts: z.boolean(),
   }),
-  /** Prices in a category go up by a percentage for a real-time stretch. */
+  /**
+   * Prices in a category go up by a percentage. Without `durationDays` the rise
+   * is permanent, and rises compound like real inflation.
+   */
   z.strictObject({
     type: z.literal("price_rise"),
-    category: z.enum(["food", "fuel"]),
+    category: z.enum(PRICE_CATEGORIES),
     percent: z.int().min(1).max(500),
-    durationDays: z.int().min(1).max(365),
+    durationDays: z.int().min(1).max(365).optional(),
   }),
 ]);
 
@@ -189,6 +227,8 @@ export const gameEventSchema = z.strictObject({
   /** Fewest real days between two firings for the same player. */
   minGapDays: z.int().min(0).max(365),
   effect: eventEffectSchema,
+  /** Added to the 0-100 morale meter when the event fires (negative lowers it). */
+  moraleChange: z.int().min(-100).max(100),
   todo: todoNote,
 });
 export type GameEventConfig = z.infer<typeof gameEventSchema>;
@@ -269,6 +309,12 @@ export const citySchema = z.strictObject({
   name: z.string().min(1).max(60),
   /** IANA time zone for calendar logic (Lagos has no daylight saving). */
   timeZone: z.string().min(1),
+  /** Night in local hours: from `startsHour` until `endsHour` the next morning. */
+  night: z
+    .strictObject({ startsHour: z.int().min(0).max(23), endsHour: z.int().min(0).max(23) })
+    .refine((night) => night.startsHour > night.endsHour, {
+      message: "night must start in the evening and end the next morning (startsHour > endsHour)",
+    }),
   currency: z.literal("NGN"),
   districts: z.array(districtSchema).min(1),
 });

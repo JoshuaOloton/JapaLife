@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatCountdown, formatNaira } from "./format";
+import { formatCountdown, formatGameClock, formatNaira } from "./format";
 import styles from "./hud.module.css";
 import type { ServerStats, Toast } from "./useGameMessages";
 
@@ -55,17 +55,23 @@ function Stats({ server, now }: { server: ServerStats; now: number }) {
         ? "Rent due now"
         : `Rent in ${formatCountdown(rentLeft)}`;
 
-  const chips: { text: string; warn?: boolean }[] = [];
+  const chips: { key: string; text: string; warn?: boolean }[] = [];
   if (stats.activeShift) {
-    chips.push({ text: `At work · ${formatCountdown(Date.parse(stats.activeShift.endsAt) - now)} left` });
+    chips.push({ key: "shift", text: `At work · ${formatCountdown(Date.parse(stats.activeShift.endsAt) - now)} left` });
   }
+  const fuel = `${stats.generatorFuelHours}h fuel`;
   if (stats.blackoutEndsAt) {
-    chips.push({ text: `No light · ${formatCountdown(Date.parse(stats.blackoutEndsAt) - now)}`, warn: true });
+    const left = formatCountdown(Date.parse(stats.blackoutEndsAt) - now);
+    if (!stats.isNight) chips.push({ key: "light", text: `No light · ${left}`, warn: true });
+    else if (stats.generatorFuelHours > 0) chips.push({ key: "light", text: `No light · gen on · ${fuel}` });
+    else chips.push({ key: "light", text: `No light · no fuel, sleeping badly`, warn: true });
+  } else if (stats.generatorFuelHours > 0) {
+    chips.push({ key: "fuel", text: `Gen · ${fuel}` });
   }
-  if (stats.foodPriceRisePercent > 0) {
-    chips.push({ text: `Food prices +${stats.foodPriceRisePercent}%`, warn: true });
-  }
-  chips.push({ text: `Shifts today ${stats.shiftsToday}/${stats.maxShiftsToday}` });
+  if (stats.lowMorale) chips.push({ key: "morale", text: "Low morale · resting slower, earning less", warn: true });
+  if (stats.foodPriceRisePercent > 0) chips.push({ key: "food", text: `Food prices +${stats.foodPriceRisePercent}%` });
+  if (stats.fuelPriceRisePercent > 0) chips.push({ key: "fuelPrice", text: `Fuel prices +${stats.fuelPriceRisePercent}%` });
+  chips.push({ key: "shifts", text: `Shifts today ${stats.shiftsToday}/${stats.maxShiftsToday}` });
 
   return (
     <>
@@ -78,14 +84,19 @@ function Stats({ server, now }: { server: ServerStats; now: number }) {
           <br />
           {formatNaira(stats.rentAmountKobo)}
         </span>
+        <span className={styles.clock}>
+          {formatGameClock(now, stats.startedOn, stats.timeZone)}
+          {stats.isNight ? " · night" : ""}
+        </span>
         <div className={styles.meters}>
           <Meter label="Hunger" value={stats.hunger} />
           <Meter label="Energy" value={stats.energy} />
+          <Meter label="Morale" value={stats.morale} />
         </div>
       </div>
       <div className={styles.chips}>
         {chips.map((chip) => (
-          <span key={chip.text.split(" ·")[0]} className={`${styles.chip} ${chip.warn ? styles.chipWarn : ""}`}>
+          <span key={chip.key} className={`${styles.chip} ${chip.warn ? styles.chipWarn : ""}`}>
             {chip.text}
           </span>
         ))}

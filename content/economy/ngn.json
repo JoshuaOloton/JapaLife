@@ -9,13 +9,13 @@
     "graceDays": 3
   },
   "food": [
-    { "id": "agege-bread", "name": "Agege bread and tea", "priceKobo": 150000, "hungerRestored": 20, "energyRestored": 5, "todo": "TODO: unsure of 2026 price" },
-    { "id": "indomie-egg", "name": "Indomie and egg", "priceKobo": 180000, "hungerRestored": 30, "energyRestored": 8, "todo": "TODO: unsure of 2026 price" },
-    { "id": "amala-ewedu", "name": "Amala, ewedu and gbegiri", "priceKobo": 250000, "hungerRestored": 40, "energyRestored": 10, "todo": "TODO: unsure of 2026 price" },
-    { "id": "jollof-rice", "name": "Buka jollof rice and chicken", "priceKobo": 350000, "hungerRestored": 45, "energyRestored": 12, "todo": "TODO: unsure of 2026 price" },
-    { "id": "suya", "name": "Suya", "priceKobo": 200000, "hungerRestored": 25, "energyRestored": 5, "todo": "TODO: unsure of 2026 price" }
+    { "id": "agege-bread", "name": "Agege bread and tea", "priceKobo": 150000, "hungerRestored": 20, "energyRestored": 5, "moraleRestored": 1, "todo": "TODO: unsure of 2026 price" },
+    { "id": "indomie-egg", "name": "Indomie and egg", "priceKobo": 180000, "hungerRestored": 30, "energyRestored": 8, "moraleRestored": 3, "todo": "TODO: unsure of 2026 price" },
+    { "id": "amala-ewedu", "name": "Amala, ewedu and gbegiri", "priceKobo": 250000, "hungerRestored": 40, "energyRestored": 10, "moraleRestored": 6, "todo": "TODO: unsure of 2026 price" },
+    { "id": "jollof-rice", "name": "Buka jollof rice and chicken", "priceKobo": 350000, "hungerRestored": 45, "energyRestored": 12, "moraleRestored": 8, "todo": "TODO: unsure of 2026 price" },
+    { "id": "suya", "name": "Suya", "priceKobo": 200000, "hungerRestored": 25, "energyRestored": 5, "moraleRestored": 6, "todo": "TODO: unsure of 2026 price" }
   ],
   "shop": [
-    { "id": "generator-petrol", "name": "Petrol for the generator (1 litre)", "priceKobo": 90000, "reason": "generator_fuel", "todo": "TODO: unsure of 2026 pump price per litre" }
+    { "id": "generator-petrol", "name": "Petrol for the generator (1 litre)", "priceKobo": 90000, "reason": "generator_fuel", "priceCategory": "fuel", "generatorHours": 2, "todo": "TODO: unsure of 2026 pump price per litre, and how long a small generator runs on a litre" }
   ]
 }

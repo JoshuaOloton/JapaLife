@@ -1,9 +1,18 @@
 import type { Shift } from "@japalife/db";
+import type { NeedsConfig } from "@japalife/shared";
 import { calendarDay } from "./clock";
 import type { GameDeps } from "./deps";
 import type { EventService } from "./events";
+import { shiftPayPercent } from "./needs";
 import { type Outcome, reject } from "./outcome";
 import type { PlayerService } from "./players";
+
+/** A shift's pay at the player's current morale, rounded down to a whole kobo (integer maths only). */
+export function shiftPay(fullPayKobo: number, morale: number, needs: NeedsConfig): bigint {
+  const pay = (BigInt(fullPayKobo) * BigInt(shiftPayPercent(morale, needs))) / 100n;
+  // The ledger refuses zero amounts; a shift always pays something.
+  return pay > 0n ? pay : 1n;
+}
 
 export interface PaidShift {
   playerId: string;
@@ -28,7 +37,7 @@ export class JobService {
     playerId: string,
     jobId: string,
     now: Date,
-  ): Promise<Outcome<{ shiftId: string; endsAt: Date }>> {
+  ): Promise<Outcome<{ shiftId: string; endsAt: Date; payKobo: bigint }>> {
     const { db, content, timeZone } = this.deps;
     const job = content.jobs.jobs.find((candidate) => candidate.id === jobId);
     if (!job) return reject("unknown_target");
@@ -40,30 +49,27 @@ export class JobService {
     if (await this.activeShift(playerId, now)) return reject("shift_active");
 
     const effects = await this.events.activeEffects(playerId, now);
-    if (effects.blackoutEndsAt) return reject("blackout");
+    if (effects.blackoutEndsAt && effects.blackoutBlocksShifts) return reject("blackout");
 
     const dayKey = calendarDay(now, timeZone);
     const startedToday = await db.shift.count({ where: { playerId, jobId, dayKey } });
     if (startedToday >= job.maxShiftsPerDay) return reject("daily_limit");
 
-    const meters = this.players.currentMeters(state, now);
-    if (meters.hunger < 1) return reject("starving");
-    if (meters.energy < job.energyCost) return reject("no_energy");
+    const needs = await this.players.currentNeeds(state, now);
+    if (needs.hunger < 1) return reject("starving");
+    if (needs.energy < job.energyCost) return reject("no_energy");
 
     const endsAt = new Date(now.getTime() + job.shiftMinutes * 60_000);
+    const payKobo = shiftPay(job.shiftPayKobo, needs.morale, content.needs);
     // Spend the energy and record the shift together, so neither happens alone.
     const [, shift] = await db.$transaction([
       db.playerState.update({
         where: { playerId },
-        data: {
-          hunger: meters.hunger,
-          energy: meters.energy - job.energyCost,
-          statsAt: now,
-        },
+        data: { ...needs, energy: needs.energy - job.energyCost, statsAt: now },
       }),
-      db.shift.create({ data: { playerId, jobId, startedAt: now, endsAt, dayKey } }),
+      db.shift.create({ data: { playerId, jobId, payKobo, startedAt: now, endsAt, dayKey } }),
     ]);
-    return { ok: true, shiftId: shift.id, endsAt };
+    return { ok: true, shiftId: shift.id, endsAt, payKobo };
   }
 
   /** The player's shift that has not finished yet, if any. */
@@ -98,10 +104,11 @@ export class JobService {
     for (const shift of due) {
       const job = content.jobs.jobs.find((candidate) => candidate.id === shift.jobId);
       if (!job) continue;
+      const amount = shift.payKobo ?? BigInt(job.shiftPayKobo);
       await wallet.credit({
         playerId: shift.playerId,
         currency: "NGN",
-        amount: BigInt(job.shiftPayKobo),
+        amount,
         reason: "shift_pay",
         reference: `shift:${shift.id}`,
       });
@@ -114,7 +121,8 @@ export class JobService {
           playerId: shift.playerId,
           shiftId: shift.id,
           jobId: shift.jobId,
-          amountKobo: job.shiftPayKobo,
+          // Safe as a number: one shift's pay is far below the balance cap.
+          amountKobo: Number(amount),
         });
       }
     }

@@ -69,7 +69,12 @@ model PlayerState {
   /// elapsed real time and the rates in content/economy/needs.json.
   hunger          Float
   energy          Float
+  morale          Float
+  /// Hours of generator running time left in the tank, as of `statsAt`.
+  generatorFuelHours Float
   statsAt         DateTime
+  /// Relationship with family back home, 0-100. Changes only through events.
+  family          Float
   /// When the next rent payment is due.
   rentDueAt       DateTime
   /// Random events have been evaluated up to this moment.
@@ -85,6 +90,9 @@ model Shift {
   id        String    @id @default(uuid(7))
   playerId  String
   jobId     String
+  /// Pay agreed when the shift started (low morale pays less). Null on shifts
+  /// from before this column existed, which pay the job's full rate.
+  payKobo   BigInt?
   startedAt DateTime
   endsAt    DateTime
   /// The city's calendar day the shift started on ("YYYY-MM-DD"), for the daily cap.

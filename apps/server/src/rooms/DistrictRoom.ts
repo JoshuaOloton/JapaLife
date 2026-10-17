@@ -180,8 +180,13 @@ export function createDistrictRoom(game: GameSystems) {
           if (!this.district.nearest(position, (thing) => thing.id === target.id)) {
             return this.reject(client, intent.type, "too_far");
           }
-          const { foodPricePercent } = await game.events.activeEffects(playerId, now);
-          client.send(SERVER_MESSAGES.interaction, describeOffer(target, game.content, foodPricePercent));
+          const state = await game.players.getState(playerId);
+          if (!state) return this.reject(client, intent.type, "not_signed_in");
+          const [{ priceFactorBp }, { morale }] = await Promise.all([
+            game.events.activeEffects(playerId, now),
+            game.players.currentNeeds(state, now),
+          ]);
+          client.send(SERVER_MESSAGES.interaction, describeOffer(target, game.content, { priceFactorBp, morale }));
           return;
         }
         case "work": {
@@ -206,6 +211,17 @@ export function createDistrictRoom(game: GameSystems) {
           const near = this.district.nearest(position, sellsItem);
           if (!near) return this.reject(client, intent.type, "too_far");
           outcome = await game.food.buy(playerId, itemId, quantity, now);
+          break;
+        }
+        case "buyItem": {
+          const { itemId, quantity } = intent.payload;
+          const sellsItem = (thing: Interactable): boolean =>
+            thing.kind === "fuel_station" && thing.shopItemIds.includes(itemId);
+          if (!this.district.config.interactables.some(sellsItem)) {
+            return this.reject(client, intent.type, "unknown_target");
+          }
+          if (!this.district.nearest(position, sellsItem)) return this.reject(client, intent.type, "too_far");
+          outcome = await game.shop.buy(playerId, itemId, quantity, now);
           break;
         }
         case "payRent": {

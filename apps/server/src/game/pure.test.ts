@@ -1,18 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CapacityQueue } from "./capacityQueue";
 import { ManualClock, MultiplierClock, calendarDay, createGameClock } from "./clock";
-import { priceWithRise } from "./food";
 import { KeyedMutex } from "./keyedMutex";
-import { displayMeters, metersAt } from "./needs";
 import { TokenBucket } from "./tokenBucket";
-
-const needs = {
-  startingHunger: 80,
-  startingEnergy: 100,
-  hungerDecayPerHour: 4,
-  energyRegenPerHour: 6,
-  meta: { asOf: "2026-10-15", basis: "game-balance", status: "active" },
-} as const;
 
 describe("GAME_CLOCK", () => {
   it("runs at real speed when unset", () => {
@@ -50,42 +40,6 @@ describe("calendarDay", () => {
     // 23:30 UTC is 00:30 the next day in Lagos.
     expect(calendarDay(new Date("2026-10-15T23:30:00Z"), "Africa/Lagos")).toBe("2026-10-16");
     expect(calendarDay(new Date("2026-10-15T22:59:00Z"), "Africa/Lagos")).toBe("2026-10-15");
-  });
-});
-
-describe("meters", () => {
-  const stored = { hunger: 80, energy: 40, statsAt: new Date("2026-10-15T08:00:00Z") };
-
-  it("drains hunger and regenerates energy with real elapsed time", () => {
-    const later = new Date("2026-10-15T13:00:00Z"); // 5 hours
-    expect(metersAt(stored, later, needs)).toEqual({ hunger: 60, energy: 70 });
-  });
-
-  it("stays within 0-100", () => {
-    const muchLater = new Date("2026-10-30T08:00:00Z");
-    expect(metersAt(stored, muchLater, needs)).toEqual({ hunger: 0, energy: 100 });
-  });
-
-  it("never runs backwards if the clock reads earlier than the stored time", () => {
-    expect(metersAt(stored, new Date("2026-10-14T08:00:00Z"), needs)).toEqual({
-      hunger: 80,
-      energy: 40,
-    });
-  });
-
-  it("rounds down for display so 0 means really empty", () => {
-    expect(displayMeters({ hunger: 0.9, energy: 99.9 })).toEqual({ hunger: 0, energy: 99 });
-  });
-});
-
-describe("priceWithRise", () => {
-  it("is the plain price when there is no rise", () => {
-    expect(priceWithRise(250_000, 2, 0)).toBe(500_000n);
-  });
-
-  it("adds the percentage and rounds up to a whole kobo", () => {
-    expect(priceWithRise(250_000, 1, 15)).toBe(287_500n);
-    expect(priceWithRise(101, 1, 15)).toBe(117n); // 116.15 rounds up
   });
 });
 

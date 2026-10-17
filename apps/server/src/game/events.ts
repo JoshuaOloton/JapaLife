@@ -1,7 +1,9 @@
-import { GAME_EVENT_IDS, type GameEventConfig, type GameEventId } from "@japalife/shared";
+import { GAME_EVENT_IDS, type GameEventConfig, type GameEventId, type PriceCategory } from "@japalife/shared";
 import { InsufficientFundsError } from "../economy/money";
 import { addDays, MS_PER_DAY, MS_PER_HOUR } from "./clock";
 import type { GameDeps } from "./deps";
+import type { PlayerService } from "./players";
+import { compoundRise, NO_RISE_BP } from "./prices";
 
 export interface FiredEvent {
   eventId: string;
@@ -12,8 +14,10 @@ export interface FiredEvent {
 export interface ActiveEffects {
   /** When the current power cut ends, or null if the lights are on. */
   blackoutEndsAt: Date | null;
-  /** Percent added to food prices right now (the biggest active rise). */
-  foodPricePercent: number;
+  /** Whether the current power cut also stops work. */
+  blackoutBlocksShifts: boolean;
+  /** Every price rise so far, compounded, per category (basis points; 10,000 = no rise). */
+  priceFactorBp: Record<PriceCategory, bigint>;
 }
 
 /** Ignore checks closer together than this: too little time has passed to matter. */
@@ -27,7 +31,10 @@ const MIN_CHECK_GAP_MS = 1000;
  * restart does not lose a power cut.
  */
 export class EventService {
-  constructor(private readonly deps: GameDeps) {}
+  constructor(
+    private readonly deps: GameDeps,
+    private readonly players: PlayerService,
+  ) {}
 
   async processDue(playerId: string, now: Date): Promise<FiredEvent[]> {
     const { db, content, rng } = this.deps;
@@ -59,27 +66,48 @@ export class EventService {
     return fired;
   }
 
-  /** Effects with a duration that are still running at `now`. */
+  /**
+   * Effects still in force at `now`: a running power cut, and every price rise
+   * so far (permanent ones have no end), compounded in the order they happened.
+   */
   async activeEffects(playerId: string, now: Date): Promise<ActiveEffects> {
-    const running = await this.deps.db.eventFiring.findMany({
-      where: { playerId, endsAt: { gt: now } },
+    const { db, content } = this.deps;
+    const priceRiseIds = Object.values(content.events)
+      .filter((event) => event.effect.type === "price_rise")
+      .map((event) => event.id);
+    const firings = await db.eventFiring.findMany({
+      where: {
+        playerId,
+        firedAt: { lte: now },
+        OR: [{ endsAt: { gt: now } }, { endsAt: null, eventId: { in: priceRiseIds } }],
+      },
+      orderBy: { firedAt: "asc" },
     });
-    const effects: ActiveEffects = { blackoutEndsAt: null, foodPricePercent: 0 };
-    for (const firing of running) {
-      const effect = this.deps.content.events[firing.eventId as GameEventId]?.effect;
-      if (!effect || !firing.endsAt) continue;
-      if (effect.type === "blackout") {
-        if (!effects.blackoutEndsAt || firing.endsAt > effects.blackoutEndsAt) {
-          effects.blackoutEndsAt = firing.endsAt;
-        }
-      } else if (effect.type === "price_rise" && effect.category === "food") {
-        effects.foodPricePercent = Math.max(effects.foodPricePercent, effect.percent);
+
+    const effects: ActiveEffects = {
+      blackoutEndsAt: null,
+      blackoutBlocksShifts: false,
+      priceFactorBp: { food: NO_RISE_BP, fuel: NO_RISE_BP },
+    };
+    for (const firing of firings) {
+      const effect = content.events[firing.eventId as GameEventId]?.effect;
+      if (!effect) continue;
+      if (effect.type === "blackout" && firing.endsAt) {
+        if (!effects.blackoutEndsAt || firing.endsAt > effects.blackoutEndsAt) effects.blackoutEndsAt = firing.endsAt;
+        effects.blackoutBlocksShifts ||= effect.blocksShifts;
+      } else if (effect.type === "price_rise") {
+        effects.priceFactorBp[effect.category] = compoundRise(effects.priceFactorBp[effect.category], effect.percent);
       }
     }
     return effects;
   }
 
   private async fire(playerId: string, event: GameEventConfig, now: Date): Promise<void> {
+    await this.applyEffect(playerId, event, now);
+    if (event.moraleChange !== 0) await this.players.applyChange(playerId, { morale: event.moraleChange }, now);
+  }
+
+  private async applyEffect(playerId: string, event: GameEventConfig, now: Date): Promise<void> {
     const { db, wallet, rng } = this.deps;
     const effect = event.effect;
 
@@ -109,10 +137,13 @@ export class EventService {
       return;
     }
 
+    // A price rise without a duration is permanent: no end date.
     const endsAt =
       effect.type === "blackout"
         ? new Date(now.getTime() + effect.durationMinutes * (MS_PER_HOUR / 60))
-        : addDays(now, effect.durationDays);
+        : effect.durationDays === undefined
+          ? null
+          : addDays(now, effect.durationDays);
     await db.eventFiring.create({
       data: { playerId, eventId: event.id, firedAt: now, endsAt },
     });

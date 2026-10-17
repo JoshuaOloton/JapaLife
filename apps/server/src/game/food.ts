@@ -4,8 +4,9 @@ import type { GameDeps } from "./deps";
 import type { EventService } from "./events";
 import { type Outcome, reject } from "./outcome";
 import type { PlayerService } from "./players";
+import { priceWithFactor } from "./prices";
 
-/** Buying food: costs money (higher during a price rise), refills hunger and a little energy. */
+/** Buying food: costs money (more after price rises), refills hunger, a little energy, and lifts morale. */
 export class FoodService {
   constructor(
     private readonly deps: GameDeps,
@@ -26,11 +27,11 @@ export class FoodService {
     const state = await this.players.getState(playerId);
     if (!state) return reject("not_signed_in");
 
-    const meters = this.players.currentMeters(state, now);
-    if (meters.hunger >= 100) return reject("already_full");
+    const needs = await this.players.currentNeeds(state, now);
+    if (needs.hunger >= 100) return reject("already_full");
 
-    const { foodPricePercent } = await this.events.activeEffects(playerId, now);
-    const price = priceWithRise(item.priceKobo, quantity, foodPricePercent);
+    const { priceFactorBp } = await this.events.activeEffects(playerId, now);
+    const price = priceWithFactor(item.priceKobo, quantity, priceFactorBp.food);
 
     try {
       await wallet.debit({
@@ -46,20 +47,15 @@ export class FoodService {
       throw error;
     }
 
-    await this.players.saveMeters(
+    await this.players.applyChange(
       playerId,
       {
-        hunger: Math.min(100, meters.hunger + item.hungerRestored * quantity),
-        energy: Math.min(100, meters.energy + item.energyRestored * quantity),
+        hunger: item.hungerRestored * quantity,
+        energy: item.energyRestored * quantity,
+        morale: item.moraleRestored * quantity,
       },
       now,
     );
     return { ok: true, priceKobo: price };
   }
-}
-
-/** Total price in kobo, rounded up to a whole kobo so a price rise never rounds in the player's favour. */
-export function priceWithRise(unitKobo: number, quantity: number, risePercent: number): bigint {
-  const base = BigInt(unitKobo) * BigInt(quantity) * BigInt(100 + risePercent);
-  return (base + 99n) / 100n;
 }
