@@ -69,7 +69,7 @@ export const REJECTION_TEXT: Record<RejectReason, string> = {
   shift_active: "You're already on a shift.",
   daily_limit: "That's enough work for today. Come back tomorrow.",
   insufficient_funds: "Not enough money for that.",
-  already_full: "You're already full.",
+  already_full: "You're too full for that. Try something lighter, or wait small.",
   rent_not_due: "Rent isn't due yet.",
   tank_full: "Your jerrycan can't hold that much more.",
 };

@@ -154,6 +154,11 @@ export const needsSchema = z.strictObject({
   generatorTankHours: z.number().positive().max(72),
   /** The player's relationship with family back home, 0-100. No effect yet; Phase 4 reads it. */
   startingFamily: z.int().min(0).max(100),
+  /**
+   * How far past 100 a meal may fill hunger. Anything bigger is refused, so a
+   * full player cannot keep eating (or keep buying morale with food).
+   */
+  overeatAllowance: z.int().min(0).max(30),
   todo: todoNote,
 });
 export type NeedsConfig = z.infer<typeof needsSchema>;

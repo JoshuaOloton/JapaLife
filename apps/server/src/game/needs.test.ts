@@ -16,6 +16,7 @@ const needs: NeedsConfig = {
   blackoutNightEnergyRegenPercent: 25,
   generatorTankHours: 12,
   startingFamily: 60,
+  overeatAllowance: 10,
 };
 
 const LAGOS = "Africa/Lagos";

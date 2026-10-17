@@ -15,5 +15,6 @@
   "blackoutNightEnergyRegenPercent": 25,
   "generatorTankHours": 12,
   "startingFamily": 60,
-  "todo": "TODO: feel values. A 45-point meal lasts about half a real day at 4/hour; morale fades back to 60 at 1/hour; retune after play-testing"
+  "overeatAllowance": 10,
+  "todo": "TODO: feel values. A 45-point meal lasts about half a real day at 4/hour; morale fades back to 60 at 1/hour; meals may overfill by overeatAllowance; retune after play-testing"
 }

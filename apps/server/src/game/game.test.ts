@@ -222,28 +222,54 @@ describe("food", () => {
     expect(stats).toMatchObject({ hunger: 65, energy: 62 });
   });
 
-  it("never fills past 100", async () => {
-    await setMeters(90, 100);
-    await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now());
+  it("lets a meal overfill a little, but never past 100", async () => {
+    await setMeters(65, 100); // 65 + 45 = 110: exactly the allowance
+    expect((await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now())).ok).toBe(true);
     expect((await h.game.stats.build(PLAYER, h.clock.now()))?.hunger).toBe(100);
   });
 
-  it("will not sell to someone who is already full", async () => {
-    await setMeters(100, 100);
+  it("refuses a meal that does not fit, without charging", async () => {
+    await setMeters(66, 100); // 66 + 45 = 111
     expect(await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now())).toEqual({
       ok: false,
       reason: "already_full",
     });
     expect(await balance()).toBe(STARTING_BALANCE);
+    // Something lighter still fits.
+    expect((await h.game.food.buy(PLAYER, "agege-bread", 1, h.clock.now())).ok).toBe(true);
+  });
+
+  it("stops a player eating over and over: they become full", async () => {
+    await setMeters(20, 100);
+    const results = [];
+    for (let i = 0; i < 4; i++) results.push(await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now()));
+    // 20 -> 65 -> 100 (110 allowed), then full.
+    expect(results.map((r) => r.ok)).toEqual([true, true, false, false]);
+    expect(await balance()).toBe(STARTING_BALANCE - 2n * JOLLOF);
+  });
+
+  it("counts the whole order, not one plate", async () => {
+    await setMeters(20, 100);
+    expect(await h.game.food.buy(PLAYER, "jollof-rice", 3, h.clock.now())).toEqual({
+      ok: false,
+      reason: "already_full",
+    });
   });
 
   it("refuses what the player cannot afford and changes nothing", async () => {
     await setMeters(10, 100);
-    expect(await h.game.food.buy(PLAYER, "jollof-rice", 10, h.clock.now())).toEqual({
+    await h.wallet.debit({
+      playerId: PLAYER,
+      currency: "NGN",
+      amount: STARTING_BALANCE - 100_000n,
+      reason: "food",
+      reference: "test-spend",
+    });
+    expect(await h.game.food.buy(PLAYER, "jollof-rice", 1, h.clock.now())).toEqual({
       ok: false,
       reason: "insufficient_funds",
     });
-    expect(await balance()).toBe(STARTING_BALANCE);
+    expect(await balance()).toBe(100_000n);
     expect((await h.game.stats.build(PLAYER, h.clock.now()))?.hunger).toBe(10);
   });
 
