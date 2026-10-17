@@ -15,6 +15,7 @@
     "db:migrate": "pnpm --filter @japalife/db migrate",
     "db:generate": "pnpm --filter @japalife/db generate",
     "fire-event": "pnpm --filter @japalife/server fire-event",
+    "grant-money": "pnpm --filter @japalife/server grant-money",
     "start:client": "pnpm --filter @japalife/client build && pnpm --filter @japalife/client start",
     "db:seed": "pnpm --filter @japalife/server seed"
   },

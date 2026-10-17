@@ -76,7 +76,8 @@ Requires Node 24+ and pnpm 12 (`packageManager` in the root `package.json`).
 - `pnpm budget`: production-build the client and fail if its download is over 15 MB
 - `pnpm start:client`: production-build the client and serve it on port 3000 (for fps and phone testing; dev mode is slower). `NEXT_PUBLIC_SERVER_URL` is baked in at build time, so set it on this command
 - `pnpm db:generate`: regenerate the Prisma client. Run it after `pnpm db:migrate`
-- `pnpm fire-event <black_tax|power_cut|food_price_rise> [playerId]`: dev-only play-testing helper that fires an event now, skipping the dice and the gap. Without a player id it picks whoever was online most recently. A connected player sees it at the room's next event check (within a minute)
+- `pnpm fire-event <black_tax|power_cut|food_price_rise> <playerId>`: dev-only play-testing helper that fires an event now, skipping the dice and the gap. A connected player sees it at the room's next event check (within a minute)
+- `pnpm grant-money <naira> <playerId>`: dev-only, credits naira through the ledger as `family_help` (so BalanceWatch flags it, as expected). Each browser has its own dev player id (`dev-xxxxxxxx`, in `localStorage`); the phone used for play-testing on 2026-10-17 was `dev-61861b2b`
 - Run lint, typecheck and test before considering any task done
 - `docker compose up -d postgres`: local Postgres on 5432. Needed for the ledger tests and anything that touches money. Redis is also in the compose file but nothing uses it yet, so don't start it (`up -d` with no service name starts both)
 - `pnpm db:migrate`: Prisma `migrate dev` against `DATABASE_URL` (the ledger migration `init_ledger` is applied). `pnpm db:seed` creates one test player (`seed-test-player`) with N50,000 through the ledger. It is safe to run repeatedly and refuses to run when `NODE_ENV=production`
