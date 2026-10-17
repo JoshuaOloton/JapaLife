@@ -21,6 +21,10 @@ export const REJECT_REASONS = [
   "rent_not_due",
   /** The generator's jerrycan cannot hold that much more fuel. */
   "tank_full",
+  /** The request was already answered (a double tap, or another tab). */
+  "already_answered",
+  /** The request ran out before the answer arrived; it counted as declined. */
+  "choice_expired",
 ] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
@@ -56,6 +60,21 @@ export interface StatsMessage {
   /** Percent added to prices by all the rises so far, compounded, to one decimal place. */
   foodPriceRisePercent: number;
   fuelPriceRisePercent: number;
+  /** A request waiting for the player's answer (the event card), or null. */
+  pendingChoice: PendingChoice | null;
+}
+
+/** A request the player must answer, e.g. family asking for money. */
+export interface PendingChoice {
+  choiceId: string;
+  title: string;
+  /** Who is asking and why, with the amount already written in. */
+  message: string;
+  amountKobo: number;
+  /** After this the request counts as declined. */
+  expiresAt: string;
+  payLabel: string;
+  declineLabel: string;
 }
 
 /** A toast: something happened to the player (an event, a shift paid out). */

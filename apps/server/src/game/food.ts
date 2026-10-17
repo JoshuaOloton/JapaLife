@@ -28,7 +28,9 @@ export class FoodService {
     if (!state) return reject("not_signed_in");
 
     const needs = await this.players.currentNeeds(state, now);
-    if (needs.hunger >= 100) return reject("already_full");
+    // The meal has to fit: hunger counts as the whole number the HUD shows.
+    const fillsTo = Math.floor(needs.hunger) + item.hungerRestored * quantity;
+    if (fillsTo > 100 + content.needs.overeatAllowance) return reject("already_full");
 
     const { priceFactorBp } = await this.events.activeEffects(playerId, now);
     const price = priceWithFactor(item.priceKobo, quantity, priceFactorBp.food);

@@ -1,16 +1,42 @@
 {
-  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "meta": { "asOf": "2026-10-17", "basis": "game-balance" },
   "id": "black_tax",
   "title": "Family call",
-  "message": "A relative needs help with school fees. You send what you can.",
+  "message": "Family is asking for help.",
   "chancePerDay": 0.2,
   "minGapDays": 5,
   "effect": {
-    "type": "debit",
+    "type": "request",
     "reason": "black_tax",
     "minKobo": 200000,
-    "maxKobo": 500000
+    "maxKobo": 500000,
+    "asks": [
+      "Your mum called. Her BP drugs have finished and she needs {amount} to refill them.",
+      "Your younger brother's school fees are due. Daddy is asking if you can send {amount}.",
+      "Grandma is in the hospital again. The family is putting money together and your part is {amount}.",
+      "Your cousin is getting married next month. Everyone is contributing, and they're counting on you for {amount}.",
+      "Rain flooded your aunty's shop. She's asking for {amount} to restock before market day."
+    ],
+    "answerWithinHours": 48,
+    "payLabel": "Send it",
+    "declineLabel": "Not this time",
+    "pay": {
+      "familyChange": 8,
+      "moraleChange": 0,
+      "message": "You sent {amount}. They're praying for you."
+    },
+    "decline": {
+      "familyChange": -6,
+      "moraleChange": -5,
+      "message": "You said not this time. The call ended quietly, and it stays with you."
+    },
+    "declineBroke": {
+      "familyChange": -2,
+      "moraleChange": -2,
+      "message": "You told them you don't have it right now. They understand, but it still hurts to say."
+    },
+    "expiredMessage": "You didn't get back to them in time. The family noticed."
   },
   "moraleChange": 0,
-  "todo": "TODO: unsure how much and how often to ask; tune after play-testing"
+  "todo": "TODO: unsure how much and how often to ask, and how much a yes or no should move family and morale; tune after play-testing"
 }

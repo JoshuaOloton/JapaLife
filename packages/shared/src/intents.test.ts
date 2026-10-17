@@ -16,6 +16,8 @@ describe("parseIntent", () => {
       ["buyFood", { itemId: "jollof-rice", quantity: 2 }],
       ["payRent", {}],
       ["buyItem", { itemId: "generator-petrol", quantity: 3 }],
+      ["answerEvent", { choiceId: "0199f0a0-1234-7abc-8def-0123456789ab", answer: "pay" }],
+      ["answerEvent", { choiceId: "0199f0a0-1234-7abc-8def-0123456789ab", answer: "decline" }],
     ];
     for (const [type, payload] of valid) {
       expect(parseIntent(type, payload).ok, type).toBe(true);
@@ -24,8 +26,15 @@ describe("parseIntent", () => {
 
   it("covers every declared intent type in the valid cases", () => {
     expect([...INTENT_TYPES].sort()).toEqual(
-      ["buyFood", "buyItem", "interact", "move", "payRent", "work"].sort(),
+      ["answerEvent", "buyFood", "buyItem", "interact", "move", "payRent", "work"].sort(),
     );
+  });
+
+  it("rejects answers that are not pay or decline, bad ids, and any amount the client tries to set", () => {
+    const choiceId = "0199f0a0-1234-7abc-8def-0123456789ab";
+    expect(parseIntent("answerEvent", { choiceId, answer: "maybe" }).ok).toBe(false);
+    expect(parseIntent("answerEvent", { choiceId: "black_tax", answer: "pay" }).ok).toBe(false);
+    expect(parseIntent("answerEvent", { choiceId, answer: "pay", amountKobo: 1 }).ok).toBe(false);
   });
 
   it("returns the typed intent on success", () => {

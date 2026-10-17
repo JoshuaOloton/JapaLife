@@ -1,9 +1,11 @@
 import type { PrismaClient } from "@japalife/db";
+import { formatNaira } from "@japalife/shared";
 import { BalanceWatch } from "../economy/balanceWatch";
 import { Ledger } from "../economy/ledger";
 import { WalletService } from "../economy/wallet";
 import type { GameContent } from "../content/loadContent";
 import { logError } from "../log";
+import { ChoiceService } from "./choices";
 import { type GameClock, createGameClock } from "./clock";
 import type { GameDeps } from "./deps";
 import { DistrictMap } from "./district";
@@ -29,6 +31,8 @@ export interface GameSystems {
   food: FoodService;
   shop: ShopService;
   events: EventService;
+  /** Answers and expiries for events that ask the player something (black tax). */
+  choices: ChoiceService;
   stats: StatsService;
   notices: NoticeBus;
   /** Serialises the work of one player (see KeyedMutex). */
@@ -68,7 +72,8 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
   const rent = new RentService(deps);
   const food = new FoodService(deps, players, events);
   const shop = new ShopService(deps, players, events);
-  const stats = new StatsService(deps, players, jobs, rent, events);
+  const choices = new ChoiceService(deps, players);
+  const stats = new StatsService(deps, players, jobs, rent, events, choices);
 
   const districts = new Map<string, DistrictMap>();
   for (const city of Object.values(content.cities)) {
@@ -85,6 +90,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     food,
     shop,
     events,
+    choices,
     stats,
     notices: new NoticeBus(),
     mutex: new KeyedMutex(),
@@ -93,29 +99,47 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
 }
 
 /**
- * The scheduled job: pays every finished shift, including for players who are
- * offline (time passes without them). Returns a function that stops it.
+ * Settles every request left unanswered past its time (it counts as declined),
+ * each under its player's mutex because it changes their meters.
+ */
+export async function expireDueChoices(game: GameSystems, now: Date): Promise<void> {
+  for (const playerId of await game.choices.playersWithExpired(now)) {
+    const results = await game.mutex.run(playerId, () => game.choices.expireDue(playerId, now));
+    for (const result of results) {
+      game.notices.publish(playerId, { kind: "event", title: result.title, message: result.message });
+    }
+  }
+}
+
+/**
+ * The scheduled job: pays every finished shift and expires unanswered
+ * requests, including for players who are offline (time passes without them).
+ * Returns a function that stops it.
  */
 export function startGameLoop(game: GameSystems, intervalMs = 30_000): () => void {
   let running = false;
   const timer = setInterval(() => {
     if (running) return; // a slow run must not overlap the next one
     running = true;
-    game.jobs
-      .settleDueShifts(game.clock.now())
+    const now = game.clock.now();
+    const shifts = game.jobs
+      .settleDueShifts(now)
       .then((paid) => {
         for (const shift of paid) {
           game.notices.publish(shift.playerId, {
             kind: "shift_paid",
             title: "Shift pay",
-            message: `You earned N${shift.amountKobo / 100} for your shift.`,
+            message: `You earned ${formatNaira(shift.amountKobo)} for your shift.`,
           });
         }
       })
-      .catch((error: unknown) => logError("game loop: settling shifts failed", error))
-      .finally(() => {
-        running = false;
-      });
+      .catch((error: unknown) => logError("game loop: settling shifts failed", error));
+    const choices = expireDueChoices(game, now).catch((error: unknown) =>
+      logError("game loop: expiring requests failed", error),
+    );
+    void Promise.all([shifts, choices]).finally(() => {
+      running = false;
+    });
   }, intervalMs);
   timer.unref();
   return () => clearInterval(timer);

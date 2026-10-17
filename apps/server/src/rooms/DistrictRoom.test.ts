@@ -156,6 +156,27 @@ describe("intents", () => {
     expect(await h.db.shift.count({ where: { playerId: "frank" } })).toBe(1);
   });
 
+  it("shows black tax as a card on join, with no toast, and settles a double-tapped answer once", async () => {
+    await h.game.players.ensurePlayer("ivy");
+    // Pretend Ivy was away for an hour, so her events catch up on join: black tax asks, nothing else fires.
+    await h.db.playerState.update({
+      where: { playerId: "ivy" },
+      data: { eventsCheckedAt: new Date(h.clock.now().getTime() - HOUR_MS) },
+    });
+    h.setRng([0, 0, 0, 0.99, 0.99]);
+    const s = await join("ivy");
+    await until(() => s.stats.at(-1)?.pendingChoice != null, "the event card");
+    expect(s.notices).toEqual([]);
+    const choice = s.stats.at(-1)!.pendingChoice!;
+
+    s.room.send("answerEvent", { choiceId: choice.choiceId, answer: "pay" });
+    s.room.send("answerEvent", { choiceId: choice.choiceId, answer: "pay" });
+    await until(() => s.rejected.length >= 1 && s.notices.length >= 1, "one answer and one refusal");
+    expect(s.rejected[0]?.reason).toBe("already_answered");
+    expect(s.notices[0]?.message).toContain("You sent ₦2,000");
+    expect(s.stats.at(-1)).toMatchObject({ balanceKobo: 2_000_000 - 200_000, pendingChoice: null, family: 68 });
+  });
+
   it("buys food, charging the server's price", async () => {
     const s = await join("gina");
     await until(() => s.stats.length > 0, "stats");

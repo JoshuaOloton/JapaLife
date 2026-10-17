@@ -20,7 +20,7 @@ describe("loadContent (real content/)", () => {
     expect(content.jobs.jobs[0]?.energyCost).toBeGreaterThan(0);
     expect(content.ngn.food.length).toBeGreaterThanOrEqual(4);
     expect(content.ngn.food.length).toBeLessThanOrEqual(5);
-    expect(content.events.black_tax.effect.type).toBe("debit");
+    expect(content.events.black_tax.effect.type).toBe("request");
     expect(content.events.power_cut.effect.type).toBe("blackout");
     expect(content.events.food_price_rise.effect.type).toBe("price_rise");
     expect(content.ngn.startingBalanceKobo).toBeGreaterThan(0);
@@ -74,7 +74,12 @@ describe("loadContent (broken content)", () => {
     expect(problemsOf().join("\n")).toContain("economy/jobs.json at meta");
   });
 
-  it("rejects a debit event that uses a reason that is not a ledger sink", () => {
+  it("rejects a request with no asks to pick from", () => {
+    edit("events/black_tax.json", (j) => (j["effect"].asks = []));
+    expect(problemsOf().join("\n")).toContain("events/black_tax.json at effect.asks");
+  });
+
+  it("rejects a request event that uses a reason that is not a ledger sink", () => {
     edit("events/black_tax.json", (j) => (j["effect"].reason = "shift_pay"));
     expect(problemsOf().join("\n")).toContain("events/black_tax.json at effect.reason");
   });

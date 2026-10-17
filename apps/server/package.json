@@ -7,6 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "seed": "tsx src/seed.ts",
     "dev:client": "tsx src/devClient.ts",
+    "fire-event": "tsx src/fireEvent.ts",
+    "grant-money": "tsx src/grantMoney.ts",
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

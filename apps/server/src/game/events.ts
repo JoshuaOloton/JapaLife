@@ -1,5 +1,4 @@
 import { GAME_EVENT_IDS, type GameEventConfig, type GameEventId, type PriceCategory } from "@japalife/shared";
-import { InsufficientFundsError } from "../economy/money";
 import { addDays, MS_PER_DAY, MS_PER_HOUR } from "./clock";
 import type { GameDeps } from "./deps";
 import type { PlayerService } from "./players";
@@ -9,6 +8,8 @@ export interface FiredEvent {
   eventId: string;
   title: string;
   message: string;
+  /** The event asks the player something: the HUD shows its card, so no toast is needed. */
+  asksChoice: boolean;
 }
 
 export interface ActiveEffects {
@@ -53,17 +54,39 @@ export class EventService {
         orderBy: { firedAt: "desc" },
       });
       if (last && now.getTime() < addDays(last.firedAt, event.minGapDays).getTime()) continue;
+      // One question at a time: no new request while the last is unanswered.
+      if (event.effect.type === "request" && (await db.eventChoice.count({ where: { playerId, answer: null } })) > 0) {
+        continue;
+      }
 
       // Chance of at least one occurrence over the elapsed time, given a daily chance.
       const chance = 1 - Math.pow(1 - event.chancePerDay, elapsedDays);
       if (rng() >= chance) continue;
 
       await this.fire(playerId, event, now);
-      fired.push({ eventId: event.id, title: event.title, message: event.message });
+      fired.push({
+        eventId: event.id,
+        title: event.title,
+        message: event.message,
+        asksChoice: event.effect.type === "request",
+      });
     }
 
     await db.playerState.update({ where: { playerId }, data: { eventsCheckedAt: now } });
     return fired;
+  }
+
+  /**
+   * Fires one event straight away, skipping the dice and the gap. For play-testing
+   * only (`pnpm fire-event`); the game itself only fires through `processDue`.
+   * Still asks one question at a time.
+   */
+  async fireNow(playerId: string, eventId: GameEventId, now: Date): Promise<boolean> {
+    const event = this.deps.content.events[eventId];
+    const waiting = await this.deps.db.eventChoice.count({ where: { playerId, answer: null } });
+    if (event.effect.type === "request" && waiting > 0) return false;
+    await this.fire(playerId, event, now);
+    return true;
   }
 
   /**
@@ -108,32 +131,29 @@ export class EventService {
   }
 
   private async applyEffect(playerId: string, event: GameEventConfig, now: Date): Promise<void> {
-    const { db, wallet, rng } = this.deps;
+    const { db, rng } = this.deps;
     const effect = event.effect;
 
-    if (effect.type === "debit") {
-      const firing = await db.eventFiring.create({
-        data: { playerId, eventId: event.id, firedAt: now, amountKobo: 0n },
-      });
+    if (effect.type === "request") {
+      // Nothing is taken yet: the player is asked, and answers through ChoiceService.
       const asked = effect.minKobo + Math.floor(rng() * (effect.maxKobo - effect.minKobo + 1));
-      // Black tax takes what the player can spare: never more than they hold.
-      const balance = await wallet.getBalance(playerId, "NGN");
-      const amount = balance < BigInt(asked) ? balance : BigInt(asked);
-      if (amount <= 0n) return;
-      try {
-        await wallet.debit({
-          playerId,
-          currency: "NGN",
-          amount,
-          reason: effect.reason,
-          reference: `event:${firing.id}`,
+      const variant = Math.min(effect.asks.length - 1, Math.floor(rng() * effect.asks.length));
+      await db.$transaction(async (tx) => {
+        const firing = await tx.eventFiring.create({
+          data: { playerId, eventId: event.id, firedAt: now, amountKobo: 0n },
         });
-      } catch (error) {
-        // The balance dropped between the check and the debit: nothing was taken.
-        if (error instanceof InsufficientFundsError) return;
-        throw error;
-      }
-      await db.eventFiring.update({ where: { id: firing.id }, data: { amountKobo: amount } });
+        await tx.eventChoice.create({
+          data: {
+            playerId,
+            firingId: firing.id,
+            eventId: event.id,
+            amountKobo: BigInt(asked),
+            variant,
+            askedAt: now,
+            expiresAt: new Date(now.getTime() + effect.answerWithinHours * MS_PER_HOUR),
+          },
+        });
+      });
       return;
     }
 
