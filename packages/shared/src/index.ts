@@ -1,3 +1,4 @@
+export * from "./bodyRegions";
 export * from "./collision";
 export * from "./constants";
 export * from "./content";

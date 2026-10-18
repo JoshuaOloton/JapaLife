@@ -1,6 +1,7 @@
 import { PLAYER_RADIUS, POSITION_UPDATE_HZ } from "@japalife/shared";
 import { describe, expect, it } from "vitest";
 import { fitCamera } from "./camera";
+import { RUN_PUSH, WALK_FRACTION } from "./gait";
 import { MoveInput, quantiseDirection } from "./input";
 import { MoveSender } from "./moveSender";
 import { MOVING_TOLERANCE, SNAP_DISTANCE, reconcile } from "./reconcile";
@@ -85,16 +86,35 @@ describe("MoveInput", () => {
     target.dispatchEvent(Object.assign(new Event("keydown"), { code, preventDefault: () => undefined }));
   };
 
-  it("walks diagonally no faster than straight", () => {
+  it("walks on the keys, diagonally no faster than straight", () => {
     const input = new MoveInput();
     const target = new EventTarget();
     input.attachKeyboard(target as unknown as Window);
     press(target, "KeyW");
     press(target, "KeyD");
     const { x, z } = input.direction();
-    expect(Math.hypot(x, z)).toBeCloseTo(1);
+    expect(Math.hypot(x, z)).toBeCloseTo(WALK_FRACTION);
     expect(x).toBeGreaterThan(0);
     expect(z).toBeLessThan(0); // W is north, away from the camera
+  });
+
+  it("runs while Shift is held", () => {
+    const input = new MoveInput();
+    const target = new EventTarget();
+    input.attachKeyboard(target as unknown as Window);
+    press(target, "KeyW");
+    press(target, "ShiftLeft");
+    expect(input.direction()).toEqual({ x: 0, z: -1 });
+    target.dispatchEvent(Object.assign(new Event("keyup"), { code: "ShiftLeft" }));
+    expect(Math.hypot(input.direction().x, input.direction().z)).toBeCloseTo(WALK_FRACTION);
+  });
+
+  it("does not move on Shift alone", () => {
+    const input = new MoveInput();
+    const target = new EventTarget();
+    input.attachKeyboard(target as unknown as Window);
+    press(target, "ShiftRight");
+    expect(input.direction()).toEqual({ x: 0, z: 0 });
   });
 
   it("lets go of every key when the window loses focus", () => {
@@ -106,10 +126,21 @@ describe("MoveInput", () => {
     expect(input.direction()).toEqual({ x: 0, z: 0 });
   });
 
-  it("keeps a half-pushed joystick at half speed but never above full", () => {
+  it("walks on a partly pushed joystick, never faster than walking pace", () => {
     const input = new MoveInput();
     input.setJoystick({ x: 0.5, z: 0 });
-    expect(input.direction()).toEqual({ x: 0.5, z: 0 });
+    const half = input.direction().x;
+    input.setJoystick({ x: RUN_PUSH - 0.01, z: 0 });
+    const almost = input.direction().x;
+    expect(half).toBeGreaterThan(0);
+    expect(half).toBeLessThan(almost);
+    expect(almost).toBeLessThanOrEqual(WALK_FRACTION);
+  });
+
+  it("runs at full speed, and no faster, when the joystick is pushed to the rim", () => {
+    const input = new MoveInput();
+    input.setJoystick({ x: RUN_PUSH, z: 0 });
+    expect(input.direction()).toEqual({ x: 1, z: 0 });
     input.setJoystick({ x: 1, z: 1 });
     expect(Math.hypot(input.direction().x, input.direction().z)).toBeCloseTo(1);
   });

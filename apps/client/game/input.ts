@@ -1,8 +1,11 @@
 import type { Point } from "@japalife/shared";
+import { RUN_PUSH, WALK_FRACTION } from "./gait";
 
 /**
- * The direction the player is asking to walk, on the ground plane. The camera
- * always looks north (toward -z), so "up" on the screen is -z.
+ * The direction the player is asking to move, on the ground plane. The camera
+ * always looks north (toward -z), so "up" on the screen is -z. Its length is
+ * the share of top speed: walking is a short direction, running a full one
+ * (see gait.ts).
  *
  * Kept outside React on purpose: it changes every frame while a key or the
  * joystick is held, and a React state update per frame would re-render the tree.
@@ -23,17 +26,20 @@ export class MoveInput {
 
   /** Current direction, never longer than 1. The joystick wins over keys when both are used. */
   direction(): Point {
-    if (this.joystick.x !== 0 || this.joystick.z !== 0) return clampLength(this.joystick);
+    if (this.joystick.x !== 0 || this.joystick.z !== 0) return joystickGait(this.joystick);
     const has = (...codes: string[]): boolean => codes.some((code) => this.keys.has(code));
     const x = (has("KeyD", "ArrowRight") ? 1 : 0) - (has("KeyA", "ArrowLeft") ? 1 : 0);
     const z = (has("KeyS", "ArrowDown") ? 1 : 0) - (has("KeyW", "ArrowUp") ? 1 : 0);
-    // Normalise so walking diagonally is not ~41% faster than walking straight.
-    return clampLength({ x, z }, true);
+    // Normalise so moving diagonally is not ~41% faster than moving straight.
+    const unit = clampLength({ x, z }, true);
+    const share = has("ShiftLeft", "ShiftRight") ? 1 : WALK_FRACTION;
+    return { x: unit.x * share, z: unit.z * share };
   }
 
   /** Starts listening to the keyboard. Returns the function that stops it. */
   attachKeyboard(target: Window): () => void {
     const onDown = (event: KeyboardEvent): void => {
+      if (RUN_KEYS.has(event.code)) this.keys.add(event.code);
       if (!MOVE_KEYS.has(event.code)) return;
       event.preventDefault(); // stop arrow keys scrolling the page
       this.keys.add(event.code);
@@ -54,6 +60,18 @@ export class MoveInput {
 }
 
 const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+const RUN_KEYS = new Set(["ShiftLeft", "ShiftRight"]);
+
+/**
+ * A partly pushed joystick walks, faster the further it goes, up to walking
+ * pace just before RUN_PUSH. At RUN_PUSH and beyond it runs at full speed.
+ */
+function joystickGait(joystick: Point): Point {
+  const push = Math.hypot(joystick.x, joystick.z);
+  if (push >= RUN_PUSH) return clampLength(joystick, true);
+  const scale = WALK_FRACTION / RUN_PUSH;
+  return { x: joystick.x * scale, z: joystick.z * scale };
+}
 
 function clampLength(direction: Point, normalise = false): Point {
   const length = Math.hypot(direction.x, direction.z);
