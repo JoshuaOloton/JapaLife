@@ -1,0 +1,8 @@
+{
+  "walk": {
+    "metresPerSecond": 0.975
+  },
+  "run": {
+    "metresPerSecond": 5.357
+  }
+}

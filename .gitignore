@@ -8,3 +8,5 @@ next-env.d.ts
 coverage
 .DS_Store
 packages/db/src/generated
+# Raw third-party asset packs (hundreds of MB). Only processed GLBs are committed.
+assets/vendor

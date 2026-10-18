@@ -13,7 +13,7 @@ import { MoveInput } from "./input";
 import { Joystick } from "./Joystick";
 import { nearestPlace } from "./nearby";
 import { PlacePanel } from "./PlacePanel";
-import { Player } from "./Player";
+import { Player, type PlayerActivity } from "./Player";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
 
@@ -30,6 +30,7 @@ export default function Game() {
   const input = useMemo(() => new MoveInput(), []);
   const touch = useCoarsePointer();
   const predicted = useRef<Point>({ x: 0, z: 0 });
+  const activity = useRef<PlayerActivity>({ working: false, gestureAt: Number.NEGATIVE_INFINITY });
   const showFps = useFpsMeterEnabled();
   const fpsOutput = useRef<HTMLParagraphElement>(null);
 
@@ -60,12 +61,24 @@ export default function Game() {
         <hemisphereLight args={["#ffffff", "#6f8f4f", 1.6]} />
         <directionalLight position={[20, 40, 10]} intensity={1.4} />
         <World district={connection.district} />
-        <Player room={connection.room} district={connection.district} input={input} predicted={predicted} />
+        <Player
+          room={connection.room}
+          district={connection.district}
+          input={input}
+          predicted={predicted}
+          activity={activity}
+        />
         {showFps && <FpsProbe output={fpsOutput} />}
       </Canvas>
       {touch && <Joystick input={input} />}
       {showFps && <p ref={fpsOutput} className={styles.fps} aria-hidden="true" />}
-      <Overlay room={connection.room} messages={connection.messages} district={connection.district} predicted={predicted} />
+      <Overlay
+        room={connection.room}
+        messages={connection.messages}
+        district={connection.district}
+        predicted={predicted}
+        activity={activity}
+      />
     </div>
   );
 }
@@ -79,15 +92,29 @@ function Overlay({
   messages,
   district,
   predicted,
+  activity,
 }: {
   room: DistrictRoom;
   messages: MessageBuffer;
   district: DistrictConfig;
   predicted: { current: Point };
+  activity: { current: PlayerActivity };
 }) {
   const { server, toasts, interaction, closeInteraction, inbox, closeInbox } = useGameMessages(messages);
   const now = useTicker(server);
   const near = useNearbyPlace(district, predicted);
+
+  // Tell the character what it is doing: on shift at that job's site, it works.
+  const activeJobId = server?.stats.activeShift?.jobId;
+  useEffect(() => {
+    activity.current.working = activeJobId !== undefined && near?.kind === "job_site" && near.jobId === activeJobId;
+  }, [activity, activeJobId, near]);
+
+  // Opening a place's sheet plays a short "using it" gesture.
+  const interactionTarget = interaction?.targetId;
+  useEffect(() => {
+    if (interactionTarget) activity.current.gestureAt = performance.now();
+  }, [activity, interactionTarget]);
 
   const open = (place: Interactable): void => room.send("interact", { targetId: place.id });
 

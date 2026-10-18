@@ -8,9 +8,11 @@ import {
   moveWithCollisions,
 } from "@japalife/shared";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { type Group, PerspectiveCamera, Vector3 } from "three";
 import { fitCamera } from "./camera";
+import type { CharacterMotion } from "./character/animation";
+import { Character, ModelBoundary } from "./character/Character";
 import type { DistrictRoom } from "./connection";
 import type { MoveInput } from "./input";
 import { MoveSender } from "./moveSender";
@@ -28,6 +30,14 @@ const TURN_RATE = 12;
 
 /** Same cap as the server, so one long frame (a phone waking up) cannot fling the player. */
 const MAX_FRAME_SECONDS = 0.25;
+/** How quickly the measured speed follows the real one, per second. Smooths out uneven frames. */
+const SPEED_SMOOTHING_RATE = 12;
+
+/** What the HUD knows that the animation needs: on shift at the job site, and when a place was last used. */
+export interface PlayerActivity {
+  working: boolean;
+  gestureAt: number;
+}
 
 /**
  * The local player. Each frame it:
@@ -42,12 +52,14 @@ export function Player({
   district,
   input,
   predicted,
+  activity,
 }: {
   room: DistrictRoom;
   district: DistrictConfig;
   input: MoveInput;
   /** Where the player is drawn. Owned by the parent so the HUD can see which place is near. */
   predicted: { current: Point };
+  activity: { current: PlayerActivity };
 }) {
   const body = useRef<Group>(null);
   const camera = useThree((three) => three.camera);
@@ -65,6 +77,7 @@ export function Player({
   const server = useMemo(() => new SnapshotBuffer(), []);
   const cameraTarget = useMemo(() => new Vector3(), []);
   const lookAt = useMemo(() => new Vector3(), []);
+  const motion = useRef<CharacterMotion>({ speed: 0, working: false, gestureAt: Number.NEGATIVE_INFINITY });
 
   useEffect(() => {
     const record = (): void => {
@@ -123,6 +136,12 @@ export function Player({
         bounds: district,
       });
     }
+    // Speed from how far the player really moved, so walking into a wall stops the run animation.
+    const previous = predicted.current;
+    const speed = dt > 0 ? Math.hypot(position.x - previous.x, position.z - previous.z) / dt : 0;
+    motion.current.speed += (speed - motion.current.speed) * (1 - Math.exp(-SPEED_SMOOTHING_RATE * dt));
+    motion.current.working = activity.current.working;
+    motion.current.gestureAt = activity.current.gestureAt;
     predicted.current = position;
 
     const group = body.current;
@@ -144,22 +163,36 @@ export function Player({
     camera.lookAt(lookAt);
   });
 
+  const standIn = <Capsule />;
   return (
     <group ref={body}>
-      <mesh position-y={PLAYER_RADIUS + BODY_LENGTH / 2}>
-        <capsuleGeometry args={[PLAYER_RADIUS, BODY_LENGTH, 4, 10]} />
-        <meshLambertMaterial color={BODY_COLOUR} />
-      </mesh>
-      {/* A nose, so you can see which way the player faces. */}
-      <mesh position={[0, PLAYER_RADIUS + BODY_LENGTH * 0.8, PLAYER_RADIUS * 0.9]}>
-        <boxGeometry args={[0.25, 0.15, 0.2]} />
-        <meshLambertMaterial color="#f2d16b" />
-      </mesh>
+      {/* The capsule shows while the model downloads, or for good if the download fails. */}
+      <ModelBoundary fallback={standIn}>
+        <Suspense fallback={standIn}>
+          <Character body="male" motion={motion} />
+        </Suspense>
+      </ModelBoundary>
       {/* A dark disc instead of a real shadow: almost free on the GPU. */}
       <mesh rotation-x={-Math.PI / 2} position-y={0.04}>
         <circleGeometry args={[PLAYER_RADIUS * 1.3, 16]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.3} />
       </mesh>
     </group>
+  );
+}
+
+/** The placeholder body: a capsule with a nose, so you can see which way it faces. */
+function Capsule() {
+  return (
+    <>
+      <mesh position-y={PLAYER_RADIUS + BODY_LENGTH / 2}>
+        <capsuleGeometry args={[PLAYER_RADIUS, BODY_LENGTH, 4, 10]} />
+        <meshLambertMaterial color={BODY_COLOUR} />
+      </mesh>
+      <mesh position={[0, PLAYER_RADIUS + BODY_LENGTH * 0.8, PLAYER_RADIUS * 0.9]}>
+        <boxGeometry args={[0.25, 0.15, 0.2]} />
+        <meshLambertMaterial color="#f2d16b" />
+      </mesh>
+    </>
   );
 }

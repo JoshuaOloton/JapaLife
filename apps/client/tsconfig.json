@@ -5,6 +5,8 @@
     "jsx": "preserve",
     "allowJs": false,
     "incremental": true,
+    // Node scripts (scripts/**/*.mts) run without a build step, so they import each other by real file name.
+    "allowImportingTsExtensions": true,
     "plugins": [{ "name": "next" }]
   },
   "include": ["next-env.d.ts", "app", "game", "scripts", ".next/types/**/*.ts"],
