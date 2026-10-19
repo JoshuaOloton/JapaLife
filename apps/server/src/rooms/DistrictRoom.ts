@@ -115,7 +115,7 @@ export function createDistrictRoom(game: GameSystems) {
       position.z = live.z;
       this.state.players.set(client.sessionId, position);
       // The layout the client draws and predicts its walking from: one source of truth.
-      client.send(SERVER_MESSAGES.district, this.district.config);
+      client.send(SERVER_MESSAGES.district, this.district.layout);
       await this.sendStats(client, live);
     }
 

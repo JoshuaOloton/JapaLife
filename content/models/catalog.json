@@ -1,0 +1,37 @@
+{
+  "generated": true,
+  "models": {
+    "bungalow": {
+      "file": "buildings/bungalow.glb",
+      "halfWidth": 0.725,
+      "halfDepth": 0.589,
+      "height": 0.768,
+      "triangles": 1067,
+      "bytes": 14460
+    },
+    "flats-four-storey": {
+      "file": "buildings/flats-four-storey.glb",
+      "halfWidth": 1.003,
+      "halfDepth": 0.65,
+      "height": 2.95,
+      "triangles": 1333,
+      "bytes": 18020
+    },
+    "flats-three-storey": {
+      "file": "buildings/flats-three-storey.glb",
+      "halfWidth": 1.003,
+      "halfDepth": 0.65,
+      "height": 2.25,
+      "triangles": 1097,
+      "bytes": 17096
+    },
+    "office-block": {
+      "file": "buildings/office-block.glb",
+      "halfWidth": 1.042,
+      "halfDepth": 0.67,
+      "height": 1.693,
+      "triangles": 5246,
+      "bytes": 25376
+    }
+  }
+}

@@ -16,8 +16,11 @@ import { PlacePanel } from "./PlacePanel";
 import { Player, type PlayerActivity } from "./Player";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
+import { Lighting } from "./world/Lighting";
+import { type StreetState, initialStreet } from "./world/street";
 
-const SKY_COLOUR = "#bfdcef";
+/** Behind the loading message and the canvas until the first frame paints the sky. */
+const SKY_COLOUR = "#c4dcea";
 /** How often the "which place am I standing at?" check runs. Plenty for a walking player. */
 const NEARBY_CHECK_MS = 200;
 
@@ -33,6 +36,7 @@ export default function Game() {
   const activity = useRef<PlayerActivity>({ working: false, gestureAt: Number.NEGATIVE_INFINITY });
   const showFps = useFpsMeterEnabled();
   const fpsOutput = useRef<HTMLParagraphElement>(null);
+  const street = useRef<StreetState>(initialStreet());
 
   useEffect(() => input.attachKeyboard(window), [input]);
 
@@ -53,14 +57,11 @@ export default function Game() {
         dpr={[1, MAX_DEVICE_PIXEL_RATIO]}
         // Antialiasing costs a lot on mobile GPUs and matters little at 1.5x.
         gl={{ antialias: false, powerPreference: "high-performance" }}
-        camera={{ fov: 50, near: 0.5, far: 220 }}
+        // The fog hides everything past 140 m, so nothing beyond it needs drawing.
+        camera={{ fov: 50, near: 0.5, far: 150 }}
       >
-        <color attach="background" args={[SKY_COLOUR]} />
-        <fog attach="fog" args={[SKY_COLOUR, 50, 140]} />
-        {/* Cheap lighting and no real-time shadows, per the performance budget. */}
-        <hemisphereLight args={["#ffffff", "#6f8f4f", 1.6]} />
-        <directionalLight position={[20, 40, 10]} intensity={1.4} />
-        <World district={connection.district} />
+        <Lighting street={street} />
+        <World district={connection.district} street={street} />
         <Player
           room={connection.room}
           district={connection.district}
@@ -78,6 +79,7 @@ export default function Game() {
         district={connection.district}
         predicted={predicted}
         activity={activity}
+        street={street}
       />
     </div>
   );
@@ -93,16 +95,25 @@ function Overlay({
   district,
   predicted,
   activity,
+  street,
 }: {
   room: DistrictRoom;
   messages: MessageBuffer;
   district: DistrictConfig;
   predicted: { current: Point };
   activity: { current: PlayerActivity };
+  street: { current: StreetState };
 }) {
   const { server, toasts, interaction, closeInteraction, inbox, closeInbox } = useGameMessages(messages);
   const now = useTicker(server);
   const near = useNearbyPlace(district, predicted);
+
+  // Tell the 3D street what time it is and whether there is light.
+  useEffect(() => {
+    if (!server) return;
+    const { timeZone, isNight, blackoutEndsAt } = server.stats;
+    street.current = { serverNow: server.serverNow, timeZone, isNight, blackoutEndsAt };
+  }, [street, server]);
 
   // Tell the character what it is doing: on shift at that job's site, it works.
   const activeJobId = server?.stats.activeShift?.jobId;

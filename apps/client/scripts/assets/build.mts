@@ -11,8 +11,13 @@
  * - characters/hair-<id>.glb: hair meshes skinned to the same skeleton.
  * - characters/animations.glb: the clips the game uses, on the shared rig.
  *
+ * - buildings/<id>.glb: a building, centred on its footprint and standing on
+ *   y = 0, its meshes joined into one per material (fewer draw calls).
+ *
  * It also writes game/character/clipInfo.generated.json with each movement
- * clip's natural speed, so the game can play it at the speed the player moves.
+ * clip's natural speed, so the game can play it at the speed the player moves,
+ * and content/models/catalog.json with each model's measured footprint, height,
+ * triangles and size, which the server checks building footprints against.
  *
  * Needs `toktx` (KTX-Software) on the PATH. Usage: `pnpm assets`.
  */
@@ -31,7 +36,7 @@ import {
   type Texture,
 } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, KHRTextureBasisu } from "@gltf-transform/extensions";
-import { dedup, prune, resample } from "@gltf-transform/functions";
+import { center, dedup, flatten, getBounds, join as joinMeshes, prune, resample, weld } from "@gltf-transform/functions";
 import { encodeGreyscalePng } from "./png.mts";
 import { bakeRegionMask } from "./regionMask.mts";
 
@@ -39,6 +44,7 @@ const clientDir = join(import.meta.dirname, "..", "..");
 const vendorDir = join(clientDir, "..", "..", "assets", "vendor");
 const outDir = join(clientDir, "public", "assets");
 const clipInfoFile = join(clientDir, "game", "character", "clipInfo.generated.json");
+const modelCatalogFile = join(clientDir, "..", "..", "content", "models", "catalog.json");
 const gltfTransform = join(clientDir, "node_modules", ".bin", "gltf-transform");
 
 const UBC = join(vendorDir, "ubc");
@@ -66,6 +72,32 @@ const CLIPS = [
   { id: "interact", file: UAL1, name: "Interact" },
   { id: "work_phone", file: UAL2, name: "Idle_TalkingPhone_Loop" },
 ] as const;
+
+const KAYKIT = join(vendorDir, "kaykit-city", "Assets", "gltf");
+const KENNEY_COMMERCIAL = join(vendorDir, "kenney-commercial", "Models");
+const KENNEY_SUBURBAN = join(vendorDir, "kenney-suburban", "Models");
+
+/**
+ * Building models: game model id -> source file in a pack. A building in
+ * `content/cities/<city>.json` refers to the id, with a scale that makes a
+ * floor about 3 m. `texture` swaps in one of the pack's other colour sheets
+ * (Kenney ships variations of the same layout).
+ */
+const BUILDINGS: readonly { id: string; file: string; texture?: string }[] = [
+  // Painted walk-ups, the closest the free packs come to Yaba's blocks of flats.
+  { id: "flats-three-storey", file: join(KAYKIT, "building_F_withoutBase.gltf") },
+  { id: "flats-four-storey", file: join(KAYKIT, "building_H_withoutBase.gltf") },
+  { id: "office-block", file: join(KENNEY_COMMERCIAL, "GLB format", "building-j.glb") },
+  // Single storey with a porch; variation C's dark grey roof reads as old zinc.
+  {
+    id: "bungalow",
+    file: join(KENNEY_SUBURBAN, "GLB format", "building-type-g.glb"),
+    texture: join(KENNEY_SUBURBAN, "Textures", "variation-c.png"),
+  },
+];
+
+/** Building textures are shared colour atlases: flat swatches, so a small size loses nothing. */
+const BUILDING_TEXTURE_SIZE = 256;
 
 /** Texture edge length by material. The camera is ~14 m away; the body fills ~200 px on a phone. */
 function textureSize(material: Material): number {
@@ -99,8 +131,71 @@ async function main(): Promise<void> {
   for (const body of BODIES) await buildBody(body.id, body.file, body.bodyMaterial);
   for (const hair of HAIRS) await buildHair(hair.id, hair.file);
   await buildAnimations();
+  const models: Record<string, ModelEntry> = {};
+  for (const building of BUILDINGS) models[building.id] = await buildBuilding(building.id, building.file, building.texture);
+  writeModelCatalog(models);
   rmSync(work, { recursive: true, force: true });
   report();
+}
+
+/** One entry of content/models/catalog.json (`modelInfoSchema` in packages/shared). */
+interface ModelEntry {
+  file: string;
+  halfWidth: number;
+  halfDepth: number;
+  height: number;
+  triangles: number;
+  bytes: number;
+}
+
+async function buildBuilding(id: string, file: string, texture?: string): Promise<ModelEntry> {
+  for (const path of [file, texture]) {
+    if (path && !existsSync(path)) fail(`${relative(process.cwd(), path)}: not found (is the pack unzipped in assets/vendor?)`);
+  }
+  const document = file.endsWith(".gltf") ? await readGltf(file) : await io.read(file);
+  if (texture) {
+    const image = readFileSync(texture);
+    for (const sheet of document.getRoot().listTextures()) sheet.setImage(image).setMimeType("image/png");
+  }
+  await cleanForGame(document);
+  // One mesh per material instead of one per piece, centred on the footprint and standing on the ground.
+  await document.transform(flatten(), joinMeshes(), weld(), center({ pivot: "below" }), prune(), dedup());
+
+  const scene = document.getRoot().getDefaultScene() ?? document.getRoot().listScenes()[0];
+  if (!scene) fail(`${file}: no scene`);
+  const { min, max } = getBounds(scene);
+  const triangles = countTriangles(document);
+
+  await compressTextures(document, () => BUILDING_TEXTURE_SIZE);
+  const output = `buildings/${id}.glb`;
+  await finish(document, output, { simplify: false });
+  const round = (value: number): number => Math.round(value * 1000) / 1000;
+  return {
+    file: output,
+    halfWidth: round((max[0] - min[0]) / 2),
+    halfDepth: round((max[2] - min[2]) / 2),
+    height: round(max[1] - min[1]),
+    triangles,
+    bytes: statSync(join(outDir, output)).size,
+  };
+}
+
+function countTriangles(document: Document): number {
+  let triangles = 0;
+  for (const mesh of document.getRoot().listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      if (primitive.getMode() !== 4) continue; // TRIANGLES; the packs use nothing else
+      const count = primitive.getIndices()?.getCount() ?? primitive.getAttribute("POSITION")?.getCount() ?? 0;
+      triangles += count / 3;
+    }
+  }
+  return triangles;
+}
+
+/** Sorted by id, so regenerating with no changes leaves the checked-in file untouched. */
+function writeModelCatalog(models: Record<string, ModelEntry>): void {
+  const sorted = Object.fromEntries(Object.entries(models).sort(([a], [b]) => a.localeCompare(b)));
+  writeFileSync(modelCatalogFile, `${JSON.stringify({ generated: true, models: sorted }, null, 2)}\n`);
 }
 
 async function buildBody(id: string, file: string, bodyMaterial: string): Promise<void> {
@@ -280,12 +375,13 @@ function disposeAnimation(animation: Animation): void {
   animation.dispose();
 }
 
-async function compressTextures(document: Document): Promise<void> {
+async function compressTextures(document: Document, sizeOf: (material: Material) => number = textureSize): Promise<void> {
   const sizes = new Map<Texture, number>();
   for (const material of document.getRoot().listMaterials()) {
     const texture = material.getBaseColorTexture();
-    if (texture) sizes.set(texture, Math.max(sizes.get(texture) ?? 0, textureSize(material)));
+    if (texture) sizes.set(texture, Math.max(sizes.get(texture) ?? 0, sizeOf(material)));
   }
+  if (sizes.size === 0) return; // colour-only materials: nothing to compress, and no KTX2 extension needed
   let index = 0;
   for (const [texture, size] of sizes) {
     const image = texture.getImage();

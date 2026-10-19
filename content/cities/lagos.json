@@ -14,7 +14,7 @@
       "spawn": { "x": 0, "z": 0 },
       "interactRadius": 3,
       "interactables": [
-        { "id": "face-me-face-you", "label": "Your room", "kind": "home", "position": { "x": -5, "z": -25 } },
+        { "id": "face-me-face-you", "label": "Your room", "kind": "home", "position": { "x": -11.5, "z": -25.5 } },
         { "id": "yaba-office", "label": "Yaba Office", "kind": "job_site", "position": { "x": 20, "z": -10 }, "jobId": "office-assistant" },
         { "id": "mama-put-buka", "label": "Mama Put Buka", "prompt": "Buy food at Mama Put", "kind": "food_vendor", "position": { "x": -15, "z": 12 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] },
         { "id": "yaba-bus-stop", "label": "Bus Stop", "kind": "bus_stop", "position": { "x": 8, "z": 25 } },
@@ -25,13 +25,13 @@
         { "x": 0, "z": 0, "halfWidth": 4, "halfDepth": 60, "colour": "#4a4a4f" }
       ],
       "buildings": [
-        { "id": "yaba-office-block", "name": "Office block", "x": 28, "z": -18, "halfWidth": 7, "halfDepth": 6, "height": 9, "colour": "#8fa3b8" },
-        { "id": "face-me-face-you-house", "name": "Face-me-face-you house", "x": -14, "z": -31, "halfWidth": 8, "halfDepth": 4, "height": 5, "colour": "#d9a679" },
+        { "id": "yaba-office-block", "name": "Office block", "x": 28, "z": -18, "halfWidth": 7.8, "halfDepth": 5, "height": 12.7, "colour": "#8fa3b8", "model": "office-block", "scale": 7.5 },
+        { "id": "face-me-face-you-house", "name": "Face-me-face-you house", "x": -9, "z": -31, "halfWidth": 5.05, "halfDepth": 4.1, "height": 5.4, "colour": "#d9a679", "model": "bungalow", "scale": 7 },
         { "id": "mama-put-shop", "name": "Mama Put's shop", "x": -22, "z": 18, "halfWidth": 6, "halfDepth": 4, "height": 4, "colour": "#e0c25a" },
         { "id": "fuel-station-building", "name": "Fuel station", "x": 38, "z": 26, "halfWidth": 6, "halfDepth": 4, "height": 4, "colour": "#c95f5f" },
         { "id": "bus-shelter", "name": "Bus shelter", "x": 11, "z": 27, "halfWidth": 1.5, "halfDepth": 1, "height": 2.5, "colour": "#6f9f8a" },
-        { "id": "yaba-flats-1", "name": "Flats", "x": -35, "z": -15, "halfWidth": 6, "halfDepth": 7, "height": 12, "colour": "#b9a9c9" },
-        { "id": "yaba-flats-2", "name": "Flats", "x": 40, "z": -40, "halfWidth": 8, "halfDepth": 6, "height": 10, "colour": "#a9c9b9" },
+        { "id": "yaba-flats-1", "name": "Flats", "x": -35, "z": -15, "halfWidth": 5, "halfDepth": 3.25, "height": 14.75, "colour": "#b9a9c9", "model": "flats-four-storey", "scale": 5 },
+        { "id": "yaba-flats-2", "name": "Flats", "x": 40, "z": -40, "halfWidth": 5, "halfDepth": 3.25, "height": 11.25, "colour": "#a9c9b9", "model": "flats-three-storey", "scale": 5 },
         { "id": "yaba-market", "name": "Market", "x": -42, "z": 40, "halfWidth": 8, "halfDepth": 6, "height": 6, "colour": "#d68f5d" },
         { "id": "yaba-church", "name": "Church", "x": 16, "z": 44, "halfWidth": 6, "halfDepth": 5, "height": 8, "colour": "#e8e2d6" }
       ]
