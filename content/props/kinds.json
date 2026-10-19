@@ -1,0 +1,76 @@
+{
+  "kinds": {
+    "generator": {
+      "look": { "built": "generator", "halfWidth": 0.45, "halfDepth": 0.35, "height": 0.75, "colour": "#c9a227" },
+      "blocks": "footprint"
+    },
+    "generator-big": {
+      "look": { "built": "generator", "halfWidth": 1.2, "halfDepth": 0.75, "height": 1.6, "colour": "#4f6a57" },
+      "blocks": "footprint"
+    },
+    "kiosk": {
+      "look": { "built": "kiosk", "halfWidth": 1, "halfDepth": 0.8, "height": 2.4, "colour": "#2f6db5" },
+      "blocks": "footprint"
+    },
+    "container-shop": {
+      "look": { "built": "container_shop", "halfWidth": 3, "halfDepth": 1.2, "height": 2.6, "colour": "#b5432f" },
+      "blocks": "footprint"
+    },
+    "electric-pole": {
+      "look": { "built": "electric_pole", "halfWidth": 0.9, "halfDepth": 0.15, "height": 8, "colour": "#9c9a94" },
+      "blocks": { "halfWidth": 0.15, "halfDepth": 0.15 }
+    },
+    "palm": {
+      "look": { "built": "palm", "halfWidth": 2.2, "halfDepth": 2.2, "height": 7 },
+      "blocks": { "halfWidth": 0.25, "halfDepth": 0.25 }
+    },
+    "billboard": {
+      "look": { "built": "billboard", "halfWidth": 3, "halfDepth": 0.3, "height": 6.5, "colour": "#3a3a3a" },
+      "blocks": { "halfWidth": 0.25, "halfDepth": 0.25 }
+    },
+    "hawker-table": {
+      "look": { "built": "hawker_table", "halfWidth": 0.6, "halfDepth": 0.4, "height": 0.8, "colour": "#8a6a46" },
+      "blocks": "footprint"
+    },
+    "plastic-chair": {
+      "look": { "built": "plastic_chair", "halfWidth": 0.25, "halfDepth": 0.25, "height": 0.85, "colour": "#f2f2ee" },
+      "blocks": "footprint"
+    },
+    "plastic-chair-blue": {
+      "look": { "built": "plastic_chair", "halfWidth": 0.25, "halfDepth": 0.25, "height": 0.85, "colour": "#2f6db5" },
+      "blocks": "footprint"
+    },
+    "speed-bump": {
+      "look": { "built": "speed_bump", "halfWidth": 0.4, "halfDepth": 3.9, "height": 0.12 },
+      "blocks": "none"
+    },
+    "tree-large": {
+      "look": { "model": "tree-large", "scale": 8 },
+      "blocks": { "halfWidth": 0.2, "halfDepth": 0.2 }
+    },
+    "tree-small": {
+      "look": { "model": "tree-small", "scale": 8 },
+      "blocks": { "halfWidth": 0.15, "halfDepth": 0.15 }
+    },
+    "planter": {
+      "look": { "model": "planter", "scale": 5 },
+      "blocks": "footprint"
+    },
+    "bench": {
+      "look": { "model": "bench", "scale": 5 },
+      "blocks": "footprint"
+    },
+    "bin": {
+      "look": { "model": "bin", "scale": 8 },
+      "blocks": "footprint"
+    },
+    "umbrella": {
+      "look": { "model": "umbrella", "scale": 6 },
+      "blocks": "none"
+    },
+    "umbrella-striped": {
+      "look": { "model": "umbrella-striped", "scale": 6 },
+      "blocks": "none"
+    }
+  }
+}

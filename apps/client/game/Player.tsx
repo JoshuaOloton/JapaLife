@@ -1,10 +1,11 @@
 "use client";
 
 import {
-  type DistrictConfig,
+  type DistrictLayout,
   PLAYER_RADIUS,
   PLAYER_SPEED_UNITS_PER_SECOND,
   type Point,
+  districtObstacles,
   moveWithCollisions,
 } from "@japalife/shared";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -56,7 +57,7 @@ export function Player({
   activity,
 }: {
   room: DistrictRoom;
-  district: DistrictConfig;
+  district: DistrictLayout;
   input: MoveInput;
   /** Where the player is drawn. Owned by the parent so the HUD can see which place is near. */
   predicted: { current: Point };
@@ -79,6 +80,8 @@ export function Player({
   const cameraTarget = useMemo(() => new Vector3(), []);
   const lookAt = useMemo(() => new Vector3(), []);
   const motion = useRef<CharacterMotion>({ speed: 0, working: false, gestureAt: Number.NEGATIVE_INFINITY });
+  // The same walls, props and people the server stops the player at, so the prediction agrees with it.
+  const obstacles = useMemo(() => districtObstacles(district), [district]);
 
   useEffect(() => {
     const record = (): void => {
@@ -123,7 +126,7 @@ export function Player({
     let position = moveWithCollisions(
       predicted.current,
       { x: direction.x * PLAYER_SPEED_UNITS_PER_SECOND * dt, z: direction.z * PLAYER_SPEED_UNITS_PER_SECOND * dt },
-      district.buildings,
+      obstacles,
       district,
     );
     const truth = server.sample(now - INTERPOLATION_DELAY_MS);
@@ -133,7 +136,7 @@ export function Player({
         server: truth,
         moving,
         deltaSeconds: dt,
-        boxes: district.buildings,
+        boxes: obstacles,
         bounds: district,
       });
     }

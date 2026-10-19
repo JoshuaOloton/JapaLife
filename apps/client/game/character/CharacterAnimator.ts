@@ -30,8 +30,9 @@ export class CharacterAnimator {
     this.gestureSeconds = gesture?.getClip().duration ?? 0;
   }
 
-  update(deltaSeconds: number, motion: CharacterMotion, now: number): void {
-    const next = chooseClip(motion, now, this.gestureSeconds);
+  /** `pose` holds one looping clip (a standing NPC) instead of choosing from the motion. */
+  update(deltaSeconds: number, motion: CharacterMotion, now: number, pose?: ClipId): void {
+    const next = pose ?? chooseClip(motion, now, this.gestureSeconds);
     const action = this.actions.get(next);
     if (next !== this.current && action) {
       const previous = this.current ? this.actions.get(this.current) : undefined;

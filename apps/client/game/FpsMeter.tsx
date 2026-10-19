@@ -20,7 +20,11 @@ export function FpsProbe({ output }: { output: RefObject<HTMLElement | null> }) 
   const counter = useMemo(() => new FpsCounter(), []);
   useFrame(({ gl }) => {
     const reading = counter.frame(performance.now());
-    if (reading && output.current) output.current.textContent = formatFpsReading(reading, gl.getPixelRatio());
+    // `info.render` still holds the previous frame's counts: this runs before the frame is drawn.
+    const { calls, triangles } = gl.info.render;
+    if (reading && output.current) {
+      output.current.textContent = formatFpsReading(reading, gl.getPixelRatio(), { calls, triangles });
+    }
   });
   return null;
 }

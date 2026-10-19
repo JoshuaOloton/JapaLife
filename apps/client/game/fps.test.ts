@@ -42,4 +42,10 @@ describe("formatFpsReading", () => {
       "60 fps · low - · worst - ms · dpr 1.50",
     );
   });
+
+  it("adds draw calls and triangles when given, for the < 80 draw-call budget", () => {
+    expect(
+      formatFpsReading({ fps: 60, lowestFps: 58, worstFrameMs: 25 }, 1.5, { calls: 47, triangles: 61_234 }),
+    ).toBe("60 fps · low 58 · worst 25 ms · dpr 1.50 · 47 calls · 61.2k tris");
+  });
 });

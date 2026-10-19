@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { type Box, isBlocked, moveWithCollisions, reachableTargets } from "./collision";
+import { type Box, districtObstacles, isBlocked, moveWithCollisions, reachableTargets } from "./collision";
 import { PLAYER_RADIUS } from "./constants";
+import { type DistrictLayout, NPC_HALF_SIZE } from "./content";
 
 const bounds = { halfWidth: 50, halfDepth: 50 };
 /** A wall segment: x from 10 to 12, long in z. */
@@ -90,5 +91,56 @@ describe("reachableTargets", () => {
     const wide = reachableTargets({ x: 30, z: 20 }, target, 1, withGap(1.5), bounds); // 3 wide
     expect(narrow).toEqual([false]);
     expect(wide).toEqual([true]);
+  });
+});
+
+describe("districtObstacles", () => {
+  const layout: Pick<DistrictLayout, "buildings" | "props" | "npcs" | "propKinds" | "models"> = {
+    buildings: [{ id: "shop", name: "Shop", x: -20, z: 0, halfWidth: 3, halfDepth: 2, height: 4, colour: "#ffffff", rotation: 0, scale: 1 }],
+    props: [
+      { kind: "generator", x: 5, z: 0, rotation: 0 },
+      { kind: "generator", x: 5, z: 10, rotation: 90 },
+      { kind: "palm", x: 0, z: 20, rotation: 0 },
+      { kind: "umbrella", x: 0, z: -10, rotation: 0 },
+      { kind: "tree", x: 10, z: -10, rotation: 0 },
+    ],
+    npcs: [{ id: "mama-put", look: "mama_put", pose: "talk", x: -5, z: 5, facing: 0 }],
+    propKinds: {
+      generator: { look: { built: "generator", halfWidth: 0.6, halfDepth: 0.4, height: 0.8 }, blocks: "footprint" },
+      palm: { look: { built: "palm", halfWidth: 2, halfDepth: 2, height: 7 }, blocks: { halfWidth: 0.2, halfDepth: 0.2 } },
+      umbrella: { look: { model: "parasol", scale: 1 }, blocks: "none" },
+      tree: { look: { model: "tree", scale: 2 }, blocks: "footprint" },
+    },
+    models: {
+      parasol: { file: "props/parasol.glb", halfWidth: 1, halfDepth: 1, height: 2, triangles: 10, bytes: 10 },
+      tree: { file: "props/tree.glb", halfWidth: 0.5, halfDepth: 0.25, height: 2, triangles: 10, bytes: 10 },
+    },
+  };
+  const boxes = districtObstacles(layout);
+
+  it("blocks buildings, props and standing NPCs, but not props you walk under", () => {
+    expect(boxes).toEqual([
+      { x: -20, z: 0, halfWidth: 3, halfDepth: 2 },
+      { x: 5, z: 0, halfWidth: 0.6, halfDepth: 0.4 },
+      { x: 5, z: 10, halfWidth: 0.4, halfDepth: 0.6 }, // a quarter turn swaps width and depth
+      { x: 0, z: 20, halfWidth: 0.2, halfDepth: 0.2 }, // only the palm's trunk
+      { x: 10, z: -10, halfWidth: 1, halfDepth: 0.5 }, // the model's measured footprint, scaled
+      { x: -5, z: 5, halfWidth: NPC_HALF_SIZE, halfDepth: NPC_HALF_SIZE },
+    ]);
+  });
+
+  it("stops the player at a generator and at an NPC", () => {
+    const atGenerator = moveWithCollisions({ x: 0, z: 0 }, { x: 10, z: 0 }, boxes, bounds);
+    expect(atGenerator.x).toBeLessThanOrEqual(5 - 0.6 - PLAYER_RADIUS);
+    expect(atGenerator.x).toBeGreaterThan(5 - 0.6 - PLAYER_RADIUS - 0.2);
+
+    const atMamaPut = moveWithCollisions({ x: -5, z: 0 }, { x: 0, z: 10 }, boxes, bounds);
+    expect(atMamaPut.z).toBeLessThanOrEqual(5 - NPC_HALF_SIZE - PLAYER_RADIUS);
+  });
+
+  it("lets the player walk under an umbrella and past a palm's leaves", () => {
+    const underUmbrella = moveWithCollisions({ x: -3, z: -10 }, { x: 6, z: 0 }, boxes, bounds);
+    expect(underUmbrella.x).toBeCloseTo(3, 9);
+    expect(isBlocked({ x: 1.5, z: 20 }, boxes)).toBe(false); // under the leaves, beside the trunk
   });
 });

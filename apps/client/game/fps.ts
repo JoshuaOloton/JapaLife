@@ -51,8 +51,16 @@ export class FpsCounter {
   }
 }
 
-export function formatFpsReading(reading: FpsReading, pixelRatio: number): string {
+/** What the GPU was asked to draw in one frame (three.js `renderer.info.render`). */
+export interface DrawLoad {
+  calls: number;
+  triangles: number;
+}
+
+export function formatFpsReading(reading: FpsReading, pixelRatio: number, load?: DrawLoad): string {
   const low = reading.lowestFps === null ? "-" : Math.round(reading.lowestFps);
   const worst = reading.worstFrameMs === null ? "-" : Math.round(reading.worstFrameMs);
-  return `${Math.round(reading.fps)} fps · low ${low} · worst ${worst} ms · dpr ${pixelRatio.toFixed(2)}`;
+  const frame = `${Math.round(reading.fps)} fps · low ${low} · worst ${worst} ms · dpr ${pixelRatio.toFixed(2)}`;
+  if (!load) return frame;
+  return `${frame} · ${load.calls} calls · ${(load.triangles / 1000).toFixed(1)}k tris`;
 }

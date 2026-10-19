@@ -19,7 +19,7 @@ import {
 } from "three";
 import { type GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import type { CharacterMotion } from "./animation";
+import type { CharacterMotion, ClipId } from "./animation";
 import { type BodyLook, DEFAULT_HAIR_COLOUR, DEFAULT_LOOK, createBodyMaterial } from "./bodyMaterial";
 import { CharacterAnimator, clipsForBody } from "./CharacterAnimator";
 import { ASSET_ROOT, withDecoders } from "./loaders";
@@ -57,15 +57,23 @@ const BODY_SHAPE: Record<string, readonly [number, number, number]> = {
  * A rigged, animated person. The body, hair and clips download once and are
  * shared; each Character clones the body so many people can be on screen.
  * Suspends while downloading: wrap it in <Suspense> with a stand-in.
+ *
+ * A `pose` holds one looping clip (a standing NPC) instead of following the
+ * motion. While `paused` is true the animation does not update at all, which
+ * is how far-away NPCs cost nothing per frame.
  */
 export function Character({
   body,
   motion,
   look = DEFAULT_LOOK,
+  pose,
+  paused,
 }: {
   body: BodyType;
   motion: { current: CharacterMotion };
   look?: BodyLook;
+  pose?: ClipId | undefined;
+  paused?: { current: boolean } | undefined;
 }) {
   const gl = useThree((three) => three.gl);
   const [bodyModel, hairModel, animations] = threeOf(
@@ -94,8 +102,12 @@ export function Character({
     };
   }, [person, animations]);
 
+  // A paused character still gets one update, so it freezes in its pose rather than the bind pose.
+  const posed = useRef(false);
   useFrame((_, frameSeconds) => {
-    animator.current?.update(Math.min(frameSeconds, MAX_FRAME_SECONDS), motion.current, performance.now());
+    if (paused?.current && posed.current) return;
+    posed.current = animator.current !== null;
+    animator.current?.update(Math.min(frameSeconds, MAX_FRAME_SECONDS), motion.current, performance.now(), pose);
   });
 
   return <primitive object={person.root} />;

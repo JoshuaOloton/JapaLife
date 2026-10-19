@@ -1,3 +1,4 @@
+import { NPC_POSES } from "@japalife/shared";
 import { RUN_LOOK_FROM_SPEED } from "../gait";
 import clipInfo from "./clipInfo.generated.json";
 
@@ -6,8 +7,24 @@ import clipInfo from "./clipInfo.generated.json";
  * it is unit-tested; `CharacterAnimator` turns the choice into crossfades.
  * Animation is presentation only: position and shifts are the server's.
  */
-export const CLIP_IDS = ["idle", "walk", "run", "interact", "work_phone"] as const;
+export const CLIP_IDS = [
+  "idle",
+  "walk",
+  "run",
+  "interact",
+  "work_phone",
+  // Poses held by people who stay in one spot (`NPC_POSES` in packages/shared).
+  "talk",
+  "sit",
+  "sit_talk",
+  "fold_arms",
+  "call",
+] as const;
 export type ClipId = (typeof CLIP_IDS)[number];
+
+/** Every NPC pose must be a clip the asset pipeline builds; this fails typecheck if one is missing. */
+const POSES_ARE_CLIPS: readonly ClipId[] = NPC_POSES;
+void POSES_ARE_CLIPS;
 
 export interface CharacterMotion {
   /** Ground speed this frame in metres (world units) per second. */

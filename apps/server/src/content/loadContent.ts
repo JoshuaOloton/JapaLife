@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   GAME_EVENT_IDS,
+  buildDistrictLayout,
   citySchema,
   copySchema,
   type Copy,
@@ -12,6 +13,8 @@ import {
   modelFootprintProblem,
   needsSchema,
   ngnEconomySchema,
+  propBlockProblem,
+  propKindsSchema,
   type CityConfig,
   type GameEventConfig,
   type GameEventId,
@@ -19,6 +22,7 @@ import {
   type ModelCatalog,
   type NeedsConfig,
   type NgnEconomyConfig,
+  type PropKinds,
 } from "@japalife/shared";
 import type { z } from "zod";
 import { checkLayout } from "./checkLayout";
@@ -31,6 +35,8 @@ export type GameContent = {
   cities: Record<string, CityConfig>;
   /** 3D models by id, measured by the asset pipeline. */
   models: ModelCatalog["models"];
+  /** Kinds of street prop by id: how each looks and what of it blocks. */
+  propKinds: PropKinds["kinds"];
   /** Player-facing text. The client bundles the same file; checking it here stops a bad edit at boot. */
   copy: Copy;
   /** Values flagged `TODO` in the files, unsure and waiting for review. Printed at boot. */
@@ -112,6 +118,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   const jobs = readJson("economy/jobs.json", jobsSchema);
   const copy = readJson("copy/en.json", copySchema);
   const modelCatalog = readJson("models/catalog.json", modelCatalogSchema);
+  const propKinds = readJson("props/kinds.json", propKindsSchema);
 
   const events: Partial<Record<GameEventId, GameEventConfig>> = {};
   for (const file of jsonFilesIn("events")) {
@@ -140,9 +147,11 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   if (!cities["lagos"]) problems.push("cities/lagos.json: missing (Phase 1 starts in Lagos)");
 
   if (ngn && jobs) problems.push(...crossCheck(ngn, jobs, Object.values(cities)));
-  if (modelCatalog) problems.push(...checkModels(modelCatalog, Object.values(cities)));
+  if (modelCatalog && propKinds) problems.push(...checkWorld(modelCatalog, propKinds, Object.values(cities)));
 
-  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog) throw new ContentError(problems);
+  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog || !propKinds) {
+    throw new ContentError(problems);
+  }
   const allEvents = events as Record<GameEventId, GameEventConfig>;
   return {
     ngn,
@@ -151,16 +160,36 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
     events: allEvents,
     cities,
     models: modelCatalog.models,
+    propKinds: propKinds.kinds,
     copy,
     todos: collectTodos(ngn, needs, jobs, allEvents),
   };
 }
 
-/** Every building's model exists and fills its footprint, so what you see is what stops you. */
-function checkModels(catalog: ModelCatalog, cities: CityConfig[]): string[] {
+/**
+ * What you see is what stops you: every model exists, every building's model
+ * fills its footprint, no prop blocks more than it shows, and each district's
+ * layout (with its props and NPCs) passes `checkLayout`.
+ */
+function checkWorld(catalog: ModelCatalog, propKinds: PropKinds, cities: CityConfig[]): string[] {
   const problems: string[] = [];
+  for (const [id, kind] of Object.entries(propKinds.kinds)) {
+    const where = `props/kinds.json "${id}"`;
+    if ("model" in kind.look && !catalog.models[kind.look.model]) {
+      problems.push(`${where}: unknown model "${kind.look.model}" (not in models/catalog.json; run pnpm assets?)`);
+      continue;
+    }
+    const problem = propBlockProblem(kind, catalog.models);
+    if (problem) problems.push(`${where}: ${problem}`);
+  }
   for (const city of cities) {
     for (const district of city.districts) {
+      problems.push(
+        ...checkLayout(
+          `cities/${city.id}.json district "${district.id}"`,
+          buildDistrictLayout(district, catalog.models, propKinds.kinds),
+        ),
+      );
       for (const building of district.buildings) {
         if (!building.model) continue;
         const where = `cities/${city.id}.json building "${building.id}"`;
@@ -219,7 +248,6 @@ function crossCheck(ngn: NgnEconomyConfig, jobs: JobsConfig, cities: CityConfig[
     for (const district of city.districts) {
       const where = `cities/${city.id}.json district "${district.id}"`;
       duplicates(`${where} interactables`, district.interactables.map((i) => i.id));
-      problems.push(...checkLayout(where, district));
       if (
         Math.abs(district.spawn.x) > district.halfWidth ||
         Math.abs(district.spawn.z) > district.halfDepth
