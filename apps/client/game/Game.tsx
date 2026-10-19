@@ -2,7 +2,7 @@
 
 import { COPY, type DistrictConfig, type Interactable, MAX_DEVICE_PIXEL_RATIO, type Point } from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { type DistrictRoom, type MessageBuffer, useDistrictConnection } from "./connection";
 import { placePrompt } from "./format";
 import { FpsProbe, useFpsMeterEnabled } from "./FpsMeter";
@@ -72,7 +72,6 @@ export default function Game() {
         {showFps && <FpsProbe output={fpsOutput} />}
       </Canvas>
       {touch && <Joystick input={input} />}
-      {showFps && <p ref={fpsOutput} className={styles.fps} aria-hidden="true" />}
       <Overlay
         room={connection.room}
         messages={connection.messages}
@@ -80,6 +79,7 @@ export default function Game() {
         predicted={predicted}
         activity={activity}
         street={street}
+        fpsOutput={showFps ? fpsOutput : undefined}
       />
     </div>
   );
@@ -96,6 +96,7 @@ function Overlay({
   predicted,
   activity,
   street,
+  fpsOutput,
 }: {
   room: DistrictRoom;
   messages: MessageBuffer;
@@ -103,6 +104,7 @@ function Overlay({
   predicted: { current: Point };
   activity: { current: PlayerActivity };
   street: { current: StreetState };
+  fpsOutput: RefObject<HTMLParagraphElement | null> | undefined;
 }) {
   const { server, toasts, interaction, closeInteraction, inbox, closeInbox } = useGameMessages(messages);
   const now = useTicker(server);
@@ -161,6 +163,7 @@ function Overlay({
           closeInteraction();
           room.send("openInbox", {});
         }}
+        fpsOutput={fpsOutput}
       />
       {near && !interaction && !inbox && (
         <button type="button" className={styles.use} onClick={() => open(near)}>
