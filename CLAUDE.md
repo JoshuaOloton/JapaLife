@@ -229,7 +229,7 @@ Decisions (2026-10-17):
 
 **Up next (2026-10-19):**
 - Play-test 11c on the vivo Y29 (`feat/street-life`, [plan](docs/plans/slice-11c-street-life.md)): fps and draw calls with `?fps`, then review the billboard names and the conductor's line. Then plan 11d.
-- Still to check on the phone: night and power-cut windows (11b) and the character animations (11a).
+- Still to check on the phone: the brighter night, model windows glowing at night, and a power cut (2026-10-19 follow-up to 11b, checked in desktop Chrome), and the character animations (11a).
 - Idea, not built: a dev-only `GAME_CLOCK_START=21:00` server setting that starts the game clock at a chosen Lagos time, so night can be tested without waiting or speeding everything up. Refused in production, like `GAME_CLOCK`.
 - `next dev` works from a phone: `allowedDevOrigins` in `apps/client/next.config.mjs` allows the private home and hotspot ranges (`192.168.*.*`, `10.*.*.*`). Without it, Next 16 blocks dev pages opened from a LAN address and no button works.
 

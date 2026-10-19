@@ -38,9 +38,11 @@ export function Lighting({ street }: { street: { current: StreetState } }) {
     if (sinceUpdate.current < UPDATE_EVERY_SECONDS) return;
     sinceUpdate.current = 0;
 
-    const { serverNow, timeZone } = street.current;
-    const hour = serverNow && timeZone ? localHour(serverNow(), timeZone) : DEFAULT_HOUR;
-    const look = skyAt(hour);
+    const { serverNow, timeZone, blackoutEndsAt } = street.current;
+    const now = serverNow?.() ?? 0;
+    const hour = serverNow && timeZone ? localHour(now, timeZone) : DEFAULT_HOUR;
+    const blackout = blackoutEndsAt !== null && Date.parse(blackoutEndsAt) > now;
+    const look = skyAt(hour, blackout);
     skyColour.set(look.sky);
     if (scene.fog instanceof Fog) scene.fog.color.copy(skyColour);
     if (hemisphere.current) {

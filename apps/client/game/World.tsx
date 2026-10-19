@@ -94,7 +94,7 @@ export function World({
       <Potholes roads={district.roads} />
       <Boxes slabs={slabs} />
       <Windows buildings={plainBuildings} street={street} />
-      <ModelBuildings buildings={district.buildings} models={district.models} />
+      <ModelBuildings buildings={district.buildings} models={district.models} street={street} />
       <Props layout={district} />
       <Npcs npcs={district.npcs} predicted={predicted} />
       {district.interactables.map((place) => (

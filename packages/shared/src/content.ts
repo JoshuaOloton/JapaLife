@@ -355,6 +355,13 @@ export const modelInfoSchema = z.strictObject({
   height: z.number().positive(),
   triangles: z.int().nonnegative(),
   bytes: z.int().positive(),
+  /**
+   * Where the window glass is on the model's colour sheet, as texture-space
+   * rectangles [u0, v0, u1, v1]. Surfaces painted from these glow at night.
+   */
+  windows: z
+    .array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1)]))
+    .optional(),
 });
 
 export const modelCatalogSchema = z.strictObject({

@@ -23,7 +23,15 @@
       "halfDepth": 0.589,
       "height": 0.768,
       "triangles": 1067,
-      "bytes": 14460
+      "bytes": 14460,
+      "windows": [
+        [
+          0.6875,
+          0.375,
+          0.75,
+          0.5
+        ]
+      ]
     },
     "flats-four-storey": {
       "file": "buildings/flats-four-storey.glb",
@@ -31,7 +39,15 @@
       "halfDepth": 0.65,
       "height": 2.95,
       "triangles": 1333,
-      "bytes": 18020
+      "bytes": 18020,
+      "windows": [
+        [
+          0,
+          0.75,
+          0.25,
+          1
+        ]
+      ]
     },
     "flats-three-storey": {
       "file": "buildings/flats-three-storey.glb",
@@ -39,7 +55,15 @@
       "halfDepth": 0.65,
       "height": 2.25,
       "triangles": 1097,
-      "bytes": 17096
+      "bytes": 17096,
+      "windows": [
+        [
+          0,
+          0.75,
+          0.25,
+          1
+        ]
+      ]
     },
     "office-block": {
       "file": "buildings/office-block.glb",
@@ -47,7 +71,15 @@
       "halfDepth": 0.67,
       "height": 1.693,
       "triangles": 5246,
-      "bytes": 25376
+      "bytes": 25376,
+      "windows": [
+        [
+          0.6875,
+          0.375,
+          0.75,
+          0.5
+        ]
+      ]
     },
     "planter": {
       "file": "props/planter.glb",
