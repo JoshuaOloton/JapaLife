@@ -1,8 +1,28 @@
-import { type DistrictConfig, type Interactable, type Point, moveWithCollisions } from "@japalife/shared";
+import {
+  type DistrictConfig,
+  type DistrictLayout,
+  type Interactable,
+  type ModelInfo,
+  type Point,
+  moveWithCollisions,
+} from "@japalife/shared";
 
 /** A district's walkable area and the things in it, with the geometry checks the server needs. */
 export class DistrictMap {
-  constructor(readonly config: DistrictConfig) {}
+  /** What the client gets on join: the config plus the catalog entries of the models it uses. */
+  readonly layout: DistrictLayout;
+
+  constructor(
+    readonly config: DistrictConfig,
+    models: Readonly<Record<string, ModelInfo>> = {},
+  ) {
+    const used: Record<string, ModelInfo> = {};
+    for (const building of config.buildings) {
+      const model = building.model ? models[building.model] : undefined;
+      if (building.model && model) used[building.model] = model;
+    }
+    this.layout = { ...config, models: used };
+  }
 
   get id(): string {
     return this.config.id;

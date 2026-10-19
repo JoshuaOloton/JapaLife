@@ -8,12 +8,15 @@ import {
   type Copy,
   gameEventSchema,
   jobsSchema,
+  modelCatalogSchema,
+  modelFootprintProblem,
   needsSchema,
   ngnEconomySchema,
   type CityConfig,
   type GameEventConfig,
   type GameEventId,
   type JobsConfig,
+  type ModelCatalog,
   type NeedsConfig,
   type NgnEconomyConfig,
 } from "@japalife/shared";
@@ -26,6 +29,8 @@ export type GameContent = {
   jobs: JobsConfig;
   events: Record<GameEventId, GameEventConfig>;
   cities: Record<string, CityConfig>;
+  /** 3D models by id, measured by the asset pipeline. */
+  models: ModelCatalog["models"];
   /** Player-facing text. The client bundles the same file; checking it here stops a bad edit at boot. */
   copy: Copy;
   /** Values flagged `TODO` in the files, unsure and waiting for review. Printed at boot. */
@@ -106,6 +111,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   const needs = readJson("economy/needs.json", needsSchema);
   const jobs = readJson("economy/jobs.json", jobsSchema);
   const copy = readJson("copy/en.json", copySchema);
+  const modelCatalog = readJson("models/catalog.json", modelCatalogSchema);
 
   const events: Partial<Record<GameEventId, GameEventConfig>> = {};
   for (const file of jsonFilesIn("events")) {
@@ -134,8 +140,9 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   if (!cities["lagos"]) problems.push("cities/lagos.json: missing (Phase 1 starts in Lagos)");
 
   if (ngn && jobs) problems.push(...crossCheck(ngn, jobs, Object.values(cities)));
+  if (modelCatalog) problems.push(...checkModels(modelCatalog, Object.values(cities)));
 
-  if (problems.length > 0 || !ngn || !needs || !jobs || !copy) throw new ContentError(problems);
+  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog) throw new ContentError(problems);
   const allEvents = events as Record<GameEventId, GameEventConfig>;
   return {
     ngn,
@@ -143,9 +150,31 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
     jobs,
     events: allEvents,
     cities,
+    models: modelCatalog.models,
     copy,
     todos: collectTodos(ngn, needs, jobs, allEvents),
   };
+}
+
+/** Every building's model exists and fills its footprint, so what you see is what stops you. */
+function checkModels(catalog: ModelCatalog, cities: CityConfig[]): string[] {
+  const problems: string[] = [];
+  for (const city of cities) {
+    for (const district of city.districts) {
+      for (const building of district.buildings) {
+        if (!building.model) continue;
+        const where = `cities/${city.id}.json building "${building.id}"`;
+        const model = catalog.models[building.model];
+        if (!model) {
+          problems.push(`${where}: unknown model "${building.model}" (not in models/catalog.json; run pnpm assets?)`);
+          continue;
+        }
+        const problem = modelFootprintProblem(building, model);
+        if (problem) problems.push(`${where}: ${problem}`);
+      }
+    }
+  }
+  return problems;
 }
 
 function collectTodos(

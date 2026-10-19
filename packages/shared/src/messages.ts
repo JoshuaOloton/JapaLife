@@ -155,9 +155,10 @@ export const SERVER_MESSAGES = {
   interaction: "interaction",
   inbox: "inbox",
   /**
-   * Sent once on join. The payload is the district's `DistrictConfig`: its
-   * buildings, roads, signs and walkable area. The client draws the world and
-   * predicts its own walking from it, so the layout is defined only on the server.
+   * Sent once on join. The payload is a `DistrictLayout`: the district's
+   * buildings, roads, signs and walkable area, plus the models it uses. The
+   * client draws the world and predicts its own walking from it, so the layout
+   * is defined only on the server.
    */
   district: "district",
 } as const;

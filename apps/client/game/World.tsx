@@ -1,34 +1,37 @@
 "use client";
 
-import type { DistrictConfig, Interactable } from "@japalife/shared";
+import type { DistrictLayout, Interactable, Road } from "@japalife/shared";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { CanvasTexture, Color, type InstancedMesh, Object3D, SRGBColorSpace } from "three";
+import { CanvasTexture, type InstancedMesh, Object3D, SRGBColorSpace } from "three";
+import { Boxes, type Slab } from "./world/Boxes";
+import { ModelBuildings, Windows, plainBuildingSlabs } from "./world/Buildings";
+import { layOutGutters } from "./world/gutters";
+import { paintGround, paintRoad, seededRandom } from "./world/paint";
+import type { StreetState } from "./world/street";
 
 /**
- * Draws the district from the layout the server sent: ground, roads, buildings,
- * and a sign over each place the player can use. All placeholder geometry.
+ * Draws the district from the layout the server sent: laterite ground, tarred
+ * roads with potholes and open gutters, the buildings, and a sign over each
+ * place the player can use.
  *
- * Every building is the same unit box, stretched and coloured per copy, drawn
- * with one InstancedMesh: the GPU gets ONE draw call for all of them instead of
- * one per building, which is what keeps weak phone GPUs at a steady frame rate.
+ * Draw calls are what weak phones choke on, so every plain box (walls, roofs,
+ * gutters, the district edge) goes into ONE instanced draw call, and every
+ * window into another.
  */
 
-interface Slab {
-  x: number;
-  z: number;
-  halfWidth: number;
-  halfDepth: number;
-  height: number;
-  colour: string;
-}
-
-const GROUND_COLOUR = "#6f8f4f";
 const EDGE_WALL_COLOUR = "#9b9488";
 const EDGE_WALL_HEIGHT = 1.2;
 const EDGE_WALL_THICKNESS = 0.6;
-/** Roads sit a hair above the ground so the two never flicker (z-fighting). */
+/** Roads sit a hair above the ground so the two never flicker (z-fighting); each road a hair above the last. */
 const ROAD_HEIGHT = 0.02;
+const ROAD_STACK = 0.004;
+const POTHOLE_HEIGHT = 0.04;
+const POTHOLES_PER_100_METRES = 6;
 const SIGN_HEIGHT = 3.4;
+
+const GUTTER_LIP = { colour: "#a7a196", thickness: 0.14, height: 0.2 };
+const GUTTER_CHANNEL = { colour: "#2a3229", height: 0.03 };
+const GUTTER_SLAB = { colour: "#b5afa4", height: 0.22 };
 
 const SIGN_COLOURS: Record<Interactable["kind"], string> = {
   home: "#7a4b2a",
@@ -38,11 +41,17 @@ const SIGN_COLOURS: Record<Interactable["kind"], string> = {
   fuel_station: "#8a2f6a",
 };
 
-export function World({ district }: { district: DistrictConfig }) {
+export function World({ district, street }: { district: DistrictLayout; street: { current: StreetState } }) {
   const groundWidth = district.halfWidth * 2 + 60;
   const groundDepth = district.halfDepth * 2 + 60;
+  const ground = useMemo(() => paintGround(), []);
+  useLayoutEffect(() => () => ground.dispose(), [ground]);
 
-  // A low wall just outside the walkable area, so the edge the server enforces is visible.
+  const plainBuildings = useMemo(
+    () => district.buildings.filter((building) => !building.model || !district.models[building.model]),
+    [district],
+  );
+
   const slabs = useMemo<Slab[]>(() => {
     const t = EDGE_WALL_THICKNESS / 2;
     const { halfWidth: w, halfDepth: d } = district;
@@ -50,22 +59,29 @@ export function World({ district }: { district: DistrictConfig }) {
       x, z, halfWidth, halfDepth, height: EDGE_WALL_HEIGHT, colour: EDGE_WALL_COLOUR,
     });
     return [
-      ...district.buildings,
+      // A low wall just outside the walkable area, so the edge the server enforces is visible.
       wall(0, -d - t, w + 2 * t, t),
       wall(0, d + t, w + 2 * t, t),
       wall(-w - t, 0, t, d),
       wall(w + t, 0, t, d),
+      ...plainBuildingSlabs(plainBuildings),
+      ...gutterSlabs(district.roads, district),
     ];
-  }, [district]);
+  }, [district, plainBuildings]);
 
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2}>
         <planeGeometry args={[groundWidth, groundDepth]} />
-        <meshLambertMaterial color={GROUND_COLOUR} />
+        <meshLambertMaterial map={ground} />
       </mesh>
-      <Boxes slabs={district.roads.map((road) => ({ ...road, height: ROAD_HEIGHT }))} />
+      {district.roads.map((road, index) => (
+        <RoadStrip key={index} road={road} height={ROAD_HEIGHT + index * ROAD_STACK} />
+      ))}
+      <Potholes roads={district.roads} />
       <Boxes slabs={slabs} />
+      <Windows buildings={plainBuildings} street={street} />
+      <ModelBuildings buildings={district.buildings} models={district.models} />
       {district.interactables.map((place) => (
         <Sign key={place.id} place={place} radius={district.interactRadius} />
       ))}
@@ -73,34 +89,95 @@ export function World({ district }: { district: DistrictConfig }) {
   );
 }
 
-/** Any number of coloured boxes standing on the ground, in a single draw call. */
-function Boxes({ slabs }: { slabs: readonly Slab[] }) {
+/**
+ * A tarred road. The painted strip runs across the road's width and repeats
+ * along its length, so a road along x is the same strip turned a quarter.
+ */
+function RoadStrip({ road, height }: { road: Road; height: number }) {
+  const alongX = road.halfWidth >= road.halfDepth;
+  const across = (alongX ? road.halfDepth : road.halfWidth) * 2;
+  const length = (alongX ? road.halfWidth : road.halfDepth) * 2;
+  const texture = useMemo(() => {
+    const painted = paintRoad();
+    painted.repeat.set(1, length / across);
+    return painted;
+  }, [across, length]);
+  useLayoutEffect(() => () => texture.dispose(), [texture]);
+
+  return (
+    <group position={[road.x, height, road.z]} rotation-y={alongX ? Math.PI / 2 : 0}>
+      <mesh rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[across, length]} />
+        <meshLambertMaterial map={texture} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Dark, roughly oval potholes scattered along the roads, in one draw call. */
+function Potholes({ roads }: { roads: readonly Road[] }) {
+  const holes = useMemo(() => {
+    const random = seededRandom(0x9071);
+    return roads.flatMap((road) => {
+      const alongX = road.halfWidth >= road.halfDepth;
+      const length = (alongX ? road.halfWidth : road.halfDepth) * 2;
+      const across = (alongX ? road.halfDepth : road.halfWidth) * 2;
+      const count = Math.round((length / 100) * POTHOLES_PER_100_METRES);
+      return Array.from({ length: count }, () => {
+        const u = (random() - 0.5) * length;
+        const v = (random() - 0.5) * (across - 2);
+        return {
+          x: road.x + (alongX ? u : v),
+          z: road.z + (alongX ? v : u),
+          sizeX: 0.35 + random() * 0.55,
+          sizeZ: 0.3 + random() * 0.4,
+          turn: random() * Math.PI,
+        };
+      });
+    });
+  }, [roads]);
   const mesh = useRef<InstancedMesh>(null);
 
   useLayoutEffect(() => {
     const instanced = mesh.current;
     if (!instanced) return;
     const placer = new Object3D();
-    const colour = new Color();
-    slabs.forEach((slab, index) => {
-      placer.position.set(slab.x, slab.height / 2, slab.z);
-      placer.scale.set(slab.halfWidth * 2, slab.height, slab.halfDepth * 2);
+    holes.forEach((hole, index) => {
+      placer.position.set(hole.x, POTHOLE_HEIGHT, hole.z);
+      placer.rotation.set(-Math.PI / 2, 0, hole.turn);
+      placer.scale.set(hole.sizeX, hole.sizeZ, 1);
       placer.updateMatrix();
       instanced.setMatrixAt(index, placer.matrix);
-      instanced.setColorAt(index, colour.set(slab.colour));
     });
     instanced.instanceMatrix.needsUpdate = true;
-    if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
-    // Bounds are computed from the instances, so the whole group is not culled by mistake.
     instanced.computeBoundingSphere();
-  }, [slabs]);
+  }, [holes]);
 
+  if (holes.length === 0) return null;
   return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, slabs.length]} key={slabs.length}>
-      <boxGeometry />
-      <meshLambertMaterial />
+    <instancedMesh ref={mesh} args={[undefined, undefined, holes.length]} key={holes.length}>
+      <circleGeometry args={[1, 10]} />
+      {/* Half see-through, so the road's grain shows through and the hole looks worn, not painted on. */}
+      <meshLambertMaterial color="#1f1d1c" transparent opacity={0.55} depthWrite={false} />
     </instancedMesh>
   );
+}
+
+/** Each gutter is a dark channel between two concrete lips; slabs cover the ends at junctions. */
+function gutterSlabs(roads: readonly Road[], bounds: { halfWidth: number; halfDepth: number }): Slab[] {
+  const { gutters, slabs } = layOutGutters(roads, bounds);
+  const lipOffset = (half: number): number => half - GUTTER_LIP.thickness / 2;
+  return [
+    ...gutters.flatMap((gutter): Slab[] => {
+      const channel = { ...gutter, height: GUTTER_CHANNEL.height, colour: GUTTER_CHANNEL.colour };
+      const lip = (side: number): Slab =>
+        gutter.along === "x"
+          ? { x: gutter.x, z: gutter.z + side * lipOffset(gutter.halfDepth), halfWidth: gutter.halfWidth, halfDepth: GUTTER_LIP.thickness / 2, height: GUTTER_LIP.height, colour: GUTTER_LIP.colour }
+          : { x: gutter.x + side * lipOffset(gutter.halfWidth), z: gutter.z, halfWidth: GUTTER_LIP.thickness / 2, halfDepth: gutter.halfDepth, height: GUTTER_LIP.height, colour: GUTTER_LIP.colour };
+      return [channel, lip(-1), lip(1)];
+    }),
+    ...slabs.map((slab) => ({ ...slab, height: GUTTER_SLAB.height, colour: GUTTER_SLAB.colour })),
+  ];
 }
 
 /**
@@ -115,7 +192,7 @@ function Sign({ place, radius }: { place: Interactable; radius: number }) {
 
   return (
     <group position={[x, 0, z]}>
-      <mesh rotation-x={-Math.PI / 2} position-y={0.03}>
+      <mesh rotation-x={-Math.PI / 2} position-y={0.05}>
         <ringGeometry args={[radius - 0.25, radius, 32]} />
         <meshBasicMaterial color={SIGN_COLOURS[place.kind]} transparent opacity={0.6} />
       </mesh>

@@ -5,14 +5,14 @@ import {
   COPY,
   DEFAULT_SERVER_PORT,
   DISTRICT_ROOM_NAME,
-  type DistrictConfig,
+  type DistrictLayout,
   type InboxMessage,
   type InteractionMessage,
   type NoticeMessage,
   type RejectedMessage,
   SERVER_MESSAGES,
   type StatsMessage,
-  districtSchema,
+  districtLayoutSchema,
 } from "@japalife/shared";
 import { useEffect, useState } from "react";
 
@@ -27,7 +27,7 @@ export type DistrictRoom = Room<unknown, DistrictStateView>;
 export type Connection =
   | { status: "connecting" }
   | { status: "failed"; message: string }
-  | { status: "connected"; room: DistrictRoom; district: DistrictConfig; messages: MessageBuffer };
+  | { status: "connected"; room: DistrictRoom; district: DistrictLayout; messages: MessageBuffer };
 
 export type ServerEvent =
   | { type: "stats"; stats: StatsMessage; receivedAt: number }
@@ -142,7 +142,7 @@ export function useDistrictConnection(): Connection {
         }
         const messages = new MessageBuffer(room as DistrictRoom);
         room.onMessage(SERVER_MESSAGES.district, (payload: unknown) => {
-          const parsed = districtSchema.safeParse(payload);
+          const parsed = districtLayoutSchema.safeParse(payload);
           if (cancelled) return;
           setConnection(
             parsed.success

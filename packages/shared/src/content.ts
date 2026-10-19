@@ -323,7 +323,40 @@ export const buildingSchema = z.strictObject({
   halfDepth: z.number().positive(),
   /** Drawn height only; the player cannot jump or climb, so it does not affect collision. */
   height: z.number().positive().max(100),
+  /** The plain box's colour, drawn when there is no `model` or while it downloads. */
   colour: hexColour,
+  /**
+   * A model from `content/models/catalog.json` that dresses the footprint. The
+   * footprint above stays the collision truth: the content check refuses a
+   * model that does not fill it (see `modelFootprintProblem`).
+   */
+  model: contentIdSchema.optional(),
+  /** Quarter turns only, so the footprint stays an axis-aligned box for collision. */
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).default(0),
+  /** Uniform scale of the model, to size a kit piece to its footprint. */
+  scale: z.number().positive().max(10).default(1),
+});
+
+/**
+ * One 3D model the asset pipeline (`pnpm assets`) produced, measured from its
+ * real geometry: centred on its footprint, standing on y = 0. Generated into
+ * `content/models/catalog.json` so the server can check footprints without
+ * reading GLB files.
+ */
+export const modelInfoSchema = z.strictObject({
+  /** Path under the client's `/assets`. */
+  file: z.string().regex(/^[a-z0-9/_-]+\.glb$/),
+  halfWidth: z.number().positive(),
+  halfDepth: z.number().positive(),
+  height: z.number().positive(),
+  triangles: z.int().nonnegative(),
+  bytes: z.int().positive(),
+});
+
+export const modelCatalogSchema = z.strictObject({
+  /** Written by `pnpm assets`; edit the pipeline, not this file. */
+  generated: z.literal(true),
+  models: z.record(contentIdSchema, modelInfoSchema),
 });
 
 /** A flat strip of road. Walkable and purely visual. */
@@ -369,3 +402,46 @@ export type DistrictConfig = z.infer<typeof districtSchema>;
 export type Interactable = z.infer<typeof interactableSchema>;
 export type Building = z.infer<typeof buildingSchema>;
 export type Road = z.infer<typeof roadSchema>;
+export type ModelInfo = z.infer<typeof modelInfoSchema>;
+export type ModelCatalog = z.infer<typeof modelCatalogSchema>;
+
+/**
+ * What the server sends on join: the district, plus the catalog entries of the
+ * models it uses, so the client knows which files to download.
+ */
+export const districtLayoutSchema = districtSchema.extend({
+  models: z.record(contentIdSchema, modelInfoSchema),
+});
+export type DistrictLayout = z.infer<typeof districtLayoutSchema>;
+
+/** How far a model may stick out past its footprint, in metres: a roof edge or a step, never a walk-through wall. */
+export const MODEL_OVERHANG_METRES = 0.3;
+/** A model must cover at least this much of its footprint on each axis, or you would bump into thin air. */
+export const MODEL_MIN_FILL = 0.85;
+
+/** The model's footprint on the ground once the building's rotation and scale are applied. */
+export function placedModelFootprint(building: Building, model: ModelInfo): { halfWidth: number; halfDepth: number } {
+  const turned = building.rotation === 90 || building.rotation === 270;
+  return {
+    halfWidth: (turned ? model.halfDepth : model.halfWidth) * building.scale,
+    halfDepth: (turned ? model.halfWidth : model.halfDepth) * building.scale,
+  };
+}
+
+/** Why a model does not fit its building's footprint, or undefined if it does. */
+export function modelFootprintProblem(building: Building, model: ModelInfo): string | undefined {
+  const placed = placedModelFootprint(building, model);
+  for (const [axis, drawn, box] of [
+    ["width", placed.halfWidth, building.halfWidth],
+    ["depth", placed.halfDepth, building.halfDepth],
+  ] as const) {
+    const metres = (half: number): string => (half * 2).toFixed(2);
+    if (drawn > box + MODEL_OVERHANG_METRES) {
+      return `model ${axis} ${metres(drawn)} m is bigger than the footprint's ${metres(box)} m (people would walk into it)`;
+    }
+    if (drawn < box * MODEL_MIN_FILL) {
+      return `model ${axis} ${metres(drawn)} m fills too little of the footprint's ${metres(box)} m (people would bump into thin air)`;
+    }
+  }
+  return undefined;
+}

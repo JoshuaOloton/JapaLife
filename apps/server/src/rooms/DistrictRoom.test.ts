@@ -4,7 +4,8 @@ import {
   DISTRICT_ROOM_NAME,
   PLAYER_RADIUS,
   PLAYER_SPEED_UNITS_PER_SECOND,
-  type DistrictConfig,
+  districtLayoutSchema,
+  type DistrictLayout,
   type InboxMessage,
   type InteractionMessage,
   type NoticeMessage,
@@ -37,6 +38,8 @@ beforeAll(async () => {
       halfDepth: 1,
       height: 3,
       colour: "#ffffff",
+      rotation: 0,
+      scale: 1,
     });
   });
   server = createGameServer(h.game);
@@ -57,14 +60,14 @@ interface Session {
   stats: StatsMessage[];
   rejected: RejectedMessage[];
   notices: NoticeMessage[];
-  layouts: DistrictConfig[];
+  layouts: DistrictLayout[];
 }
 
 async function join(playerId: string): Promise<Session> {
   const room = await new Client(URL).joinOrCreate(DISTRICT_ROOM_NAME, { playerId });
   open.push(room);
   const session: Session = { room, stats: [], rejected: [], notices: [], layouts: [] };
-  room.onMessage("district", (m: DistrictConfig) => session.layouts.push(m));
+  room.onMessage("district", (m: DistrictLayout) => session.layouts.push(m));
   room.onMessage("stats", (m: StatsMessage) => session.stats.push(m));
   room.onMessage("rejected", (m: RejectedMessage) => session.rejected.push(m));
   room.onMessage("notice", (m: NoticeMessage) => session.notices.push(m));
@@ -292,6 +295,7 @@ describe("movement", () => {
     expect(layout.buildings.some((b) => b.id === "yaba-office-block")).toBe(true);
     expect(layout.roads.length).toBeGreaterThan(0);
     expect(layout.interactables.every((i) => i.label.length > 0)).toBe(true);
+    expect(districtLayoutSchema.safeParse(layout).success).toBe(true);
   });
 
   it("stays inside the district", async () => {

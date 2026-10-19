@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
-import { Component, type ReactNode, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   type Bone,
   Color,
@@ -183,20 +183,4 @@ function prepareMask(texture: Texture): Texture {
     texture.needsUpdate = true;
   }
   return texture;
-}
-
-/**
- * Shows `fallback` instead of crashing the scene if a model fails to download
- * (a flaky mobile connection), so the player can still walk around.
- */
-export class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
-  override state = { failed: false };
-
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true };
-  }
-
-  override render(): ReactNode {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { COPY, fill, type EventAnswer } from "@japalife/shared";
-import { useEffect, useState } from "react";
+import { type RefObject, useEffect, useState } from "react";
 import { EventCard } from "./EventCard";
 import { formatCountdown, formatGameClock, formatNaira } from "./format";
 import styles from "./hud.module.css";
@@ -21,6 +21,7 @@ export function Hud({
   districtName,
   onAnswer,
   onOpenInbox,
+  fpsOutput,
 }: {
   server: ServerStats | null;
   now: number;
@@ -28,6 +29,8 @@ export function Hud({
   districtName: string;
   onAnswer: (choiceId: string, answer: EventAnswer) => void;
   onOpenInbox: () => void;
+  /** Where the `?fps` meter writes its reading; absent when the meter is off. */
+  fpsOutput?: RefObject<HTMLParagraphElement | null> | undefined;
 }) {
   const choice = server?.stats.pendingChoice;
   return (
@@ -37,6 +40,8 @@ export function Hud({
       ) : (
         <div className={styles.bar}>{districtName}</div>
       )}
+      {/* In the HUD's own column, so nothing covers it on any screen size or orientation. */}
+      {fpsOutput && <p ref={fpsOutput} className={styles.fps} aria-hidden="true" />}
       {server && choice && (
         <EventCard
           choice={choice}

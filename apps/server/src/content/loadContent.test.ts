@@ -2,6 +2,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DistrictMap } from "../game/district";
 import { ContentError, DEFAULT_CONTENT_DIR, loadContent } from "./loadContent";
 
 describe("loadContent (real content/)", () => {
@@ -161,6 +162,60 @@ describe("loadContent (broken content)", () => {
       j["districts"][0].buildings[0].x = 58;
     });
     expect(problemsOf().join("\n")).toContain("sticks out of the walkable area");
+  });
+
+  it("rejects a building whose model is not in the catalog", () => {
+    edit("cities/lagos.json", (j) => (j["districts"][0].buildings[0].model = "ghost-tower"));
+    expect(problemsOf().join("\n")).toContain('unknown model "ghost-tower"');
+  });
+
+  describe("model footprints", () => {
+    // Gives the office block a 14 m wide (x) by 12 m deep (z) footprint, dressed by a test model.
+    function withOfficeModel(halfWidth: number, halfDepth: number, building: Record<string, unknown> = {}): void {
+      edit("models/catalog.json", (j) => {
+        j["models"]["test-office"] = { file: "buildings/test-office.glb", halfWidth, halfDepth, height: 9, triangles: 100, bytes: 1000 };
+      });
+      edit("cities/lagos.json", (j) =>
+        Object.assign(j["districts"][0].buildings[0], { halfWidth: 7, halfDepth: 6, model: "test-office", scale: 1, ...building }),
+      );
+    }
+
+    it("accepts a model that fills its footprint, and sends only the models a district uses", () => {
+      withOfficeModel(7.2, 5.8);
+      edit("models/catalog.json", (j) => {
+        j["models"]["unused"] = { file: "buildings/unused.glb", halfWidth: 1, halfDepth: 1, height: 1, triangles: 1, bytes: 1 };
+      });
+      const content = loadContent(dir);
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models);
+      expect(Object.keys(yaba.layout.models)).toContain("test-office");
+      expect(Object.keys(yaba.layout.models)).not.toContain("unused");
+      expect(Object.keys(yaba.layout.models)).not.toContain("office-block"); // replaced by the test model
+    });
+
+    it("rejects a model bigger than its footprint (an invisible wall would let you walk into it)", () => {
+      withOfficeModel(7.5, 6);
+      expect(problemsOf().join("\n")).toContain("model width 15.00 m is bigger than the footprint's 14.00 m");
+    });
+
+    it("rejects a model too small for its footprint (you would bump into thin air)", () => {
+      withOfficeModel(7, 4);
+      expect(problemsOf().join("\n")).toContain("model depth 8.00 m fills too little");
+    });
+
+    it("swaps width and depth for a quarter turn", () => {
+      withOfficeModel(6, 7, { rotation: 90 });
+      expect(() => loadContent(dir)).not.toThrow();
+    });
+
+    it("applies the building's scale", () => {
+      withOfficeModel(3.5, 3, { scale: 2 });
+      expect(() => loadContent(dir)).not.toThrow();
+    });
+
+    it("rejects a rotation that is not a quarter turn", () => {
+      withOfficeModel(7, 6, { rotation: 45 });
+      expect(problemsOf().join("\n")).toContain("buildings.0.rotation");
+    });
   });
 
   it("rejects an invalid building colour", () => {
