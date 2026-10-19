@@ -225,6 +225,12 @@ Decisions (2026-10-17):
 | 11f | Nigerian assets (DIY) | Our own danfo, keke, okada, Black hairstyles, Ankara outfits and Lagos facades, swapped in through catalog entries |
 | 11g | Hardening | vivo Y29 fps and draw calls (< 80), per-district asset budget (Yaba ≤ 6 MB, characters ≤ 1.5 MB), [docs/known-limits.md](docs/known-limits.md) |
 
+**Up next (2026-10-19):**
+- Open the PR for 11b (`feat/yaba-looks-like-lagos`), and start 11c from that branch, not `main`, which does not have 11b yet. Plan 11c in plan mode and save the plan in `docs/plans/`.
+- Still to check on the phone: night and power-cut windows (11b) and the character animations (11a).
+- Idea, not built: a dev-only `GAME_CLOCK_START=21:00` server setting that starts the game clock at a chosen Lagos time, so night can be tested without waiting or speeding everything up. Refused in production, like `GAME_CLOCK`.
+- `next dev` works from a phone: `allowedDevOrigins` in `apps/client/next.config.mjs` allows the private home and hotspot ranges (`192.168.*.*`, `10.*.*.*`). Without it, Next 16 blocks dev pages opened from a LAN address and no button works.
+
 **Next: Phase 2, documents, routes and applications** (design-doc Stages 2–4: documents in Lagos, choosing a route, applying, waiting in real time, approval or refusal). Starts after Slice 11. Plan, decisions and slices: [docs/plans/phase-2-documents-and-applications.md](docs/plans/phase-2-documents-and-applications.md).
 
 **Done: Phase 1, the Lagos single-player core loop** (one district, a job, rent, food, black tax, power cuts, an NGN ledger wallet; play-tested on the phone). Record: [docs/phase-1.md](docs/phase-1.md).
