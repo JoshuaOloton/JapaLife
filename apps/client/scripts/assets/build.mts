@@ -43,6 +43,8 @@ import { bakeRegionMask } from "./regionMask.mts";
 
 const clientDir = join(import.meta.dirname, "..", "..");
 const vendorDir = join(clientDir, "..", "..", "assets", "vendor");
+/** Our own models, built from the Python scripts in assets/blender/ by `pnpm blender`. */
+const BUILT = join(clientDir, "..", "..", "assets", "built");
 const outDir = join(clientDir, "public", "assets");
 const clipInfoFile = join(clientDir, "game", "character", "clipInfo.generated.json");
 const modelCatalogFile = join(clientDir, "..", "..", "content", "models", "catalog.json");
@@ -60,9 +62,16 @@ const BODIES = [
   { id: "female", file: join(BODY_DIR, "Superhero_Female_FullBody.gltf"), bodyMaterial: "MI_Superhero_Female" },
 ] as const;
 
+/**
+ * Hair: the pack's buzzed cuts (skinned to the skeleton), and our own scalp caps
+ * for the patterned styles (a plain mesh in the body's space, which the game
+ * attaches to the Head bone).
+ */
 const HAIRS = [
   { id: "buzzed", file: join(HAIR_DIR, "Hair_Buzzed.gltf") },
   { id: "buzzed-female", file: join(HAIR_DIR, "Hair_BuzzedFemale.gltf") },
+  { id: "cap-male", file: join(BUILT, "hair-cap-male.glb") },
+  { id: "cap-female", file: join(BUILT, "hair-cap-female.glb") },
 ] as const;
 
 /** Game clip id -> source file and clip name. Movement clips are measured for their speed. */
@@ -84,8 +93,6 @@ const KAYKIT = join(vendorDir, "kaykit-city", "Assets", "gltf");
 const KENNEY_COMMERCIAL = join(vendorDir, "kenney-commercial", "Models");
 const KENNEY_SUBURBAN = join(vendorDir, "kenney-suburban", "Models");
 const KENNEY_CAR = join(vendorDir, "kenney-car", "Models", "GLB format");
-/** Our own models, built from the Python scripts in assets/blender/ by `pnpm blender`. */
-const BUILT = join(clientDir, "..", "..", "assets", "built");
 
 /** A rectangle on a colour sheet, in texture coordinates: [u0, v0, u1, v1]. */
 type UvRect = readonly [number, number, number, number];
@@ -283,7 +290,8 @@ async function buildBody(id: string, file: string, bodyMaterial: string): Promis
 
 /** A hairstyle, skinned to the shared skeleton. Catalogued so the character catalog can name it (`hair-<id>`). */
 async function buildHair(id: string, file: string): Promise<ModelEntry> {
-  const document = await readGltf(file);
+  if (!existsSync(file)) fail(`${relative(process.cwd(), file)}: not found (run pnpm blender first?)`);
+  const document = file.endsWith(".gltf") ? await readGltf(file) : await io.read(file);
   await cleanForGame(document);
   const size = measure(document, file);
   await compressTextures(document);

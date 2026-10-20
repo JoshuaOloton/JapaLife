@@ -28,6 +28,13 @@ export const appearanceSchema = z.strictObject({
 });
 export type Appearance = z.infer<typeof appearanceSchema>;
 
+/**
+ * Close-to-the-head styles, painted in code onto a scalp cap (`hair-cap-<body>`)
+ * rather than modelled strand by strand. The client has one painter per pattern.
+ */
+export const HAIR_PATTERNS = ["cornrows", "fade"] as const;
+export type HairPattern = (typeof HAIR_PATTERNS)[number];
+
 /** The body models the asset pipeline builds (`characters/body-<model>.glb`). */
 export const BODY_MODELS = ["male", "female"] as const;
 export type BodyModel = (typeof BODY_MODELS)[number];
@@ -47,6 +54,8 @@ export const characterCatalogSchema = z.strictObject({
       name: optionName,
       /** Body id -> hair model id in `content/models/catalog.json`. Empty for bald. */
       parts: z.record(optionId, optionId),
+      /** Painted onto the part (a scalp cap) instead of using the model's own texture. */
+      pattern: z.enum(HAIR_PATTERNS).optional(),
       starter,
     }),
   ),
