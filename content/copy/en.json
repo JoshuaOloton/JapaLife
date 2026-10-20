@@ -75,6 +75,22 @@
     "fuelRuns": "Runs your gen {hours}h when NEPA takes light at night",
     "fuelInTank": "in your jerrycan: {hours}h"
   },
+  "creator": {
+    "title": "Make your character",
+    "changeTitle": "Change clothes",
+    "body": "Body",
+    "bodyOption": "Body {number}",
+    "skin": "Skin tone",
+    "hair": "Hair",
+    "hairColour": "Hair colour",
+    "outfit": "Outfit",
+    "outfitColour": "Colour",
+    "swatch": "{row} {number}",
+    "done": "Done",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "changeClothes": "Change clothes"
+  },
   "eventCard": {
     "replyWithin": "Reply within {time}",
     "cannotAfford": "You don't have {amount} right now"
@@ -102,6 +118,8 @@
     "rent_not_due": "Rent isn't due yet. Landlord can wait.",
     "tank_full": "Your jerrycan can't hold that much more.",
     "already_answered": "You've already answered that.",
-    "choice_expired": "Too late. They've stopped waiting for an answer."
+    "choice_expired": "Too late. They've stopped waiting for an answer.",
+    "not_owned": "That isn't yours yet.",
+    "not_at_home": "Change your clothes at home."
   }
 }

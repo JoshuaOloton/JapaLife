@@ -172,10 +172,10 @@ async function main(): Promise<void> {
     fail("toktx not found: install KTX-Software (see CLAUDE.md)");
   }
 
-  for (const body of BODIES) await buildBody(body.id, body.file, body.bodyMaterial);
-  for (const hair of HAIRS) await buildHair(hair.id, hair.file);
-  await buildAnimations();
   const models: Record<string, ModelEntry> = {};
+  for (const body of BODIES) await buildBody(body.id, body.file, body.bodyMaterial);
+  for (const hair of HAIRS) models[`hair-${hair.id}`] = await buildHair(hair.id, hair.file);
+  await buildAnimations();
   for (const model of STATIC_MODELS) models[model.id] = await buildStaticModel(model);
   writeModelCatalog(models);
   rmSync(work, { recursive: true, force: true });
@@ -206,23 +206,29 @@ async function buildStaticModel({ id, folder, file, texture, windows }: (typeof 
   // One mesh per material instead of one per piece, centred on the footprint and standing on the ground.
   await document.transform(flatten(), joinMeshes(), weld(), center({ pivot: "below" }), prune(), dedup());
 
-  const scene = document.getRoot().getDefaultScene() ?? document.getRoot().listScenes()[0];
-  if (!scene) fail(`${file}: no scene`);
-  const { min, max } = getBounds(scene);
-  const triangles = countTriangles(document);
-
+  const size = measure(document, file);
   await compressTextures(document, () => BUILDING_TEXTURE_SIZE);
   const output = `${folder}/${id}.glb`;
   await finish(document, output, { simplify: false });
-  const round = (value: number): number => Math.round(value * 1000) / 1000;
   return {
     file: output,
+    ...size,
+    bytes: statSync(join(outDir, output)).size,
+    ...(windows ? { windows: windows.map((rect) => [...rect] as const) } : {}),
+  };
+}
+
+/** A model's measured size and triangle count, for its catalog entry. */
+function measure(document: Document, file: string): Pick<ModelEntry, "halfWidth" | "halfDepth" | "height" | "triangles"> {
+  const scene = document.getRoot().getDefaultScene() ?? document.getRoot().listScenes()[0];
+  if (!scene) fail(`${file}: no scene`);
+  const { min, max } = getBounds(scene);
+  const round = (value: number): number => Math.round(value * 1000) / 1000;
+  return {
     halfWidth: round((max[0] - min[0]) / 2),
     halfDepth: round((max[2] - min[2]) / 2),
     height: round(max[1] - min[1]),
-    triangles,
-    bytes: statSync(join(outDir, output)).size,
-    ...(windows ? { windows: windows.map((rect) => [...rect] as const) } : {}),
+    triangles: countTriangles(document),
   };
 }
 
@@ -258,11 +264,15 @@ async function buildBody(id: string, file: string, bodyMaterial: string): Promis
   await finish(document, `characters/body-${id}.glb`, { simplify: true });
 }
 
-async function buildHair(id: string, file: string): Promise<void> {
+/** A hairstyle, skinned to the shared skeleton. Catalogued so the character catalog can name it (`hair-<id>`). */
+async function buildHair(id: string, file: string): Promise<ModelEntry> {
   const document = await readGltf(file);
   await cleanForGame(document);
+  const size = measure(document, file);
   await compressTextures(document);
-  await finish(document, `characters/hair-${id}.glb`, { simplify: false });
+  const output = `characters/hair-${id}.glb`;
+  await finish(document, output, { simplify: false });
+  return { file: output, ...size, bytes: statSync(join(outDir, output)).size };
 }
 
 /**

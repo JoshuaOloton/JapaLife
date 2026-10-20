@@ -1,8 +1,10 @@
 import { Client, type Room } from "@colyseus/sdk";
 import type { Server } from "@colyseus/core";
 import {
+  type AppearanceMessage,
   DISTRICT_ROOM_NAME,
   PLAYER_RADIUS,
+  encodeAppearance,
   PLAYER_SPEED_UNITS_PER_SECOND,
   districtLayoutSchema,
   type DistrictLayout,
@@ -68,6 +70,7 @@ async function join(playerId: string): Promise<Session> {
   open.push(room);
   const session: Session = { room, stats: [], rejected: [], notices: [], layouts: [] };
   room.onMessage("district", (m: DistrictLayout) => session.layouts.push(m));
+  room.onMessage("appearance", () => {}); // tests that care add their own listener
   room.onMessage("stats", (m: StatsMessage) => session.stats.push(m));
   room.onMessage("rejected", (m: RejectedMessage) => session.rejected.push(m));
   room.onMessage("notice", (m: NoticeMessage) => session.notices.push(m));
@@ -296,6 +299,25 @@ describe("movement", () => {
     expect(layout.roads.length).toBeGreaterThan(0);
     expect(layout.interactables.every((i) => i.label.length > 0)).toBe(true);
     expect(districtLayoutSchema.safeParse(layout).success).toBe(true);
+  });
+
+  it("says a new player has no character, then saves one and syncs its code", async () => {
+    const s = await join("nkem");
+    const appearances: AppearanceMessage[] = [];
+    s.room.onMessage("appearance", (m: AppearanceMessage) => appearances.push(m));
+    await until(() => s.stats.length > 0, "stats");
+    // The join message can arrive before this listener is attached; ask by making one.
+    const look = { body: "body-1", skinTone: "tone-5", hair: "low-cut", hairColour: "black", outfit: "senator", outfitColour: "blue" };
+    s.room.send("setAppearance", look);
+    await until(() => appearances.some((m) => m.appearance !== null), "the saved appearance");
+    expect(appearances.at(-1)).toEqual({ appearance: look });
+    await until(() => s.room.state.players.get(s.room.sessionId).appearance !== "", "the synced code");
+    expect(s.room.state.players.get(s.room.sessionId).appearance).toBe(encodeAppearance(look));
+
+    // Not a starter item: refused, and the saved look stays.
+    s.room.send("setAppearance", { ...look, outfit: "security-uniform" });
+    await until(() => s.rejected.length > 0, "the rejection");
+    expect(s.rejected[0]?.reason).toBe("not_owned");
   });
 
   it("stays inside the district", async () => {

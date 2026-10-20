@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appearanceSchema, type CharacterCatalog, characterCatalogSchema } from "./appearance";
 import { MAX_WALLET_BALANCE } from "./constants";
 import { SINK_REASONS } from "./economy";
 import { GAME_EVENT_IDS } from "./events";
@@ -458,10 +459,6 @@ export type Prop = z.infer<typeof propSchema>;
 export const NPC_POSES = ["idle", "talk", "fold_arms", "sit", "sit_talk", "call"] as const;
 export type NpcPose = (typeof NPC_POSES)[number];
 
-/** Each NPC's look is a preset in the client (`world/npcLooks.ts`) until the character catalog (11d) replaces them. */
-export const NPC_LOOK_IDS = ["mama_put", "okada_rider_a", "okada_rider_b", "hawker", "gateman", "conductor"] as const;
-export type NpcLookId = (typeof NPC_LOOK_IDS)[number];
-
 /** The box a standing NPC blocks: about their shoulders. */
 export const NPC_HALF_SIZE = 0.3;
 
@@ -471,7 +468,8 @@ export const NPC_HALF_SIZE = 0.3;
  */
 export const npcSchema = z.strictObject({
   id: contentIdSchema,
-  look: z.enum(NPC_LOOK_IDS),
+  /** From the character catalog, like a player's; NPCs may wear non-starter clothes (a gateman's uniform). */
+  look: appearanceSchema,
   pose: z.enum(NPC_POSES),
   x: z.number(),
   z: z.number(),
@@ -529,18 +527,22 @@ export type ModelCatalog = z.infer<typeof modelCatalogSchema>;
 export const districtLayoutSchema = districtSchema.extend({
   models: z.record(contentIdSchema, modelInfoSchema),
   propKinds: z.record(contentIdSchema, propKindSchema),
+  /** The whole character catalog: NPCs are drawn from it, and the creator offers its starter options. */
+  characters: characterCatalogSchema,
 });
 export type DistrictLayout = z.infer<typeof districtLayoutSchema>;
 
 /**
- * The district plus only the models and prop kinds it uses. The server sends
- * this on join and the content check tests the same thing, so what is checked
- * is what is played. Unknown ids are left out here; the content check reports them.
+ * The district plus only the models and prop kinds it uses, and the character
+ * catalog with its hair models. The server sends this on join and the content
+ * check tests the same thing, so what is checked is what is played. Unknown
+ * ids are left out here; the content check reports them.
  */
 export function buildDistrictLayout(
   config: DistrictConfig,
   models: Readonly<Record<string, ModelInfo>>,
   propKinds: Readonly<Record<string, PropKind>>,
+  characters: CharacterCatalog,
 ): DistrictLayout {
   const usedModels: Record<string, ModelInfo> = {};
   const usedKinds: Record<string, PropKind> = {};
@@ -555,7 +557,10 @@ export function buildDistrictLayout(
     usedKinds[prop.kind] = kind;
     if ("model" in kind.look) useModel(kind.look.model);
   }
-  return { ...config, models: usedModels, propKinds: usedKinds };
+  for (const hair of Object.values(characters.hairs)) {
+    for (const part of Object.values(hair.parts)) useModel(part);
+  }
+  return { ...config, models: usedModels, propKinds: usedKinds, characters };
 }
 
 /** How far a model may stick out past its footprint, in metres: a roof edge or a step, never a walk-through wall. */

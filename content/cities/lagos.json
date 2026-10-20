@@ -116,12 +116,30 @@
         { "kind": "tree-small", "x": -10, "z": 48 }
       ],
       "npcs": [
-        { "id": "mama-put", "look": "mama_put", "pose": "talk", "x": -15.2, "z": 15.5, "facing": 60 },
-        { "id": "okada-rider-1", "look": "okada_rider_a", "pose": "sit_talk", "x": 7.4, "z": -8.2 },
-        { "id": "okada-rider-2", "look": "okada_rider_b", "pose": "sit_talk", "x": 8.6, "z": -8.2 },
-        { "id": "bus-stop-hawker", "look": "hawker", "pose": "idle", "x": 6.5, "z": 30.1 },
-        { "id": "conductor", "look": "conductor", "pose": "call", "x": 5.8, "z": 27.2, "facing": 300, "says": "Oshodi! Obalende! Enter with your change!" },
-        { "id": "gateman", "look": "gateman", "pose": "sit", "x": 18.6, "z": -12.2 }
+        {
+          "id": "mama-put", "pose": "talk", "x": -15.2, "z": 15.5, "facing": 60,
+          "look": { "body": "body-2", "skinTone": "tone-3", "hair": "low-cut", "hairColour": "black", "outfit": "apron-wrapper", "outfitColour": "white" }
+        },
+        {
+          "id": "okada-rider-1", "pose": "sit_talk", "x": 7.4, "z": -8.2,
+          "look": { "body": "body-1", "skinTone": "tone-5", "hair": "low-cut", "hairColour": "black", "outfit": "rider-vest", "outfitColour": "black" }
+        },
+        {
+          "id": "okada-rider-2", "pose": "sit_talk", "x": 8.6, "z": -8.2,
+          "look": { "body": "body-1", "skinTone": "tone-2", "hair": "bald", "hairColour": "black", "outfit": "office", "outfitColour": "orange" }
+        },
+        {
+          "id": "bus-stop-hawker", "pose": "idle", "x": 6.5, "z": 30.1,
+          "look": { "body": "body-2", "skinTone": "tone-4", "hair": "low-cut", "hairColour": "dark-brown", "outfit": "blouse-wrapper", "outfitColour": "green" }
+        },
+        {
+          "id": "conductor", "pose": "call", "x": 5.8, "z": 27.2, "facing": 300, "says": "Oshodi! Obalende! Enter with your change!",
+          "look": { "body": "body-1", "skinTone": "tone-6", "hair": "low-cut", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "white" }
+        },
+        {
+          "id": "gateman", "pose": "sit", "x": 18.6, "z": -12.2,
+          "look": { "body": "body-1", "skinTone": "tone-7", "hair": "low-cut", "hairColour": "grey", "outfit": "security-uniform", "outfitColour": "black" }
+        }
       ]
     }
   ]

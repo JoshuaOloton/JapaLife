@@ -20,15 +20,13 @@ import {
 import { type GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { CharacterMotion, ClipId } from "./animation";
-import { type BodyLook, DEFAULT_HAIR_COLOUR, DEFAULT_LOOK, createBodyMaterial } from "./bodyMaterial";
+import type { CharacterLook } from "./appearance";
+import { type BodyLook, createBodyMaterial } from "./bodyMaterial";
 import { CharacterAnimator, clipsForBody } from "./CharacterAnimator";
 import { ASSET_ROOT, withDecoders } from "./loaders";
 
-export type BodyType = "male" | "female";
-
 const CHARACTER_ROOT = `${ASSET_ROOT}/characters`;
 const ANIMATIONS_URL = `${CHARACTER_ROOT}/animations.glb`;
-const DEFAULT_HAIR: Record<BodyType, string> = { male: "buzzed", female: "buzzed-female" };
 
 /** Same cap as the player: one long frame (a phone waking up) should not jump the animation. */
 const MAX_FRAME_SECONDS = 0.25;
@@ -63,31 +61,28 @@ const BODY_SHAPE: Record<string, readonly [number, number, number]> = {
  * is how far-away NPCs cost nothing per frame.
  */
 export function Character({
-  body,
+  look,
   motion,
-  look = DEFAULT_LOOK,
   pose,
   paused,
 }: {
-  body: BodyType;
+  /** From `resolveLook`. Keep the object stable (memoise it): a new one rebuilds the character. */
+  look: CharacterLook;
   motion: { current: CharacterMotion };
-  look?: BodyLook;
   pose?: ClipId | undefined;
   paused?: { current: boolean } | undefined;
 }) {
   const gl = useThree((three) => three.gl);
-  const [bodyModel, hairModel, animations] = threeOf(
-    useLoader(
-      GLTFLoader,
-      [`${CHARACTER_ROOT}/body-${body}.glb`, `${CHARACTER_ROOT}/hair-${DEFAULT_HAIR[body]}.glb`, ANIMATIONS_URL],
-      withDecoders(gl),
-    ),
-  );
+  const { body, hairFile, hairColour, bodyLook } = look;
+  // Bald loads no hair file at all.
+  const urls = [`${CHARACTER_ROOT}/body-${body}.glb`, ANIMATIONS_URL, ...(hairFile ? [`${ASSET_ROOT}/${hairFile}`] : [])];
+  const [bodyModel, animations, hairModel] = useLoader(GLTFLoader, urls, withDecoders(gl));
+  if (!bodyModel || !animations) throw new Error("expected the body and animations to load");
   const regionMask = useLoader(TextureLoader, `${CHARACTER_ROOT}/body-${body}-regions.png`);
 
   const person = useMemo(
-    () => assemble(bodyModel, hairModel, prepareMask(regionMask), look),
-    [bodyModel, hairModel, regionMask, look],
+    () => assemble(bodyModel, hairModel, prepareMask(regionMask), bodyLook, hairColour),
+    [bodyModel, hairModel, regionMask, bodyLook, hairColour],
   );
   useEffect(() => () => person.dispose(), [person]);
 
@@ -119,10 +114,16 @@ interface Person {
   dispose: () => void;
 }
 
-function assemble(bodyModel: GLTF, hairModel: GLTF, regionMask: Texture, look: BodyLook): Person {
+function assemble(
+  bodyModel: GLTF,
+  hairModel: GLTF | undefined,
+  regionMask: Texture,
+  look: BodyLook,
+  hairHex: string,
+): Person {
   const root = cloneSkinned(bodyModel.scene);
   const materials: Material[] = [];
-  const hairColour = new Color(DEFAULT_HAIR_COLOUR);
+  const hairColour = new Color(hairHex);
   let bodyMesh: SkinnedMesh | undefined;
 
   root.traverse((object) => {
@@ -143,7 +144,7 @@ function assemble(bodyModel: GLTF, hairModel: GLTF, regionMask: Texture, look: B
   if (!bodyMesh?.parent) throw new Error("character model has no body mesh");
 
   // Hair is skinned to its own copy of the same skeleton; re-attach it to this body's bones by name.
-  const hairSource = hairModel.scene.getObjectByProperty("type", "SkinnedMesh");
+  const hairSource = hairModel?.scene.getObjectByProperty("type", "SkinnedMesh");
   if (hairSource instanceof SkinnedMesh) {
     const hair = hairSource.clone();
     const bones = hairSource.skeleton.bones.map((bone) => root.getObjectByName(bone.name) as Bone);
@@ -171,13 +172,6 @@ function assemble(bodyModel: GLTF, hairModel: GLTF, regionMask: Texture, look: B
       for (const material of materials) material.dispose();
     },
   };
-}
-
-/** Three URLs in, three results out, in order; the loader's type only says "an array". */
-function threeOf<T>(items: readonly T[]): [T, T, T] {
-  const [a, b, c] = items;
-  if (a === undefined || b === undefined || c === undefined) throw new Error("expected three loaded models");
-  return [a, b, c];
 }
 
 /**

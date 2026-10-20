@@ -1,6 +1,6 @@
 "use client";
 
-import type { InboxEntry, InteractionMessage, StatsMessage } from "@japalife/shared";
+import type { Appearance, InboxEntry, InteractionMessage, StatsMessage } from "@japalife/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageBuffer } from "./connection";
 import { rejectionText } from "./format";
@@ -33,6 +33,11 @@ export function useGameMessages(messages: MessageBuffer) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [interaction, setInteraction] = useState<InteractionMessage | null>(null);
   const [inbox, setInbox] = useState<InboxEntry[] | null>(null);
+  /** Undefined until the server says; null means the player has no character yet. */
+  const [appearance, setAppearance] = useState<Appearance | null | undefined>(undefined);
+  /** Counters, so the creator knows when its save came back or was refused. */
+  const [appearanceSaves, setAppearanceSaves] = useState(0);
+  const [appearanceRefusals, setAppearanceRefusals] = useState(0);
   const nextToastId = useRef(1);
 
   const pushToast = useCallback((toast: Omit<Toast, "id">) => {
@@ -60,6 +65,11 @@ export function useGameMessages(messages: MessageBuffer) {
             return;
           case "rejected":
             pushToast({ tone: "refused", title: "", message: rejectionText(event.rejected.reason) });
+            if (event.rejected.intent === "setAppearance") setAppearanceRefusals((count) => count + 1);
+            return;
+          case "appearance":
+            setAppearance(event.appearance.appearance);
+            setAppearanceSaves((count) => count + 1);
             return;
           case "interaction":
             setInteraction(event.interaction);
@@ -79,5 +89,8 @@ export function useGameMessages(messages: MessageBuffer) {
     closeInteraction: useCallback(() => setInteraction(null), []),
     inbox,
     closeInbox: useCallback(() => setInbox(null), []),
+    appearance,
+    appearanceSaves,
+    appearanceRefusals,
   };
 }

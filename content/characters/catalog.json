@@ -1,0 +1,97 @@
+{
+  "bodies": {
+    "body-1": { "model": "male" },
+    "body-2": { "model": "female" }
+  },
+  "skinTones": {
+    "tone-1": { "tint": "#ffffff" },
+    "tone-2": { "tint": "#efdfd2" },
+    "tone-3": { "tint": "#ddc3ad" },
+    "tone-4": { "tint": "#caa88f" },
+    "tone-5": { "tint": "#b48e75" },
+    "tone-6": { "tint": "#9c765f" },
+    "tone-7": { "tint": "#825e4b" },
+    "tone-8": { "tint": "#68493a" }
+  },
+  "hairs": {
+    "low-cut": { "name": "Low cut", "parts": { "body-1": "hair-buzzed", "body-2": "hair-buzzed-female" } },
+    "bald": { "name": "Bald", "parts": {} }
+  },
+  "hairColours": {
+    "black": { "colour": "#2a1f1a" },
+    "dark-brown": { "colour": "#3d2a1e" },
+    "brown": { "colour": "#5a3a24" },
+    "grey": { "colour": "#8c8c8c" },
+    "blonde": { "colour": "#c9a46a" }
+  },
+  "outfits": {
+    "tshirt-jeans": {
+      "name": "T-shirt and jeans",
+      "chosen": ["torso", "upperArm"],
+      "fixed": { "hips": "#2f4a6d", "thigh": "#2f4a6d", "calf": "#2f4a6d", "foot": "#262626" }
+    },
+    "office": {
+      "name": "Office shirt and trousers",
+      "chosen": ["torso", "upperArm", "forearm"],
+      "fixed": { "hips": "#2b2f36", "thigh": "#2b2f36", "calf": "#2b2f36", "foot": "#1a1a1a" }
+    },
+    "senator": {
+      "name": "Senator",
+      "chosen": ["torso", "upperArm", "forearm", "hips", "thigh", "calf"],
+      "fixed": { "foot": "#2a1f1a" }
+    },
+    "jersey-shorts": {
+      "name": "Football jersey and shorts",
+      "chosen": ["torso", "upperArm"],
+      "fixed": { "hips": "#f2f2ee", "thigh": "#f2f2ee", "foot": "#ecebe6" }
+    },
+    "apron-wrapper": {
+      "name": "Apron and wrapper",
+      "chosen": [],
+      "fixed": { "torso": "#e9e2cf", "upperArm": "#e9e2cf", "hips": "#d0662b", "thigh": "#d0662b", "calf": "#d0662b", "foot": "#3b2a20" },
+      "starter": false
+    },
+    "rider-vest": {
+      "name": "Reflective vest",
+      "chosen": [],
+      "fixed": { "torso": "#d8e33a", "upperArm": "#2b2f36", "forearm": "#2b2f36", "hips": "#3b3b3b", "thigh": "#3b3b3b", "calf": "#3b3b3b", "foot": "#1f1f1f" },
+      "starter": false
+    },
+    "blouse-wrapper": {
+      "name": "Blouse and wrapper",
+      "chosen": ["torso", "upperArm"],
+      "fixed": { "hips": "#6b3b8a", "thigh": "#6b3b8a", "calf": "#6b3b8a", "foot": "#2a2a2a" },
+      "starter": false
+    },
+    "security-uniform": {
+      "name": "Security uniform",
+      "chosen": [],
+      "fixed": { "torso": "#24365c", "upperArm": "#24365c", "forearm": "#24365c", "hips": "#1d2433", "thigh": "#1d2433", "calf": "#1d2433", "foot": "#111111" },
+      "starter": false
+    },
+    "singlet-shorts": {
+      "name": "Singlet and shorts",
+      "chosen": [],
+      "fixed": { "torso": "#f2f2ee", "hips": "#3f5a2a", "thigh": "#3f5a2a", "foot": "#5a3b26" },
+      "starter": false
+    }
+  },
+  "outfitColours": {
+    "red": { "colour": "#c8553d" },
+    "blue": { "colour": "#2f6db5" },
+    "green": { "colour": "#2f7a55" },
+    "yellow": { "colour": "#e0b42a" },
+    "white": { "colour": "#ecebe6" },
+    "black": { "colour": "#26262a" },
+    "purple": { "colour": "#6b3b8a" },
+    "orange": { "colour": "#d0662b" }
+  },
+  "defaults": {
+    "body": "body-1",
+    "skinTone": "tone-1",
+    "hair": "low-cut",
+    "hairColour": "black",
+    "outfit": "tshirt-jeans",
+    "outfitColour": "red"
+  }
+}
