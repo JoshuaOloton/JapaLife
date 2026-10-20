@@ -369,8 +369,6 @@ export const modelInfoSchema = z.strictObject({
    * rectangles [u0, v0, u1, v1]. Surfaces painted from these glow at night.
    */
   windows: z.array(uvRectSchema).optional(),
-  /** Where the body paint is on the colour sheet (a vehicle), so it can be repainted (the danfo's yellow). */
-  paint: z.array(uvRectSchema).optional(),
 });
 
 export const modelCatalogSchema = z.strictObject({
@@ -488,37 +486,17 @@ export const npcSchema = z.strictObject({
 });
 export type Npc = z.infer<typeof npcSchema>;
 
-/** Vehicles built in code from boxes (no download), each with a builder in the client's `world/vehicleShapes.ts`. */
-export const BUILT_VEHICLES = ["keke", "okada"] as const;
-export type BuiltVehicle = (typeof BUILT_VEHICLES)[number];
-
 /**
  * A kind of vehicle in the street traffic (`content/traffic/kinds.json`).
  * Traffic is cosmetic and client-only: it never blocks the player and is not
  * synced; it stops for the player instead.
  */
 export const vehicleKindSchema = z.strictObject({
-  look: z.union([
-    z.strictObject({
-      /** A model from `content/models/catalog.json`; it faces +z. */
-      model: contentIdSchema,
-      scale: z.number().positive().max(10).default(1),
-      /** Repaints the model's body paint (its catalog `paint` cells), e.g. danfo yellow. */
-      paint: hexColour.optional(),
-      /** A band painted across the body, as shares of the model's height (the danfo's black stripe). */
-      stripe: z
-        .strictObject({ colour: hexColour, from: z.number().min(0).max(1), to: z.number().min(0).max(1) })
-        .optional(),
-    }),
-    z.strictObject({
-      built: z.enum(BUILT_VEHICLES),
-      /** Half its length (along its direction of travel), half its width, its height. */
-      halfLength: z.number().positive(),
-      halfWidth: z.number().positive(),
-      height: z.number().positive().max(5),
-      colour: hexColour.optional(),
-    }),
-  ]),
+  look: z.strictObject({
+    /** A model from `content/models/catalog.json`; it faces +z. */
+    model: contentIdSchema,
+    scale: z.number().positive().max(10).default(1),
+  }),
   /** Cruising speed, metres per second. */
   speed: z.number().positive().max(20),
   /** Pauses at bus stops on its lane (the danfo). */
@@ -668,7 +646,7 @@ export function buildDistrictLayout(
     const kind = vehicles.kinds[group.kind];
     if (!kind) continue;
     usedVehicles[group.kind] = kind;
-    if ("model" in kind.look) useModel(kind.look.model);
+    useModel(kind.look.model);
   }
   return {
     ...config,

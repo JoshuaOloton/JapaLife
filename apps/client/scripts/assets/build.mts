@@ -84,6 +84,8 @@ const KAYKIT = join(vendorDir, "kaykit-city", "Assets", "gltf");
 const KENNEY_COMMERCIAL = join(vendorDir, "kenney-commercial", "Models");
 const KENNEY_SUBURBAN = join(vendorDir, "kenney-suburban", "Models");
 const KENNEY_CAR = join(vendorDir, "kenney-car", "Models", "GLB format");
+/** Our own models, built from the Python scripts in assets/blender/ by `pnpm blender`. */
+const BUILT = join(clientDir, "..", "..", "assets", "built");
 
 /** A rectangle on a colour sheet, in texture coordinates: [u0, v0, u1, v1]. */
 type UvRect = readonly [number, number, number, number];
@@ -100,14 +102,6 @@ const KAYKIT_GLASS: readonly UvRect[] = [[0, 0.75, 0.25, 1]];
 const KENNEY_CITY_GLASS: readonly UvRect[] = [[11 / 16, 6 / 16, 12 / 16, 8 / 16]];
 
 /**
- * The Car Kit van's body paint (blue), measured the same way: column 15, rows
- * 4-6 of its 16x16 sheet (row 6 is the lower body; missing it left blue
- * patches under the yellow). Its yellow headlights sit at +z: the kit's
- * vehicles face +z, as the traffic expects.
- */
-const KENNEY_VAN_PAINT: readonly UvRect[] = [[15 / 16, 4 / 16, 1, 7 / 16]];
-
-/**
  * Models that do not move: game model id -> source file in a pack, and the
  * folder under `/assets` it goes to. A building in `content/cities/<city>.json`
  * refers to the id, with a scale that makes a floor about 3 m; a prop kind in
@@ -121,8 +115,6 @@ const STATIC_MODELS: readonly {
   file: string;
   texture?: string;
   windows?: readonly UvRect[];
-  /** Where a vehicle's body paint is on its sheet, so the game can repaint it (the danfo). */
-  paint?: readonly UvRect[];
 }[] = [
   // Painted walk-ups, the closest the free packs come to Yaba's blocks of flats.
   { id: "flats-three-storey", folder: "buildings", file: join(KAYKIT, "building_F_withoutBase.gltf"), windows: KAYKIT_GLASS },
@@ -149,8 +141,13 @@ const STATIC_MODELS: readonly {
   { id: "bin", folder: "props", file: join(KAYKIT, "trash_A.gltf") },
   { id: "umbrella", folder: "props", file: join(KENNEY_COMMERCIAL, "GLB format", "detail-parasol-a.glb") },
   { id: "umbrella-striped", folder: "props", file: join(KENNEY_COMMERCIAL, "GLB format", "detail-parasol-b.glb") },
-  // Street traffic (Kenney Car Kit). The van is repainted danfo yellow in the game; keke and okada are built in code.
-  { id: "van", folder: "vehicles", file: join(KENNEY_CAR, "van.glb"), paint: KENNEY_VAN_PAINT },
+  // The okada riders' bikes, parked by their bench (our own, see below).
+  { id: "okada-parked", folder: "props", file: join(BUILT, "okada-parked.glb") },
+  // Street traffic. Danfo, keke and okada are our own (assets/blender/); the cars are the Kenney Car Kit's,
+  // which, like ours, face +z (the van's headlights were measured at +z).
+  { id: "danfo", folder: "vehicles", file: join(BUILT, "danfo.glb") },
+  { id: "keke", folder: "vehicles", file: join(BUILT, "keke.glb") },
+  { id: "okada", folder: "vehicles", file: join(BUILT, "okada.glb") },
   { id: "sedan", folder: "vehicles", file: join(KENNEY_CAR, "sedan.glb") },
   { id: "suv", folder: "vehicles", file: join(KENNEY_CAR, "suv.glb") },
   { id: "hatchback", folder: "vehicles", file: join(KENNEY_CAR, "hatchback-sports.glb") },
@@ -208,12 +205,14 @@ interface ModelEntry {
   triangles: number;
   bytes: number;
   windows?: UvRect[];
-  paint?: UvRect[];
 }
 
-async function buildStaticModel({ id, folder, file, texture, windows, paint }: (typeof STATIC_MODELS)[number]): Promise<ModelEntry> {
+async function buildStaticModel({ id, folder, file, texture, windows }: (typeof STATIC_MODELS)[number]): Promise<ModelEntry> {
   for (const path of [file, texture]) {
-    if (path && !existsSync(path)) fail(`${relative(process.cwd(), path)}: not found (is the pack unzipped in assets/vendor?)`);
+    if (path && !existsSync(path)) {
+      const hint = path.startsWith(BUILT) ? "run pnpm blender first" : "is the pack unzipped in assets/vendor?";
+      fail(`${relative(process.cwd(), path)}: not found (${hint})`);
+    }
   }
   const document = file.endsWith(".gltf") ? await readGltf(file) : await io.read(file);
   if (texture) {
@@ -233,7 +232,6 @@ async function buildStaticModel({ id, folder, file, texture, windows, paint }: (
     ...size,
     bytes: statSync(join(outDir, output)).size,
     ...(windows ? { windows: windows.map((rect) => [...rect] as const) } : {}),
-    ...(paint ? { paint: paint.map((rect) => [...rect] as const) } : {}),
   };
 }
 

@@ -33,6 +33,14 @@
         ]
       ]
     },
+    "danfo": {
+      "file": "vehicles/danfo.glb",
+      "halfWidth": 0.98,
+      "halfDepth": 2.39,
+      "height": 2.05,
+      "triangles": 720,
+      "bytes": 5768
+    },
     "flats-four-storey": {
       "file": "buildings/flats-four-storey.glb",
       "halfWidth": 1.003,
@@ -89,6 +97,14 @@
       "triangles": 2088,
       "bytes": 20028
     },
+    "keke": {
+      "file": "vehicles/keke.glb",
+      "halfWidth": 0.65,
+      "halfDepth": 1.278,
+      "height": 1.75,
+      "triangles": 480,
+      "bytes": 5240
+    },
     "office-block": {
       "file": "buildings/office-block.glb",
       "halfWidth": 1.042,
@@ -104,6 +120,22 @@
           0.5
         ]
       ]
+    },
+    "okada": {
+      "file": "vehicles/okada.glb",
+      "halfWidth": 0.34,
+      "halfDepth": 0.98,
+      "height": 1.7,
+      "triangles": 396,
+      "bytes": 4976
+    },
+    "okada-parked": {
+      "file": "props/okada-parked.glb",
+      "halfWidth": 0.34,
+      "halfDepth": 0.98,
+      "height": 1.06,
+      "triangles": 276,
+      "bytes": 4640
     },
     "planter": {
       "file": "props/planter.glb",
@@ -168,22 +200,6 @@
       "height": 0.45,
       "triangles": 120,
       "bytes": 10020
-    },
-    "van": {
-      "file": "vehicles/van.glb",
-      "halfWidth": 0.75,
-      "halfDepth": 1.375,
-      "height": 1.35,
-      "triangles": 2082,
-      "bytes": 19984,
-      "paint": [
-        [
-          0.9375,
-          0.25,
-          1,
-          0.4375
-        ]
-      ]
     }
   }
 }
