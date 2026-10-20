@@ -2,15 +2,19 @@
 
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
+import type { HairPattern } from "@japalife/shared";
 import {
   type Bone,
   Color,
+  DataTexture,
   type Material,
+  Mesh,
   type MeshStandardMaterial,
   MeshLambertMaterial,
   NearestFilter,
   NoColorSpace,
   type Object3D,
+  SRGBColorSpace,
   Skeleton,
   SkinnedMesh,
   type Texture,
@@ -23,6 +27,7 @@ import type { CharacterMotion, ClipId } from "./animation";
 import type { CharacterLook } from "./appearance";
 import { type BodyLook, createBodyMaterial } from "./bodyMaterial";
 import { CharacterAnimator, clipsForBody } from "./CharacterAnimator";
+import { HAIR_PATTERN_SIZE, hairPatternPixels } from "./hairPatterns";
 import { ASSET_ROOT, withDecoders } from "./loaders";
 
 const CHARACTER_ROOT = `${ASSET_ROOT}/characters`;
@@ -73,7 +78,7 @@ export function Character({
   paused?: { current: boolean } | undefined;
 }) {
   const gl = useThree((three) => three.gl);
-  const { body, hairFile, hairColour, bodyLook } = look;
+  const { body, hairFile, hairColour, hairPattern, bodyLook } = look;
   // Bald loads no hair file at all.
   const urls = [`${CHARACTER_ROOT}/body-${body}.glb`, ANIMATIONS_URL, ...(hairFile ? [`${ASSET_ROOT}/${hairFile}`] : [])];
   const [bodyModel, animations, hairModel] = useLoader(GLTFLoader, urls, withDecoders(gl));
@@ -81,8 +86,8 @@ export function Character({
   const regionMask = useLoader(TextureLoader, `${CHARACTER_ROOT}/body-${body}-regions.png`);
 
   const person = useMemo(
-    () => assemble(bodyModel, hairModel, prepareMask(regionMask), bodyLook, hairColour),
-    [bodyModel, hairModel, regionMask, bodyLook, hairColour],
+    () => assemble(bodyModel, hairModel, prepareMask(regionMask), bodyLook, hairColour, hairPattern),
+    [bodyModel, hairModel, regionMask, bodyLook, hairColour, hairPattern],
   );
   useEffect(() => () => person.dispose(), [person]);
 
@@ -120,6 +125,7 @@ function assemble(
   regionMask: Texture,
   look: BodyLook,
   hairHex: string,
+  hairPattern: HairPattern | null,
 ): Person {
   const root = cloneSkinned(bodyModel.scene);
   const materials: Material[] = [];
@@ -156,6 +162,8 @@ function assemble(
     hair.material = hairMaterial;
     materials.push(hairMaterial);
     bodyMesh.parent.add(hair);
+  } else if (hairPattern && hairModel) {
+    attachHairCap(hairModel, bodyMesh, hairPattern, hairColour, materials);
   }
 
   for (const [boneName, [x, y, z]] of Object.entries(BODY_SHAPE)) {
@@ -172,6 +180,51 @@ function assemble(
       for (const material of materials) material.dispose();
     },
   };
+}
+
+/** The bone the scalp cap rides on. */
+const HEAD_BONE = "Head";
+
+/**
+ * Puts the scalp cap on, painted with its pattern (cornrows, fade). The cap is a
+ * plain mesh in the body's bind-pose space; parenting it to the Head bone with
+ * the bone's inverse bind matrix moves it exactly as the body's own head
+ * vertices are skinned, so it never slides off when the head turns.
+ */
+function attachHairCap(
+  hairModel: GLTF,
+  bodyMesh: SkinnedMesh,
+  pattern: HairPattern,
+  colour: Color,
+  materials: Material[],
+): void {
+  const source = hairModel.scene.getObjectByProperty("type", "Mesh");
+  const headIndex = bodyMesh.skeleton.bones.findIndex((bone) => bone.name === HEAD_BONE);
+  const head = bodyMesh.skeleton.bones[headIndex];
+  const headInverse = bodyMesh.skeleton.boneInverses[headIndex];
+  if (!(source instanceof Mesh) || !head || !headInverse) return;
+
+  hairModel.scene.updateMatrixWorld(true);
+  const material = new MeshLambertMaterial({ map: patternTexture(pattern), color: colour, alphaTest: 0.5 });
+  materials.push(material);
+  const cap = new Mesh(source.geometry, material);
+  cap.matrixAutoUpdate = false;
+  cap.matrix.copy(headInverse).multiply(bodyMesh.bindMatrix).multiply(source.matrixWorld);
+  head.add(cap);
+}
+
+/** One texture per pattern, made once and shared by everyone wearing it. */
+const patternTextures = new Map<HairPattern, DataTexture>();
+
+function patternTexture(pattern: HairPattern): DataTexture {
+  let texture = patternTextures.get(pattern);
+  if (!texture) {
+    texture = new DataTexture(hairPatternPixels(pattern), HAIR_PATTERN_SIZE, HAIR_PATTERN_SIZE);
+    texture.colorSpace = SRGBColorSpace;
+    texture.needsUpdate = true;
+    patternTextures.set(pattern, texture);
+  }
+  return texture;
 }
 
 /**

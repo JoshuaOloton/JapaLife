@@ -89,6 +89,22 @@
       "triangles": 830,
       "bytes": 29216
     },
+    "hair-cap-female": {
+      "file": "characters/hair-cap-female.glb",
+      "halfWidth": 0.095,
+      "halfDepth": 0.104,
+      "height": 0.164,
+      "triangles": 1524,
+      "bytes": 8012
+    },
+    "hair-cap-male": {
+      "file": "characters/hair-cap-male.glb",
+      "halfWidth": 0.097,
+      "halfDepth": 0.103,
+      "height": 0.172,
+      "triangles": 1520,
+      "bytes": 7936
+    },
     "hatchback": {
       "file": "vehicles/hatchback.glb",
       "halfWidth": 0.65,

@@ -12,3 +12,5 @@ packages/db/src/generated
 assets/vendor
 # What the Blender scripts in assets/blender/ build (rebuilt by `pnpm blender`).
 assets/built
+# Python's bytecode cache, made when Blender runs the scripts.
+__pycache__

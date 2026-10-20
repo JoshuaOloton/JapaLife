@@ -2,6 +2,7 @@ import {
   type Appearance,
   type BodyModel,
   type CharacterCatalog,
+  type HairPattern,
   type ModelInfo,
   resolveAppearance,
 } from "@japalife/shared";
@@ -16,6 +17,8 @@ export interface CharacterLook {
   body: BodyModel;
   /** Path under `/assets`, or null for no hair (bald). */
   hairFile: string | null;
+  /** A close style painted onto the hair file's scalp cap, or null for a hair model drawn as it is. */
+  hairPattern: HairPattern | null;
   hairColour: string;
   bodyLook: BodyLook;
 }
@@ -38,6 +41,7 @@ export function resolveLook(
   return {
     body: body.model,
     hairFile: hairPart ? (models[hairPart]?.file ?? null) : null,
+    hairPattern: hairPart ? (hair.pattern ?? null) : null,
     hairColour: option(catalog.hairColours, resolved.hairColour).colour,
     bodyLook: { outfit: painted, skinTint: option(catalog.skinTones, resolved.skinTone).tint },
   };

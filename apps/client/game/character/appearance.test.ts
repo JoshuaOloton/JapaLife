@@ -7,6 +7,7 @@ const catalog: CharacterCatalog = characterCatalogSchema.parse({
   skinTones: { "tone-1": { tint: "#ffffff" }, "tone-2": { tint: "#9c765f" } },
   hairs: {
     "low-cut": { name: "Low cut", parts: { "body-1": "hair-buzzed", "body-2": "hair-buzzed-female" } },
+    cornrows: { name: "Cornrows", parts: { "body-1": "hair-cap-male", "body-2": "hair-cap-female" }, pattern: "cornrows" },
     bald: { name: "Bald", parts: {} },
   },
   hairColours: { black: { colour: "#2a1f1a" }, grey: { colour: "#8c8c8c" } },
@@ -19,6 +20,7 @@ const catalog: CharacterCatalog = characterCatalogSchema.parse({
 const models = {
   "hair-buzzed": { file: "characters/hair-buzzed.glb", halfWidth: 0.1, halfDepth: 0.1, height: 0.2, triangles: 1, bytes: 1 },
   "hair-buzzed-female": { file: "characters/hair-buzzed-female.glb", halfWidth: 0.1, halfDepth: 0.1, height: 0.2, triangles: 1, bytes: 1 },
+  "hair-cap-female": { file: "characters/hair-cap-female.glb", halfWidth: 0.1, halfDepth: 0.1, height: 0.2, triangles: 1, bytes: 1 },
 };
 const look: Appearance = { body: "body-2", skinTone: "tone-2", hair: "low-cut", hairColour: "grey", outfit: "tshirt-jeans", outfitColour: "blue" };
 
@@ -27,6 +29,7 @@ describe("resolveLook", () => {
     expect(resolveLook(look, catalog, models)).toEqual({
       body: "female",
       hairFile: "characters/hair-buzzed-female.glb",
+      hairPattern: null,
       hairColour: "#8c8c8c",
       bodyLook: {
         outfit: { torso: "#2f6db5", upperArm: "#2f6db5", hips: "#2f4a6d", foot: "#262626" },
@@ -37,6 +40,12 @@ describe("resolveLook", () => {
 
   it("loads no hair file for bald", () => {
     expect(resolveLook({ ...look, hair: "bald" }, catalog, models).hairFile).toBeNull();
+  });
+
+  it("puts a painted style on the body's own scalp cap", () => {
+    const cornrows = resolveLook({ ...look, hair: "cornrows" }, catalog, models);
+    expect(cornrows.hairFile).toBe("characters/hair-cap-female.glb");
+    expect(cornrows.hairPattern).toBe("cornrows");
   });
 
   it("draws the default for an option the catalog no longer has, instead of breaking", () => {
