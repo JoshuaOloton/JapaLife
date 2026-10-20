@@ -1,6 +1,7 @@
 "use client";
 
-import { type Appearance, type CharacterCatalog, COPY, fill } from "@japalife/shared";
+import { type AnkaraPrint, type Appearance, type CharacterCatalog, COPY, fill } from "@japalife/shared";
+import { ankaraPixels } from "./character/ankara";
 import { multiply } from "./character/appearance";
 import styles from "./hud.module.css";
 
@@ -100,6 +101,7 @@ export function CharacterCreator({
             <Swatch
               key={id}
               colour={outfitColour.colour}
+              image={outfitColour.print && printSwatch(outfitColour.print)}
               label={fill(text.swatch, { row: text.outfitColour, number: index + 1 })}
               on={draft.outfitColour === id}
               onClick={() => set("outfitColour", id)}
@@ -139,17 +141,50 @@ function Choice({ on, onClick, children }: { on: boolean; onClick: () => void; c
   );
 }
 
-function Swatch({ colour, label, on, onClick }: { colour: string; label: string; on: boolean; onClick: () => void }) {
+function Swatch({
+  colour,
+  image,
+  label,
+  on,
+  onClick,
+}: {
+  colour: string;
+  /** A picture of a print, shown instead of the flat colour. */
+  image?: string | undefined;
+  label: string;
+  on: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       className={styles.swatch}
-      style={{ background: colour }}
+      style={image ? { background: `${colour} url(${image}) center / cover` } : { background: colour }}
       aria-label={label}
       aria-pressed={on}
       onClick={onClick}
     />
   );
+}
+
+/** Swatch pictures of prints, painted once each: the same painter as the cloth, smaller. */
+const PRINT_SWATCH_SIZE = 48;
+const printSwatches = new Map<AnkaraPrint, string>();
+
+function printSwatch(print: AnkaraPrint): string | undefined {
+  let url = printSwatches.get(print);
+  if (url === undefined) {
+    const canvas = document.createElement("canvas");
+    canvas.width = PRINT_SWATCH_SIZE;
+    canvas.height = PRINT_SWATCH_SIZE;
+    const context = canvas.getContext("2d");
+    if (!context) return undefined;
+    const pixels = ankaraPixels(print, PRINT_SWATCH_SIZE);
+    context.putImageData(new ImageData(new Uint8ClampedArray(pixels), PRINT_SWATCH_SIZE, PRINT_SWATCH_SIZE), 0, 0);
+    url = canvas.toDataURL();
+    printSwatches.set(print, url);
+  }
+  return url;
 }
 
 /** The free starter options of a catalog section, in the catalog's order. */

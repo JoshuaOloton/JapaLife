@@ -42,6 +42,12 @@
       "chosen": ["torso", "upperArm", "forearm", "hips", "thigh", "calf"],
       "fixed": { "foot": "#2a1f1a" }
     },
+    "ankara-dress": {
+      "name": "Dress",
+      "chosen": ["torso", "upperArm", "hips", "thigh"],
+      "fixed": { "foot": "#3b2a20" },
+      "piece": { "body-1": "dress-skirt-male", "body-2": "dress-skirt-female" }
+    },
     "jersey-shorts": {
       "name": "Football jersey and shorts",
       "chosen": ["torso", "upperArm"],
@@ -86,7 +92,15 @@
     "white": { "colour": "#ecebe6" },
     "black": { "colour": "#26262a" },
     "purple": { "colour": "#6b3b8a" },
-    "orange": { "colour": "#d0662b" }
+    "orange": { "colour": "#d0662b" },
+    "print-rings": { "colour": "#1f3a8a", "print": { "motif": "rings", "colours": ["#1f3a8a", "#f2a516", "#e8452c", "#f7f1e3"] } },
+    "print-diamonds": { "colour": "#6a1b2d", "print": { "motif": "diamonds", "colours": ["#6a1b2d", "#f4c430", "#2e8b57", "#fdf6e3"] } },
+    "print-leaves": { "colour": "#2f7a3a", "print": { "motif": "leaves", "colours": ["#f3e2b8", "#2f7a3a", "#d94f1e", "#3b2416"] } },
+    "print-waves": { "colour": "#0e7c86", "print": { "motif": "waves", "colours": ["#0e7c86", "#f9d64a", "#c2185b", "#1b1b1b"] } },
+    "print-zigzag": { "colour": "#e2541b", "print": { "motif": "zigzag", "colours": ["#e2541b", "#1d2f6f", "#f4e1b5", "#2a9d8f"] } },
+    "print-dots": { "colour": "#2b1d3d", "print": { "motif": "dots", "colours": ["#2b1d3d", "#ff9f1c", "#e71d36", "#fdfffc"] } },
+    "print-suns": { "colour": "#f2b134", "print": { "motif": "suns", "colours": ["#f2b134", "#8c2f39", "#1d4e89", "#fff8e7"] } },
+    "print-scales": { "colour": "#146152", "print": { "motif": "scales", "colours": ["#146152", "#f6c445", "#b5382c", "#f2ead3"] } }
   },
   "defaults": {
     "body": "body-1",

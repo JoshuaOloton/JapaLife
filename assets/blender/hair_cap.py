@@ -112,18 +112,8 @@ def build(body, file_name):
     bm.free()
     for polygon in cap.data.polygons:
         polygon.use_smooth = True
-    # The exporter drops texture coordinates no texture uses, and the game needs them for the
-    # painted pattern; a tiny placeholder image keeps them (the game swaps in its own material).
-    material = bpy.data.materials.new("MI_HairCap")
-    material.use_nodes = True
-    placeholder = bpy.data.images.new("hair-cap-placeholder", 4, 4)
-    placeholder.pixels = [1.0] * (4 * 4 * 4)
-    texture = material.node_tree.nodes.new("ShaderNodeTexImage")
-    texture.image = placeholder
-    material.node_tree.links.new(
-        texture.outputs["Color"], material.node_tree.nodes["Principled BSDF"].inputs["Base Color"]
-    )
-    cap.data.materials.append(material)
+    # The game paints the pattern through these texture coordinates.
+    cap.data.materials.append(kit.placeholder_material("MI_HairCap"))
 
     # Export only the cap, in the body's space (its mesh has no transform of its own).
     out = os.path.join(kit.OUT_DIR, f"hair-cap-{body}.glb")

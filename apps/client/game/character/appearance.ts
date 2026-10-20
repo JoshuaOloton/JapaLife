@@ -21,6 +21,8 @@ export interface CharacterLook {
   hairPattern: HairPattern | null;
   hairColour: string;
   bodyLook: BodyLook;
+  /** A loose garment (a skirt) over the painted clothes: its file and flat colour (it shares `bodyLook.print`). */
+  piece: { file: string; colour: string } | null;
 }
 
 export function resolveLook(
@@ -32,18 +34,22 @@ export function resolveLook(
   const body = option(catalog.bodies, resolved.body);
   const hair = option(catalog.hairs, resolved.hair);
   const outfit = option(catalog.outfits, resolved.outfit);
-  const outfitColour = option(catalog.outfitColours, resolved.outfitColour).colour;
+  const outfitColour = option(catalog.outfitColours, resolved.outfitColour);
 
   const painted: Outfit = { ...outfit.fixed };
-  for (const region of outfit.chosen) painted[region] = outfitColour;
+  for (const region of outfit.chosen) painted[region] = outfitColour.colour;
+  const print = outfitColour.print && outfit.chosen.length > 0 ? { pattern: outfitColour.print, regions: outfit.chosen } : null;
 
   const hairPart = hair.parts[resolved.body];
+  const pieceModel = outfit.piece?.[resolved.body];
+  const pieceFile = pieceModel ? models[pieceModel]?.file : undefined;
   return {
     body: body.model,
     hairFile: hairPart ? (models[hairPart]?.file ?? null) : null,
     hairPattern: hairPart ? (hair.pattern ?? null) : null,
     hairColour: option(catalog.hairColours, resolved.hairColour).colour,
-    bodyLook: { outfit: painted, skinTint: option(catalog.skinTones, resolved.skinTone).tint },
+    bodyLook: { outfit: painted, skinTint: option(catalog.skinTones, resolved.skinTone).tint, print },
+    piece: pieceFile ? { file: pieceFile, colour: outfitColour.colour } : null,
   };
 }
 

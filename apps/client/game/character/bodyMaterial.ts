@@ -1,4 +1,4 @@
-import { BODY_REGIONS, type BodyRegion, REGION_MASK_STEP } from "@japalife/shared";
+import { type AnkaraPrint, BODY_REGIONS, type BodyRegion, REGION_MASK_STEP } from "@japalife/shared";
 import { Color, MeshLambertMaterial, type Texture, Vector4 } from "three";
 
 /**
@@ -12,7 +12,17 @@ export interface BodyLook {
   outfit: Outfit;
   /** Multiplies the skin texture, for skin tones. White leaves it as painted. */
   skinTint: string;
+  /** An Ankara print on some of the outfit's regions (the ones the player coloured), or null. */
+  print: { pattern: AnkaraPrint; regions: readonly BodyRegion[] } | null;
 }
+
+/**
+ * How many times the print tile repeats across the body texture. The body's
+ * texture coordinates are roughly even over its skin, so this sets the size of
+ * the motifs on the cloth: a few centimetres, like real wax prints. The cut
+ * edges of the texture's pieces show as seams, which are lost at street distance.
+ */
+const PRINT_REPEAT = 6;
 
 /**
  * The body's material: the cheap Lambert lighting model (one light
@@ -20,7 +30,13 @@ export interface BodyLook {
  * look up each pixel's body region in the region mask and paint the outfit's
  * colour there instead of skin.
  */
-export function createBodyMaterial(skin: Texture | null, regionMask: Texture, look: BodyLook): MeshLambertMaterial {
+export function createBodyMaterial(
+  skin: Texture | null,
+  regionMask: Texture,
+  look: BodyLook,
+  /** The tiling texture of `look.print`, or null when there is none. */
+  printTexture: Texture | null,
+): MeshLambertMaterial {
   const material = new MeshLambertMaterial({ map: skin });
   const regionColours = BODY_REGIONS.map((region) => {
     const hex = look.outfit[region];
@@ -29,11 +45,15 @@ export function createBodyMaterial(skin: Texture | null, regionMask: Texture, lo
     const colour = new Color(hex);
     return new Vector4(colour.r, colour.g, colour.b, 1);
   });
+  const regionPrinted = BODY_REGIONS.map((region) => (printTexture && look.print?.regions.includes(region) ? 1 : 0));
   const skinTint = new Color(look.skinTint);
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.regionMask = { value: regionMask };
     shader.uniforms.regionColours = { value: regionColours };
+    shader.uniforms.regionPrinted = { value: regionPrinted };
+    // Unprinted bodies still bind a texture (the region mask), which the shader never reads for them.
+    shader.uniforms.printMap = { value: printTexture ?? regionMask };
     shader.uniforms.skinTint = { value: skinTint };
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -41,15 +61,18 @@ export function createBodyMaterial(skin: Texture | null, regionMask: Texture, lo
         `#include <common>
         uniform sampler2D regionMask;
         uniform vec4 regionColours[${BODY_REGIONS.length}];
+        uniform float regionPrinted[${BODY_REGIONS.length}];
+        uniform sampler2D printMap;
         uniform vec3 skinTint;`,
       )
       .replace(
         "#include <map_fragment>",
         `#include <map_fragment>
         {
-          int region = int(floor(texture2D(regionMask, vMapUv).r * 255.0 / ${REGION_MASK_STEP}.0 + 0.5));
-          vec4 cloth = regionColours[clamp(region, 0, ${BODY_REGIONS.length - 1})];
-          diffuseColor.rgb = mix(diffuseColor.rgb * skinTint, cloth.rgb, cloth.a);
+          int region = clamp(int(floor(texture2D(regionMask, vMapUv).r * 255.0 / ${REGION_MASK_STEP}.0 + 0.5)), 0, ${BODY_REGIONS.length - 1});
+          vec4 cloth = regionColours[region];
+          vec3 fabric = mix(cloth.rgb, texture2D(printMap, vMapUv * ${PRINT_REPEAT}.0).rgb, regionPrinted[region]);
+          diffuseColor.rgb = mix(diffuseColor.rgb * skinTint, fabric, cloth.a);
         }`,
       );
   };

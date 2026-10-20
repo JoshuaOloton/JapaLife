@@ -41,6 +41,22 @@
       "triangles": 720,
       "bytes": 5768
     },
+    "dress-skirt-female": {
+      "file": "characters/dress-skirt-female.glb",
+      "halfWidth": 0.293,
+      "halfDepth": 0.217,
+      "height": 0.58,
+      "triangles": 1040,
+      "bytes": 4408
+    },
+    "dress-skirt-male": {
+      "file": "characters/dress-skirt-male.glb",
+      "halfWidth": 0.286,
+      "halfDepth": 0.219,
+      "height": 0.59,
+      "triangles": 1040,
+      "bytes": 4424
+    },
     "flats-four-storey": {
       "file": "buildings/flats-four-storey.glb",
       "halfWidth": 1.003,
@@ -95,7 +111,7 @@
       "halfDepth": 0.104,
       "height": 0.164,
       "triangles": 1524,
-      "bytes": 8012
+      "bytes": 8028
     },
     "hair-cap-male": {
       "file": "characters/hair-cap-male.glb",
@@ -103,7 +119,7 @@
       "halfDepth": 0.103,
       "height": 0.172,
       "triangles": 1520,
-      "bytes": 7936
+      "bytes": 7928
     },
     "hatchback": {
       "file": "vehicles/hatchback.glb",

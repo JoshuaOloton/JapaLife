@@ -35,6 +35,20 @@ export type Appearance = z.infer<typeof appearanceSchema>;
 export const HAIR_PATTERNS = ["cornrows", "fade"] as const;
 export type HairPattern = (typeof HAIR_PATTERNS)[number];
 
+/**
+ * Ankara (wax-print) motifs, painted in code onto a tiling texture. Original
+ * designs only, never copies of real prints. The client has one painter per motif.
+ */
+export const ANKARA_MOTIFS = ["rings", "diamonds", "leaves", "waves", "zigzag", "dots", "suns", "scales"] as const;
+export type AnkaraMotif = (typeof ANKARA_MOTIFS)[number];
+
+/** A print: a motif and its colours, in order ground, main, accent and an optional fine detail. */
+const ankaraPrintSchema = z.strictObject({
+  motif: z.enum(ANKARA_MOTIFS),
+  colours: z.array(hexColour).min(3).max(4),
+});
+export type AnkaraPrint = z.infer<typeof ankaraPrintSchema>;
+
 /** The body models the asset pipeline builds (`characters/body-<model>.glb`). */
 export const BODY_MODELS = ["male", "female"] as const;
 export type BodyModel = (typeof BODY_MODELS)[number];
@@ -72,10 +86,21 @@ export const characterCatalogSchema = z.strictObject({
       name: optionName,
       chosen: z.array(z.enum(BODY_REGIONS)),
       fixed: z.partialRecord(z.enum(BODY_REGIONS), hexColour),
+      /**
+       * A loose garment worn over the painted regions (a skirt), body id -> model
+       * id in `content/models/catalog.json`, one for every body. It takes the
+       * outfit colour or print.
+       */
+      piece: z.record(optionId, optionId).optional(),
       starter,
     }),
   ),
-  outfitColours: z.record(optionId, z.strictObject({ colour: hexColour, starter })),
+  /**
+   * What the outfit's `chosen` regions are painted with: a flat colour, or an
+   * Ankara print. A print's `colour` is its main colour, for anything that
+   * cannot show the pattern.
+   */
+  outfitColours: z.record(optionId, z.strictObject({ colour: hexColour, print: ankaraPrintSchema.optional(), starter })),
   /** What a slot falls back to when an id is missing from the catalog. */
   defaults: appearanceSchema,
 });
