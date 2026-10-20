@@ -18,15 +18,18 @@ import {
   ngnEconomySchema,
   propBlockProblem,
   propKindsSchema,
+  vehicleKindsSchema,
   type CharacterCatalog,
   type CityConfig,
   type GameEventConfig,
   type GameEventId,
   type JobsConfig,
+  type LayoutCatalogs,
   type ModelCatalog,
   type NeedsConfig,
   type NgnEconomyConfig,
   type PropKinds,
+  type VehicleKinds,
 } from "@japalife/shared";
 import type { z } from "zod";
 import { checkLayout } from "./checkLayout";
@@ -43,6 +46,8 @@ export type GameContent = {
   propKinds: PropKinds["kinds"];
   /** Every option a character can have; players and NPCs store only ids into it. */
   characters: CharacterCatalog;
+  /** Kinds of vehicle in the street traffic, and the schedule of how many are out by the hour. */
+  vehicles: VehicleKinds;
   /** Player-facing text. The client bundles the same file; checking it here stops a bad edit at boot. */
   copy: Copy;
   /** Values flagged `TODO` in the files, unsure and waiting for review. Printed at boot. */
@@ -126,6 +131,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   const modelCatalog = readJson("models/catalog.json", modelCatalogSchema);
   const propKinds = readJson("props/kinds.json", propKindsSchema);
   const characters = readJson("characters/catalog.json", characterCatalogSchema);
+  const vehicles = readJson("traffic/kinds.json", vehicleKindsSchema);
 
   const events: Partial<Record<GameEventId, GameEventConfig>> = {};
   for (const file of jsonFilesIn("events")) {
@@ -155,11 +161,13 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
 
   if (ngn && jobs) problems.push(...crossCheck(ngn, jobs, Object.values(cities)));
   if (modelCatalog && characters) problems.push(...checkCharacters(characters, modelCatalog));
-  if (modelCatalog && propKinds && characters) {
-    problems.push(...checkWorld(modelCatalog, propKinds, characters, Object.values(cities)));
+  if (modelCatalog && vehicles) problems.push(...checkVehicles(vehicles, modelCatalog));
+  if (modelCatalog && propKinds && characters && vehicles) {
+    const catalogs = { models: modelCatalog.models, propKinds: propKinds.kinds, characters, vehicles };
+    problems.push(...checkWorld(catalogs, Object.values(cities)));
   }
 
-  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog || !propKinds || !characters) {
+  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog || !propKinds || !characters || !vehicles) {
     throw new ContentError(problems);
   }
   const allEvents = events as Record<GameEventId, GameEventConfig>;
@@ -172,6 +180,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
     models: modelCatalog.models,
     propKinds: propKinds.kinds,
     characters,
+    vehicles,
     copy,
     todos: collectTodos(ngn, needs, jobs, allEvents),
   };
@@ -216,31 +225,49 @@ function checkCharacters(characters: CharacterCatalog, catalog: ModelCatalog): s
   return problems;
 }
 
+/** Every vehicle model exists, and painting needs a model whose paint cells the pipeline measured. */
+function checkVehicles(vehicles: VehicleKinds, catalog: ModelCatalog): string[] {
+  const problems: string[] = [];
+  for (const [id, kind] of Object.entries(vehicles.kinds)) {
+    if (!("model" in kind.look)) continue;
+    const where = `traffic/kinds.json "${id}"`;
+    const model = catalog.models[kind.look.model];
+    if (!model) {
+      problems.push(`${where}: unknown model "${kind.look.model}" (not in models/catalog.json; run pnpm assets?)`);
+    } else if ((kind.look.paint || kind.look.stripe) && !model.paint) {
+      problems.push(`${where}: model "${kind.look.model}" has no measured paint cells to repaint (see build.mts)`);
+    }
+  }
+  return problems;
+}
+
 /**
  * What you see is what stops you: every model exists, every building's model
  * fills its footprint, no prop blocks more than it shows, and each district's
- * layout (with its props and NPCs) passes `checkLayout`. Every NPC wears
- * something the character catalog has.
+ * layout (with its props, NPCs and traffic) passes `checkLayout`. Every NPC
+ * wears something the character catalog has.
  */
-function checkWorld(catalog: ModelCatalog, propKinds: PropKinds, characters: CharacterCatalog, cities: CityConfig[]): string[] {
+function checkWorld(catalogs: LayoutCatalogs, cities: CityConfig[]): string[] {
+  const { models, propKinds, characters } = catalogs;
   const problems: string[] = [];
-  for (const [id, kind] of Object.entries(propKinds.kinds)) {
+  for (const [id, kind] of Object.entries(propKinds)) {
     const where = `props/kinds.json "${id}"`;
-    if ("model" in kind.look && !catalog.models[kind.look.model]) {
+    if ("model" in kind.look && !models[kind.look.model]) {
       problems.push(`${where}: unknown model "${kind.look.model}" (not in models/catalog.json; run pnpm assets?)`);
       continue;
     }
-    const problem = propBlockProblem(kind, catalog.models);
+    const problem = propBlockProblem(kind, models);
     if (problem) problems.push(`${where}: ${problem}`);
   }
   for (const city of cities) {
     for (const district of city.districts) {
-      problems.push(
-        ...checkLayout(
-          `cities/${city.id}.json district "${district.id}"`,
-          buildDistrictLayout(district, catalog.models, propKinds.kinds, characters),
-        ),
-      );
+      const where = `cities/${city.id}.json district "${district.id}"`;
+      problems.push(...checkLayout(where, buildDistrictLayout(district, catalogs)));
+      for (const group of district.traffic?.fleet ?? []) {
+        if (!catalogs.vehicles.kinds[group.kind]) {
+          problems.push(`${where}: fleet uses unknown vehicle kind "${group.kind}" (not in traffic/kinds.json)`);
+        }
+      }
       for (const npc of district.npcs) {
         // NPCs may wear non-starter clothes (a gateman's uniform); they only need to exist.
         const problem = appearanceProblem(npc.look, characters, { starterOnly: false });
@@ -249,7 +276,7 @@ function checkWorld(catalog: ModelCatalog, propKinds: PropKinds, characters: Cha
       for (const building of district.buildings) {
         if (!building.model) continue;
         const where = `cities/${city.id}.json building "${building.id}"`;
-        const model = catalog.models[building.model];
+        const model = models[building.model];
         if (!model) {
           problems.push(`${where}: unknown model "${building.model}" (not in models/catalog.json; run pnpm assets?)`);
           continue;

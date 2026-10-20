@@ -14,7 +14,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CharacterCreator } from "./CharacterCreator";
 import { type DistrictRoom, type MessageBuffer, useDistrictConnection } from "./connection";
 import { placePrompt } from "./format";
-import { FpsProbe, useFpsMeterEnabled } from "./FpsMeter";
+import { FpsProbe, QualityProbe, useFpsMeterEnabled } from "./FpsMeter";
 import { Hud, useTicker } from "./Hud";
 import styles from "./hud.module.css";
 import { InboxPanel } from "./InboxPanel";
@@ -26,6 +26,7 @@ import { Player, type PlayerActivity } from "./Player";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
 import { Lighting } from "./world/Lighting";
+import { QualityGovernor } from "./world/quality";
 import { type StreetState, initialStreet } from "./world/street";
 
 /** Behind the loading message and the canvas until the first frame paints the sky. */
@@ -46,6 +47,8 @@ export default function Game() {
   const showFps = useFpsMeterEnabled();
   const fpsOutput = useRef<HTMLParagraphElement>(null);
   const street = useRef<StreetState>(initialStreet());
+  // Halves the traffic and people for good if the frame rate stays low (adaptive quality).
+  const quality = useMemo(() => new QualityGovernor(), []);
   // How your character looks right now (saved, or the creator's draft), and whether the creator has the camera.
   const [shownLook, setShownLook] = useState<Appearance | null>(null);
   const [closeUp, setCloseUp] = useState(false);
@@ -77,7 +80,7 @@ export default function Game() {
         camera={{ fov: 50, near: 0.5, far: 150 }}
       >
         <Lighting street={street} />
-        <World district={connection.district} street={street} predicted={predicted} />
+        <World district={connection.district} street={street} predicted={predicted} quality={quality} />
         <Player
           room={connection.room}
           district={connection.district}
@@ -87,7 +90,8 @@ export default function Game() {
           appearance={shownLook}
           closeUp={closeUp}
         />
-        {showFps && <FpsProbe output={fpsOutput} />}
+        <QualityProbe quality={quality} />
+        {showFps && <FpsProbe output={fpsOutput} quality={quality} />}
       </Canvas>
       {touch && !closeUp && <Joystick input={input} />}
       <Overlay

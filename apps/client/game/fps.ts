@@ -55,6 +55,8 @@ export class FpsCounter {
 export interface DrawLoad {
   calls: number;
   triangles: number;
+  /** How much of the traffic and people adaptive quality allows (1, or 0.5 on a struggling phone). */
+  street?: number;
 }
 
 export function formatFpsReading(reading: FpsReading, pixelRatio: number, load?: DrawLoad): string {
@@ -62,5 +64,6 @@ export function formatFpsReading(reading: FpsReading, pixelRatio: number, load?:
   const worst = reading.worstFrameMs === null ? "-" : Math.round(reading.worstFrameMs);
   const frame = `${Math.round(reading.fps)} fps · low ${low} · worst ${worst} ms · dpr ${pixelRatio.toFixed(2)}`;
   if (!load) return frame;
-  return `${frame} · ${load.calls} calls · ${(load.triangles / 1000).toFixed(1)}k tris`;
+  const drawn = `${frame} · ${load.calls} calls · ${(load.triangles / 1000).toFixed(1)}k tris`;
+  return load.street === undefined ? drawn : `${drawn} · street ${Math.round(load.street * 100)}%`;
 }

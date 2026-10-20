@@ -265,13 +265,64 @@ describe("loadContent (broken content)", () => {
 
     it("stops the player at a prop on the server, exactly where the shared obstacles say", () => {
       const content = loadContent();
-      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds, content.characters);
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content);
       // The kiosk at (-8, 8) is 2 m wide: walking east into it from (-14, 8) stops at its west face.
       const end = yaba.move({ x: -14, z: 8 }, { x: 10, z: 0 });
       const westFace = -8 - 1 - PLAYER_RADIUS;
       expect(end.x).toBeLessThanOrEqual(westFace);
       expect(end.x).toBeGreaterThan(westFace - 0.2);
       expect(isBlocked(end, districtObstacles(yaba.layout))).toBe(false);
+    });
+  });
+
+  describe("traffic", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper pokes arbitrary JSON shapes
+    const traffic = (j: Record<string, any>): Record<string, any> => j["districts"][0].traffic;
+
+    it("rejects a lane that leaves the road inside the district", () => {
+      edit("cities/lagos.json", (j) => traffic(j).lanes.push({ id: "shortcut", points: [{ x: -20, z: 2 }, { x: -20, z: 30 }] }));
+      expect(problemsOf().join("\n")).toContain('lane "shortcut" leaves the road');
+    });
+
+    it("lets a lane run past the district edge, so vehicles arrive off-screen", () => {
+      // The shipped lanes start and end at +-75, outside the 60 m district.
+      expect(() => loadContent(dir)).not.toThrow();
+    });
+
+    it("rejects a walkway that runs through a building", () => {
+      edit("cities/lagos.json", (j) =>
+        traffic(j).pedestrians.walkways.push({ id: "through-the-office", points: [{ x: 20, z: -18 }, { x: 36, z: -18 }] }),
+      );
+      expect(problemsOf().join("\n")).toContain('walkway "through-the-office" runs into something');
+    });
+
+    it("rejects a walkway through Mama Put", () => {
+      edit("cities/lagos.json", (j) =>
+        traffic(j).pedestrians.walkways.push({ id: "past-the-buka", points: [{ x: -15.2, z: 10 }, { x: -15.2, z: 15.5 }] }),
+      );
+      expect(problemsOf().join("\n")).toContain('walkway "past-the-buka" runs into something');
+    });
+
+    it("rejects a fleet of an unknown kind or on an unknown lane, and a bus stop off its lane", () => {
+      edit("cities/lagos.json", (j) => {
+        traffic(j).fleet.push({ kind: "molue", lanes: ["main-east"], count: 1 });
+        traffic(j).fleet.push({ kind: "keke", lanes: ["flyover"], count: 1 });
+        traffic(j).busStops.push({ lane: "main-east", at: { x: 10, z: -2 } });
+      });
+      const problems = problemsOf().join("\n");
+      expect(problems).toContain('unknown vehicle kind "molue"');
+      expect(problems).toContain('uses unknown lane "flyover"');
+      expect(problems).toContain('bus stop at 10, -2 is not on lane "main-east"');
+    });
+
+    it("rejects a vehicle model not in the catalog, and paint on a model with no measured paint", () => {
+      edit("traffic/kinds.json", (j) => {
+        j["kinds"]["sedan"].look.model = "molue";
+        j["kinds"]["taxi"].look.paint = "#f2b705";
+      });
+      const problems = problemsOf().join("\n");
+      expect(problems).toContain('traffic/kinds.json "sedan": unknown model "molue"');
+      expect(problems).toContain('traffic/kinds.json "taxi": model "taxi" has no measured paint cells');
     });
   });
 
@@ -314,7 +365,7 @@ describe("loadContent (broken content)", () => {
         j["models"]["unused"] = { file: "buildings/unused.glb", halfWidth: 1, halfDepth: 1, height: 1, triangles: 1, bytes: 1 };
       });
       const content = loadContent(dir);
-      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds, content.characters);
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content);
       expect(Object.keys(yaba.layout.models)).toContain("test-office");
       expect(Object.keys(yaba.layout.models)).not.toContain("unused");
       expect(Object.keys(yaba.layout.models)).not.toContain("office-block"); // replaced by the test model

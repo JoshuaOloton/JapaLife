@@ -16,11 +16,12 @@ export const WINDOW_GLASS_ATTRIBUTE = "windowGlass";
 export const WINDOW_GLOW_COLOUR = "#ffc66b";
 
 /**
- * 1 for each vertex of a triangle painted from window glass, else 0. Decided per
- * triangle, from its centre: compression rounds texture coordinates slightly,
- * so a corner sitting exactly on a cell's edge could land on either side.
+ * 1 for each vertex of a triangle painted from the given colour-sheet cells
+ * (window glass, a van's body paint), else 0. Decided per triangle, from its
+ * centre: compression rounds texture coordinates slightly, so a corner sitting
+ * exactly on a cell's edge could land on either side.
  */
-export function windowGlassFlags(uvs: ArrayLike<number>, index: ArrayLike<number> | null, rects: readonly UvRect[]): Float32Array {
+export function uvCellFlags(uvs: ArrayLike<number>, index: ArrayLike<number> | null, rects: readonly UvRect[]): Float32Array {
   const vertexCount = uvs.length / 2;
   const flags = new Float32Array(vertexCount);
   const triangleCount = (index ? index.length : vertexCount) / 3;
@@ -38,13 +39,18 @@ export function windowGlassFlags(uvs: ArrayLike<number>, index: ArrayLike<number
   return flags;
 }
 
-/** Adds the glass flags to a model's geometry once (the geometry is shared by every copy). */
-export function flagWindowGlass(geometry: BufferGeometry, rects: readonly UvRect[]): void {
-  if (geometry.getAttribute(WINDOW_GLASS_ATTRIBUTE)) return;
+/** Adds the flags for some colour-sheet cells to a model's geometry, once (the geometry is shared by every copy). */
+export function flagUvCells(geometry: BufferGeometry, rects: readonly UvRect[], attribute: string): void {
+  if (geometry.getAttribute(attribute)) return;
   const uv = geometry.getAttribute("uv");
   if (!uv) return;
-  const flags = windowGlassFlags(uv.array, geometry.getIndex()?.array ?? null, rects);
-  geometry.setAttribute(WINDOW_GLASS_ATTRIBUTE, new BufferAttribute(flags, 1));
+  const flags = uvCellFlags(uv.array, geometry.getIndex()?.array ?? null, rects);
+  geometry.setAttribute(attribute, new BufferAttribute(flags, 1));
+}
+
+/** Adds the glass flags to a building model's geometry. */
+export function flagWindowGlass(geometry: BufferGeometry, rects: readonly UvRect[]): void {
+  flagUvCells(geometry, rects, WINDOW_GLASS_ATTRIBUTE);
 }
 
 /** The handle a building keeps to turn its windows' glow up or down. */

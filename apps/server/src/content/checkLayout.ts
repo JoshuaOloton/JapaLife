@@ -1,8 +1,12 @@
 import {
+  type Bounds,
   type Box,
   type DistrictLayout,
   NPC_HALF_SIZE,
   PLAYER_RADIUS,
+  type Point,
+  type Traffic,
+  distanceBetween,
   districtObstacles,
   isBlocked,
   propBlockSize,
@@ -73,6 +77,8 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
   }
 
   const obstacles = districtObstacles(layout);
+  if (layout.traffic) problems.push(...checkTraffic(where, layout.traffic, roads, bounds, obstacles));
+
   if (isBlocked(spawn, obstacles)) {
     problems.push(`${where}: the spawn point is inside a building, prop or person`);
     return problems; // nothing below makes sense from inside a wall
@@ -99,4 +105,72 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
   });
 
   return problems;
+}
+
+/** How far apart traffic lanes and walkways are sampled for the checks, in metres. */
+const SAMPLE_METRES = 1;
+/** Room a walking person takes up, in metres from their centre. */
+const PEDESTRIAN_RADIUS = 0.3;
+/** How close a bus stop must be to its lane, in metres. */
+const BUS_STOP_REACH = 0.5;
+
+/**
+ * The moving life must look right without anything blocking it: lanes stay on
+ * roads (they may run past the district edge, so vehicles arrive off-screen),
+ * people never walk through a wall, a generator or Mama Put, and every fleet
+ * and bus stop names a real lane.
+ */
+function checkTraffic(where: string, traffic: Traffic, roads: readonly Box[], bounds: Bounds, obstacles: readonly Box[]): string[] {
+  const problems: string[] = [];
+  const inside = (point: Point, margin = 0): boolean =>
+    Math.abs(point.x) <= bounds.halfWidth - margin && Math.abs(point.z) <= bounds.halfDepth - margin;
+  const onRoad = (point: Point): boolean =>
+    roads.some((road) => Math.abs(point.x - road.x) <= road.halfWidth && Math.abs(point.z - road.z) <= road.halfDepth);
+
+  const lanes = new Map(traffic.lanes.map((lane) => [lane.id, lane.points]));
+  if (lanes.size !== traffic.lanes.length) problems.push(`${where}: duplicate traffic lane id`);
+  for (const lane of traffic.lanes) {
+    const offRoad = samplePath(lane.points).find((point) => inside(point) && !onRoad(point));
+    if (offRoad) problems.push(`${where}: lane "${lane.id}" leaves the road at ${offRoad.x.toFixed(1)}, ${offRoad.z.toFixed(1)}`);
+  }
+  for (const group of traffic.fleet) {
+    for (const lane of group.lanes) {
+      if (!lanes.has(lane)) problems.push(`${where}: fleet "${group.kind}" uses unknown lane "${lane}"`);
+    }
+  }
+  for (const stop of traffic.busStops) {
+    const points = lanes.get(stop.lane);
+    if (!points) {
+      problems.push(`${where}: bus stop uses unknown lane "${stop.lane}"`);
+    } else if (!samplePath(points, 0.1).some((point) => distanceBetween(point, stop.at) <= BUS_STOP_REACH)) {
+      problems.push(`${where}: bus stop at ${stop.at.x}, ${stop.at.z} is not on lane "${stop.lane}"`);
+    }
+  }
+  for (const walkway of traffic.pedestrians.walkways) {
+    const blocked = samplePath(walkway.points).find(
+      (point) => !inside(point, PEDESTRIAN_RADIUS) || isBlocked(point, obstacles, PEDESTRIAN_RADIUS),
+    );
+    if (blocked) {
+      problems.push(
+        `${where}: walkway "${walkway.id}" runs into something (or off the district) at ${blocked.x.toFixed(1)}, ${blocked.z.toFixed(1)}`,
+      );
+    }
+  }
+  return problems;
+}
+
+/** Points along a path every `step` metres, ends included. */
+function samplePath(points: readonly Point[], step = SAMPLE_METRES): Point[] {
+  const samples: Point[] = [];
+  for (let index = 1; index < points.length; index++) {
+    const from = points[index - 1];
+    const to = points[index];
+    if (!from || !to) continue;
+    const pieces = Math.max(1, Math.ceil(distanceBetween(from, to) / step));
+    for (let piece = 0; piece <= pieces; piece++) {
+      const t = piece / pieces;
+      samples.push({ x: from.x + (to.x - from.x) * t, z: from.z + (to.z - from.z) * t });
+    }
+  }
+  return samples;
 }
