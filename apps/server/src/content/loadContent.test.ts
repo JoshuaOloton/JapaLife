@@ -333,6 +333,13 @@ describe("loadContent (broken content)", () => {
       expect(problemsOf().join("\n")).toContain('hair "low-cut": no part for body "body-2"');
     });
 
+    it("rejects a garment piece that is not a built model, or misses a body", () => {
+      edit("characters/catalog.json", (j) => (j["outfits"]["ankara-dress"].piece = { "body-1": "skirt-ghost" }));
+      const problems = problemsOf().join("\n");
+      expect(problems).toContain('outfit "ankara-dress": unknown piece model "skirt-ghost"');
+      expect(problems).toContain('outfit "ankara-dress": no piece for body "body-2"');
+    });
+
     it("rejects an outfit that leaves the hips bare", () => {
       edit("characters/catalog.json", (j) => (j["outfits"]["tshirt-jeans"].fixed = { foot: "#262626" }));
       expect(problemsOf().join("\n")).toContain('outfit "tshirt-jeans": leaves "hips" bare');
@@ -365,6 +372,8 @@ describe("loadContent (broken content)", () => {
       expect(Object.keys(yaba.layout.models)).toContain("test-office");
       expect(Object.keys(yaba.layout.models)).not.toContain("unused");
       expect(Object.keys(yaba.layout.models)).not.toContain("office-block"); // replaced by the test model
+      // Characters can wear anything in the catalog, so its hair and garment models always go.
+      expect(Object.keys(yaba.layout.models)).toEqual(expect.arrayContaining(["hair-cap-female", "dress-skirt-female"]));
     });
 
     it("rejects a model bigger than its footprint (an invisible wall would let you walk into it)", () => {

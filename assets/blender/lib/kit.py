@@ -179,6 +179,22 @@ class Model:
         print(f"built {self.name}: {triangles} triangles, {size.x:.2f} x {size.y:.2f} x {size.z:.2f} m -> {glb}")
 
 
+def placeholder_material(name):
+    """
+    A material for a mesh the game paints itself (a hair cap, a skirt). The
+    glTF exporter drops texture coordinates no texture uses, so a tiny white
+    placeholder image keeps them; the game swaps in its own material.
+    """
+    material = bpy.data.materials.new(name)
+    material.use_nodes = True
+    placeholder = bpy.data.images.new(f"{name}-placeholder", 4, 4)
+    placeholder.pixels = [1.0] * (4 * 4 * 4)
+    texture = material.node_tree.nodes.new("ShaderNodeTexImage")
+    texture.image = placeholder
+    material.node_tree.links.new(texture.outputs["Color"], material.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
+    return material
+
+
 def render_preview(obj, path):
     """A quick look from the front-left, above, roughly as the street camera sees it."""
     scene = bpy.context.scene

@@ -617,7 +617,7 @@ export interface LayoutCatalogs {
 
 /**
  * The district plus only the models, prop kinds and vehicle kinds it uses,
- * and the character catalog with its hair models. The server sends this on
+ * and the character catalog with its hair and garment models. The server sends this on
  * join and the content check tests the same thing, so what is checked is what
  * is played. Unknown ids are left out here; the content check reports them.
  */
@@ -641,6 +641,9 @@ export function buildDistrictLayout(
   }
   for (const hair of Object.values(characters.hairs)) {
     for (const part of Object.values(hair.parts)) useModel(part);
+  }
+  for (const outfit of Object.values(characters.outfits)) {
+    for (const piece of Object.values(outfit.piece ?? {})) useModel(piece);
   }
   for (const group of config.traffic?.fleet ?? []) {
     const kind = vehicles.kinds[group.kind];

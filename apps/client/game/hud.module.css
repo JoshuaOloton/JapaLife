@@ -329,6 +329,36 @@
   pointer-events: none;
 }
 
+/* Going into or out of the creator's bedroom: the 3D view fades in from black over the cut. */
+.sceneFade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+  animation: sceneFadeIn 450ms ease-out forwards;
+}
+@keyframes sceneFadeIn {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* In the creator, the bedroom view above the sheet: drag across it to turn your character. */
+.turnArea {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+.turnHint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #5b6670;
+}
+
 /* Character creator: a sheet of choices under the close-up of your character. */
 .creatorSheet {
   composes: sheet;

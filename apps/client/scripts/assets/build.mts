@@ -74,6 +74,12 @@ const HAIRS = [
   { id: "cap-female", file: join(BUILT, "hair-cap-female.glb") },
 ] as const;
 
+/** Loose garment pieces worn over the painted clothes (a plain mesh in the body's space, skinned by the game). */
+const PIECES = [
+  { id: "dress-skirt-male", file: join(BUILT, "dress-skirt-male.glb") },
+  { id: "dress-skirt-female", file: join(BUILT, "dress-skirt-female.glb") },
+] as const;
+
 /** Game clip id -> source file and clip name. Movement clips are measured for their speed. */
 const CLIPS = [
   { id: "idle", file: UAL1, name: "Idle_Loop" },
@@ -195,7 +201,8 @@ async function main(): Promise<void> {
 
   const models: Record<string, ModelEntry> = {};
   for (const body of BODIES) await buildBody(body.id, body.file, body.bodyMaterial);
-  for (const hair of HAIRS) models[`hair-${hair.id}`] = await buildHair(hair.id, hair.file);
+  for (const hair of HAIRS) models[`hair-${hair.id}`] = await buildCharacterPart(`hair-${hair.id}`, hair.file);
+  for (const piece of PIECES) models[piece.id] = await buildCharacterPart(piece.id, piece.file);
   await buildAnimations();
   for (const model of STATIC_MODELS) models[model.id] = await buildStaticModel(model);
   writeModelCatalog(models);
@@ -288,14 +295,14 @@ async function buildBody(id: string, file: string, bodyMaterial: string): Promis
   await finish(document, `characters/body-${id}.glb`, { simplify: true });
 }
 
-/** A hairstyle, skinned to the shared skeleton. Catalogued so the character catalog can name it (`hair-<id>`). */
-async function buildHair(id: string, file: string): Promise<ModelEntry> {
+/** A hairstyle or garment piece for the bodies. Catalogued under `id` so the character catalog can name it. */
+async function buildCharacterPart(id: string, file: string): Promise<ModelEntry> {
   if (!existsSync(file)) fail(`${relative(process.cwd(), file)}: not found (run pnpm blender first?)`);
   const document = file.endsWith(".gltf") ? await readGltf(file) : await io.read(file);
   await cleanForGame(document);
   const size = measure(document, file);
   await compressTextures(document);
-  const output = `characters/hair-${id}.glb`;
+  const output = `characters/${id}.glb`;
   await finish(document, output, { simplify: false });
   return { file: output, ...size, bytes: statSync(join(outDir, output)).size };
 }

@@ -132,6 +132,8 @@ export const copySchema = z.strictObject({
     cancel: text(),
     saving: text(),
     changeClothes: text(),
+    /** Over the bedroom view: dragging turns your character round. */
+    turnHint: text(),
   }),
   eventCard: z.strictObject({
     replyWithin: text(["time"]),

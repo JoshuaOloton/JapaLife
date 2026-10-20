@@ -188,7 +188,8 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
 
 /**
  * The character catalog can always dress someone: every hair part is a real
- * model and fits every body, every outfit covers what it must, every section
+ * model and fits every body, every outfit covers what it must (and its garment
+ * piece, if any, is a real model for every body), every section
  * offers at least one free starter option, and the defaults are free starters.
  */
 function checkCharacters(characters: CharacterCatalog, catalog: ModelCatalog): string[] {
@@ -212,6 +213,16 @@ function checkCharacters(characters: CharacterCatalog, catalog: ModelCatalog): s
     for (const region of ALWAYS_COVERED) {
       if (!outfit.chosen.includes(region) && !outfit.fixed[region]) {
         problems.push(`${where} outfit "${id}": leaves "${region}" bare (the underwear on the base texture would show)`);
+      }
+    }
+    // A garment piece, like hair, fits every body.
+    if (outfit.piece) {
+      for (const [body, model] of Object.entries(outfit.piece)) {
+        if (!characters.bodies[body]) problems.push(`${where} outfit "${id}": piece for unknown body "${body}"`);
+        if (!catalog.models[model]) problems.push(`${where} outfit "${id}": unknown piece model "${model}" (not in models/catalog.json; run pnpm assets?)`);
+      }
+      for (const body of bodies) {
+        if (!outfit.piece[body]) problems.push(`${where} outfit "${id}": no piece for body "${body}"`);
       }
     }
   }
