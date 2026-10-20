@@ -1,27 +1,30 @@
 import {
+  type Box,
   type DistrictConfig,
   type DistrictLayout,
   type Interactable,
   type ModelInfo,
   type Point,
+  type PropKind,
+  buildDistrictLayout,
+  districtObstacles,
   moveWithCollisions,
 } from "@japalife/shared";
 
 /** A district's walkable area and the things in it, with the geometry checks the server needs. */
 export class DistrictMap {
-  /** What the client gets on join: the config plus the catalog entries of the models it uses. */
+  /** What the client gets on join: the config plus the models and prop kinds it uses. */
   readonly layout: DistrictLayout;
+  /** Everything that stops a player: the same list the client predicts with. */
+  private readonly obstacles: Box[];
 
   constructor(
     readonly config: DistrictConfig,
     models: Readonly<Record<string, ModelInfo>> = {},
+    propKinds: Readonly<Record<string, PropKind>> = {},
   ) {
-    const used: Record<string, ModelInfo> = {};
-    for (const building of config.buildings) {
-      const model = building.model ? models[building.model] : undefined;
-      if (building.model && model) used[building.model] = model;
-    }
-    this.layout = { ...config, models: used };
+    this.layout = buildDistrictLayout(config, models, propKinds);
+    this.obstacles = districtObstacles(this.layout);
   }
 
   get id(): string {
@@ -33,11 +36,12 @@ export class DistrictMap {
   }
 
   /**
-   * Walks from `from` by `delta`, stopping at buildings and the district edge.
-   * This is the shared function the client also runs to predict its own walking.
+   * Walks from `from` by `delta`, stopping at buildings, props, standing NPCs
+   * and the district edge. This is the shared function the client also runs to
+   * predict its own walking, with the same obstacles.
    */
   move(from: Point, delta: Point): Point {
-    return moveWithCollisions(from, delta, this.config.buildings, this.config);
+    return moveWithCollisions(from, delta, this.obstacles, this.config);
   }
 
   byId(targetId: string): Interactable | undefined {

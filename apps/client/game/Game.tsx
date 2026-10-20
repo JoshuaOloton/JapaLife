@@ -61,7 +61,7 @@ export default function Game() {
         camera={{ fov: 50, near: 0.5, far: 150 }}
       >
         <Lighting street={street} />
-        <World district={connection.district} street={street} />
+        <World district={connection.district} street={street} predicted={predicted} />
         <Player
           room={connection.room}
           district={connection.district}

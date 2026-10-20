@@ -84,6 +84,18 @@ export function streetPower(isNight: boolean, blackoutEndsAt: string | null, now
   return blackoutEndsAt !== null && Date.parse(blackoutEndsAt) > now ? "blackout" : "night";
 }
 
+/**
+ * Whether a model building's windows glow. A model's glass glows as a whole,
+ * so it follows the building-level rule: every building on an ordinary night,
+ * only the ones "on generator" in a power cut (the same buildings that would
+ * be if they were plain boxes).
+ */
+export function modelWindowsLit(buildingId: string, power: StreetPower): boolean {
+  if (power === "day") return false;
+  if (power === "night") return true;
+  return hash01(buildingId) < GENERATOR_SHARE;
+}
+
 /** FNV-1a, folded to [0, 1). Plenty for picking which windows glow. */
 function hash01(text: string): number {
   let h = 0x811c9dc5;

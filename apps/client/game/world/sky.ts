@@ -24,13 +24,28 @@ interface Keyframe extends SkyLook {
   hour: number;
 }
 
+/**
+ * An ordinary night: dark blue, but bright enough to see where you are walking
+ * on a phone outdoors (play-tested 2026-10-19: the first night was too dark).
+ */
 const NIGHT: Omit<Keyframe, "hour"> = {
-  sky: "#0f1a33",
-  hemiSky: "#5a6f9e",
-  hemiGround: "#2a2320",
-  hemiIntensity: 0.55,
+  sky: "#1a2c50",
+  hemiSky: "#8aa0d0",
+  hemiGround: "#3a302a",
+  hemiIntensity: 1.2,
+  sunColour: "#a8bde8",
+  sunIntensity: 0.7,
+  darkness: 1,
+};
+
+/** A night when NEPA has taken light: no street glow, so it is clearly darker than an ordinary night. */
+const BLACKOUT_NIGHT: Omit<Keyframe, "hour"> = {
+  sky: "#0b1428",
+  hemiSky: "#56699a",
+  hemiGround: "#241e1b",
+  hemiIntensity: 0.5,
   sunColour: "#8fa6d8",
-  sunIntensity: 0.35,
+  sunIntensity: 0.3,
   darkness: 1,
 };
 
@@ -57,21 +72,29 @@ const KEYFRAMES: readonly Keyframe[] = [
   { hour: 24, ...NIGHT },
 ];
 
-/** The look at a local hour of day (0 to 24, fractional). */
-export function skyAt(hour: number): SkyLook {
+/**
+ * The look at a local hour of day (0 to 24, fractional). In a power cut the
+ * night darkens toward `BLACKOUT_NIGHT`, as far as it is night (a cut by day
+ * changes nothing: nobody needs a light).
+ */
+export function skyAt(hour: number, blackout = false): SkyLook {
   const h = ((hour % 24) + 24) % 24;
   const nextIndex = KEYFRAMES.findIndex((frame) => frame.hour > h);
   const next = KEYFRAMES[nextIndex] ?? NIGHT_END;
   const previous = KEYFRAMES[nextIndex - 1] ?? NIGHT_START;
-  const t = (h - previous.hour) / (next.hour - previous.hour);
+  const look = blend(previous, next, (h - previous.hour) / (next.hour - previous.hour));
+  return blackout ? blend(look, BLACKOUT_NIGHT, look.darkness) : look;
+}
+
+function blend(a: SkyLook, b: SkyLook, t: number): SkyLook {
   return {
-    sky: mixColour(previous.sky, next.sky, t),
-    hemiSky: mixColour(previous.hemiSky, next.hemiSky, t),
-    hemiGround: mixColour(previous.hemiGround, next.hemiGround, t),
-    hemiIntensity: mix(previous.hemiIntensity, next.hemiIntensity, t),
-    sunColour: mixColour(previous.sunColour, next.sunColour, t),
-    sunIntensity: mix(previous.sunIntensity, next.sunIntensity, t),
-    darkness: mix(previous.darkness, next.darkness, t),
+    sky: mixColour(a.sky, b.sky, t),
+    hemiSky: mixColour(a.hemiSky, b.hemiSky, t),
+    hemiGround: mixColour(a.hemiGround, b.hemiGround, t),
+    hemiIntensity: mix(a.hemiIntensity, b.hemiIntensity, t),
+    sunColour: mixColour(a.sunColour, b.sunColour, t),
+    sunIntensity: mix(a.sunIntensity, b.sunIntensity, t),
+    darkness: mix(a.darkness, b.darkness, t),
   };
 }
 

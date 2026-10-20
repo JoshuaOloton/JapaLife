@@ -1,4 +1,5 @@
 import { PLAYER_RADIUS } from "./constants";
+import { type DistrictLayout, NPC_HALF_SIZE, propBlockSize, turnHalfSize } from "./content";
 
 /**
  * Walking and collision, written once and run by BOTH the server (the authority)
@@ -30,6 +31,27 @@ export interface Box {
 export interface Bounds {
   halfWidth: number;
   halfDepth: number;
+}
+
+/**
+ * Everything in a district that stops the player: buildings, the blocking part
+ * of each prop (turned with it), and each standing NPC. The server, the
+ * client's prediction and the content check all call this, never
+ * `district.buildings` on its own, so all three agree on every wall.
+ */
+export function districtObstacles(
+  layout: Pick<DistrictLayout, "buildings" | "props" | "npcs" | "propKinds" | "models">,
+): Box[] {
+  const boxes: Box[] = layout.buildings.map(({ x, z, halfWidth, halfDepth }) => ({ x, z, halfWidth, halfDepth }));
+  for (const prop of layout.props) {
+    const kind = layout.propKinds[prop.kind];
+    const size = kind ? propBlockSize(kind, layout.models) : undefined;
+    if (size) boxes.push({ x: prop.x, z: prop.z, ...turnHalfSize(size, prop.rotation) });
+  }
+  for (const npc of layout.npcs) {
+    boxes.push({ x: npc.x, z: npc.z, halfWidth: NPC_HALF_SIZE, halfDepth: NPC_HALF_SIZE });
+  }
+  return boxes;
 }
 
 /** Longest single sub-step, as a fraction of the player's radius. Small enough to stop flush against a wall. */

@@ -134,6 +134,68 @@ export function paintRoad(): CanvasTexture {
   return toTexture(canvas, true);
 }
 
+export interface SignStyle {
+  background: string;
+  text?: string;
+  /** Canvas size in pixels; keep the board's aspect ratio. */
+  width?: number;
+  height?: number;
+  /** Lines the text may wrap onto before it shrinks instead. */
+  maxLines?: number;
+}
+
+/**
+ * Text on a painted board: place signs, billboards, shop signs, speech bubbles.
+ * Painted once on a small canvas, so no font file is downloaded and a board
+ * costs one tiny texture. Long text wraps, then shrinks until it fits.
+ */
+export function paintSign(label: string, { background, text = "#ffffff", width = 256, height = 64, maxLines = 1 }: SignStyle): CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = background;
+    context.fillRect(0, 0, width, height);
+    context.strokeStyle = text;
+    context.lineWidth = 4;
+    context.strokeRect(2, 2, width - 4, height - 4);
+    context.fillStyle = text;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    const fits = (line: string): boolean => context.measureText(line).width <= width - 20;
+    let size = Math.floor(height / (maxLines + 0.9)) + 2;
+    let lines: string[];
+    do {
+      size -= 2;
+      context.font = `bold ${size}px system-ui, sans-serif`;
+      lines = wrapText(label, fits, maxLines);
+    } while (!lines.every(fits) && size > 12);
+    const lineHeight = size * 1.15;
+    lines.forEach((line, index) => {
+      context.fillText(line, width / 2, height / 2 + 2 + (index - (lines.length - 1) / 2) * lineHeight);
+    });
+  }
+  return toTexture(canvas, false);
+}
+
+/** Splits text into at most `maxLines` lines at spaces, filling each line while `fits` allows. */
+export function wrapText(label: string, fits: (line: string) => boolean, maxLines: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  for (const word of label.split(" ")) {
+    const tried = current ? `${current} ${word}` : word;
+    if (current && !fits(tried) && lines.length < maxLines - 1) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = tried;
+    }
+  }
+  lines.push(current);
+  return lines;
+}
+
 function toTexture(canvas: HTMLCanvasElement, repeat: boolean): CanvasTexture {
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;

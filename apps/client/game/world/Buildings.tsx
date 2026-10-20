@@ -2,20 +2,31 @@
 
 import type { Building, ModelInfo } from "@japalife/shared";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
-import { Suspense, useLayoutEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Color, type InstancedMesh, Mesh, MeshLambertMaterial, type MeshStandardMaterial, Object3D } from "three";
 import { type GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { ASSET_ROOT, withDecoders } from "../character/loaders";
 import { ModelBoundary } from "../ModelBoundary";
 import type { Slab } from "./Boxes";
 import type { StreetState } from "./street";
-import { WINDOW_HEIGHT, WINDOW_WIDTH, type WindowSpot, isWindowLit, streetPower, windowsOf } from "./windows";
+import { WINDOW_GLOW_COLOUR, type WindowGlow, addWindowGlow, flagWindowGlass } from "./windowGlass";
+import {
+  type StreetPower,
+  WINDOW_HEIGHT,
+  WINDOW_WIDTH,
+  type WindowSpot,
+  isWindowLit,
+  modelWindowsLit,
+  streetPower,
+  windowsOf,
+} from "./windows";
 
 /**
  * Yaba's buildings. A building with a `model` draws that model, rotated and
  * scaled as its config says, and shows the plain box while it downloads (or
- * if the download fails). A building without one is a painted cement box with
- * a zinc roof and windows that light up at night.
+ * if the download fails), with its window glass glowing at night
+ * (`windowGlass.ts`). A building without one is a painted cement box with a
+ * zinc roof and windows that light up at night.
  *
  * Either way the footprint in the city file is what stops the player; the
  * server refuses to start if a model does not fill it.
@@ -29,6 +40,8 @@ const ZINC_COLOURS = ["#8d9196", "#7b7f82", "#8a6a52", "#7a5640", "#96999c"] as 
 const WINDOW_COLOURS = { glass: "#34424e", lit: "#ffd98a", dark: "#161b22" } as const;
 /** How often the windows check whether night fell or the power went. */
 const WINDOW_CHECK_SECONDS = 1;
+/** How strongly a model's lit glass glows (times `WINDOW_GLOW_COLOUR`), on top of its painted colour. */
+const MODEL_WINDOW_GLOW = 0.9;
 
 /** The boxes for plain buildings: walls and roofs, drawn by the world's single `Boxes` call. */
 export function plainBuildingSlabs(buildings: readonly Building[]): Slab[] {
@@ -50,9 +63,11 @@ export function plainBuildingSlabs(buildings: readonly Building[]): Slab[] {
 export function ModelBuildings({
   buildings,
   models,
+  street,
 }: {
   buildings: readonly Building[];
   models: Readonly<Record<string, ModelInfo>>;
+  street: { current: StreetState };
 }) {
   return (
     <>
@@ -63,7 +78,7 @@ export function ModelBuildings({
         return (
           <ModelBoundary key={building.id} fallback={standIn}>
             <Suspense fallback={standIn}>
-              <BuildingModel building={building} model={model} />
+              <BuildingModel building={building} model={model} street={street} />
             </Suspense>
           </ModelBoundary>
         );
@@ -72,10 +87,28 @@ export function ModelBuildings({
   );
 }
 
-function BuildingModel({ building, model }: { building: Building; model: ModelInfo }) {
+function BuildingModel({ building, model, street }: { building: Building; model: ModelInfo; street: { current: StreetState } }) {
   const gl = useThree((three) => three.gl);
   const gltf = useLoader(GLTFLoader, `${ASSET_ROOT}/${model.file}`, withDecoders(gl));
-  const object = useMemo(() => cheapCopy(gltf), [gltf]);
+  const { object, glows, ownMaterials } = useMemo(() => withWindowGlow(cheapCopy(gltf), model.windows), [gltf, model.windows]);  useEffect(() => () => ownMaterials.forEach((material) => material.dispose()), [ownMaterials]);
+
+  // Check about once a second whether night fell or the power went; only then touch the glow.
+  const shown = useRef<StreetPower | null>(null);
+  const sinceCheck = useRef(Number.POSITIVE_INFINITY);
+  useFrame((_, frameSeconds) => {
+    sinceCheck.current += frameSeconds;
+    if (glows.length === 0 || sinceCheck.current < WINDOW_CHECK_SECONDS) return;
+    sinceCheck.current = 0;
+    const { serverNow, isNight, blackoutEndsAt } = street.current;
+    const power = streetPower(isNight, blackoutEndsAt, serverNow?.() ?? 0);
+    if (power === shown.current) return;
+    shown.current = power;
+    const lit = modelWindowsLit(building.id, power);    for (const glow of glows) {
+      if (lit) glow.value.set(WINDOW_GLOW_COLOUR).multiplyScalar(MODEL_WINDOW_GLOW);
+      else glow.value.setRGB(0, 0, 0);
+    }
+  });
+
   return (
     <primitive
       object={object}
@@ -110,6 +143,29 @@ function cheapCopy(gltf: GLTF): Object3D {
     cheapMaterials.set(gltf, true);
   }
   return gltf.scene.clone();
+}
+
+/**
+ * Gives a building copy its own materials with the window glow added, when its
+ * model has window glass. Each building needs its own, because one building
+ * can be on generator in a power cut while its neighbour is dark.
+ */
+function withWindowGlow(
+  object: Object3D,
+  windows: ModelInfo["windows"],
+): { object: Object3D; glows: WindowGlow[]; ownMaterials: MeshLambertMaterial[] } {
+  const glows: WindowGlow[] = [];
+  const ownMaterials: MeshLambertMaterial[] = [];
+  if (!windows) return { object, glows, ownMaterials };
+  object.traverse((part) => {
+    if (!(part instanceof Mesh)) return;
+    flagWindowGlass(part.geometry, windows);
+    const own = (part.material as MeshLambertMaterial).clone();
+    glows.push(addWindowGlow(own));
+    ownMaterials.push(own);
+    part.material = own;
+  });
+  return { object, glows, ownMaterials };
 }
 
 /** One plain building on its own (a model's stand-in while it downloads). */

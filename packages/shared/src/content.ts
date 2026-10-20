@@ -309,6 +309,10 @@ const interactableSchema = z.discriminatedUnion("kind", [
 
 const hexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
+/** Quarter turns only, so footprints stay axis-aligned boxes for collision. */
+const quarterTurnSchema = z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]);
+export type QuarterTurn = z.infer<typeof quarterTurnSchema>;
+
 /**
  * A building. The ONE definition of it: the client draws it from these numbers
  * and the server (and the client's own prediction) stops the player at the same
@@ -332,7 +336,7 @@ export const buildingSchema = z.strictObject({
    */
   model: contentIdSchema.optional(),
   /** Quarter turns only, so the footprint stays an axis-aligned box for collision. */
-  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).default(0),
+  rotation: quarterTurnSchema.default(0),
   /** Uniform scale of the model, to size a kit piece to its footprint. */
   scale: z.number().positive().max(10).default(1),
 });
@@ -351,6 +355,13 @@ export const modelInfoSchema = z.strictObject({
   height: z.number().positive(),
   triangles: z.int().nonnegative(),
   bytes: z.int().positive(),
+  /**
+   * Where the window glass is on the model's colour sheet, as texture-space
+   * rectangles [u0, v0, u1, v1]. Surfaces painted from these glow at night.
+   */
+  windows: z
+    .array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1)]))
+    .optional(),
 });
 
 export const modelCatalogSchema = z.strictObject({
@@ -368,6 +379,109 @@ export const roadSchema = z.strictObject({
   colour: hexColour,
 });
 
+/** Half the width and depth of a box on the ground. */
+const halfSizeSchema = z.strictObject({
+  halfWidth: z.number().positive(),
+  halfDepth: z.number().positive(),
+});
+export type HalfSize = z.infer<typeof halfSizeSchema>;
+
+/**
+ * Street props the client builds in code from coloured boxes, at the size the
+ * kind declares: no download, and no extra draw call (they join the world's one
+ * instanced box mesh). Each has a builder in the client's `world/props.ts`.
+ */
+export const BUILT_PROP_SHAPES = [
+  "generator",
+  "kiosk",
+  "container_shop",
+  "electric_pole",
+  "palm",
+  "billboard",
+  "hawker_table",
+  "plastic_chair",
+  "speed_bump",
+] as const;
+export type BuiltPropShape = (typeof BUILT_PROP_SHAPES)[number];
+
+/**
+ * A kind of street prop (`content/props/kinds.json`): what it looks like and
+ * what of it blocks the player. Every placement of a kind shares this, so all
+ * generators are the same size.
+ */
+export const propKindSchema = z.strictObject({
+  look: z.union([
+    z.strictObject({
+      /** A model from `content/models/catalog.json`. */
+      model: contentIdSchema,
+      scale: z.number().positive().max(10).default(1),
+      /** Multiplies the model's colours (greener leaves, say). */
+      tint: hexColour.optional(),
+    }),
+    z.strictObject({
+      built: z.enum(BUILT_PROP_SHAPES),
+      ...halfSizeSchema.shape,
+      height: z.number().positive().max(20),
+      /** The main colour; the builder picks the details. */
+      colour: hexColour.optional(),
+    }),
+  ]),
+  /**
+   * What stops the player. "footprint" is the whole drawn footprint (measured
+   * for a model, declared for a built shape), so no size is typed twice. A box
+   * is for things whose base is smaller than their top: a trunk, a pole, a
+   * billboard's legs. "none" for things you walk over or under.
+   */
+  blocks: z.union([z.literal("footprint"), z.literal("none"), halfSizeSchema]),
+});
+export type PropKind = z.infer<typeof propKindSchema>;
+
+export const propKindsSchema = z.strictObject({
+  kinds: z.record(contentIdSchema, propKindSchema),
+});
+export type PropKinds = z.infer<typeof propKindsSchema>;
+
+/** One prop standing in a district. */
+export const propSchema = z.strictObject({
+  kind: contentIdSchema,
+  x: z.number(),
+  z: z.number(),
+  rotation: quarterTurnSchema.default(0),
+  /** Text painted on it (a billboard's advert, a kiosk's name). Place flavour, so it lives here, not in copy. */
+  label: z.string().min(1).max(60).optional(),
+  /** Electric poles with the same `wire` are strung together, in the order listed. */
+  wire: contentIdSchema.optional(),
+});
+export type Prop = z.infer<typeof propSchema>;
+
+/** Looping clips a standing NPC can hold. */
+export const NPC_POSES = ["idle", "talk", "fold_arms", "sit", "sit_talk", "call"] as const;
+export type NpcPose = (typeof NPC_POSES)[number];
+
+/** Each NPC's look is a preset in the client (`world/npcLooks.ts`) until the character catalog (11d) replaces them. */
+export const NPC_LOOK_IDS = ["mama_put", "okada_rider_a", "okada_rider_b", "hawker", "gateman", "conductor"] as const;
+export type NpcLookId = (typeof NPC_LOOK_IDS)[number];
+
+/** The box a standing NPC blocks: about their shoulders. */
+export const NPC_HALF_SIZE = 0.3;
+
+/**
+ * A person who stays in one spot (Mama Put, the gateman). Cosmetic, but they
+ * block the player like a prop does, so nobody walks through Mama Put.
+ */
+export const npcSchema = z.strictObject({
+  id: contentIdSchema,
+  look: z.enum(NPC_LOOK_IDS),
+  pose: z.enum(NPC_POSES),
+  x: z.number(),
+  z: z.number(),
+  /** Degrees: 0 faces the camera (south, +z), 90 faces east (+x). */
+  facing: z.number().min(0).max(359).default(0),
+  /** A speech bubble line, shown when the player is close. Place flavour, so it lives here, not in copy. */
+  says: z.string().min(1).max(60).optional(),
+});
+export type Npc = z.infer<typeof npcSchema>;
+
 export const districtSchema = z.strictObject({
   id: contentIdSchema,
   name: z.string().min(1).max(60),
@@ -380,6 +494,8 @@ export const districtSchema = z.strictObject({
   interactables: z.array(interactableSchema).min(1),
   buildings: z.array(buildingSchema),
   roads: z.array(roadSchema),
+  props: z.array(propSchema).default([]),
+  npcs: z.array(npcSchema).default([]),
 });
 
 export const citySchema = z.strictObject({
@@ -407,25 +523,87 @@ export type ModelCatalog = z.infer<typeof modelCatalogSchema>;
 
 /**
  * What the server sends on join: the district, plus the catalog entries of the
- * models it uses, so the client knows which files to download.
+ * models and the prop kinds it uses, so the client knows what to draw and
+ * which files to download.
  */
 export const districtLayoutSchema = districtSchema.extend({
   models: z.record(contentIdSchema, modelInfoSchema),
+  propKinds: z.record(contentIdSchema, propKindSchema),
 });
 export type DistrictLayout = z.infer<typeof districtLayoutSchema>;
+
+/**
+ * The district plus only the models and prop kinds it uses. The server sends
+ * this on join and the content check tests the same thing, so what is checked
+ * is what is played. Unknown ids are left out here; the content check reports them.
+ */
+export function buildDistrictLayout(
+  config: DistrictConfig,
+  models: Readonly<Record<string, ModelInfo>>,
+  propKinds: Readonly<Record<string, PropKind>>,
+): DistrictLayout {
+  const usedModels: Record<string, ModelInfo> = {};
+  const usedKinds: Record<string, PropKind> = {};
+  const useModel = (id: string | undefined): void => {
+    const model = id ? models[id] : undefined;
+    if (id && model) usedModels[id] = model;
+  };
+  for (const building of config.buildings) useModel(building.model);
+  for (const prop of config.props) {
+    const kind = propKinds[prop.kind];
+    if (!kind) continue;
+    usedKinds[prop.kind] = kind;
+    if ("model" in kind.look) useModel(kind.look.model);
+  }
+  return { ...config, models: usedModels, propKinds: usedKinds };
+}
 
 /** How far a model may stick out past its footprint, in metres: a roof edge or a step, never a walk-through wall. */
 export const MODEL_OVERHANG_METRES = 0.3;
 /** A model must cover at least this much of its footprint on each axis, or you would bump into thin air. */
 export const MODEL_MIN_FILL = 0.85;
 
+/** A box's half sizes after a quarter turn: 90 and 270 swap width and depth. */
+export function turnHalfSize(size: HalfSize, rotation: QuarterTurn): HalfSize {
+  const turned = rotation === 90 || rotation === 270;
+  return turned ? { halfWidth: size.halfDepth, halfDepth: size.halfWidth } : { ...size };
+}
+
 /** The model's footprint on the ground once the building's rotation and scale are applied. */
-export function placedModelFootprint(building: Building, model: ModelInfo): { halfWidth: number; halfDepth: number } {
-  const turned = building.rotation === 90 || building.rotation === 270;
-  return {
-    halfWidth: (turned ? model.halfDepth : model.halfWidth) * building.scale,
-    halfDepth: (turned ? model.halfWidth : model.halfDepth) * building.scale,
-  };
+export function placedModelFootprint(building: Building, model: ModelInfo): HalfSize {
+  const turned = turnHalfSize(model, building.rotation);
+  return { halfWidth: turned.halfWidth * building.scale, halfDepth: turned.halfDepth * building.scale };
+}
+
+/** A prop kind's drawn footprint, before rotation: measured for a model, declared for a built shape. */
+export function propFootprint(kind: PropKind, models: Readonly<Record<string, ModelInfo>>): HalfSize | undefined {
+  if ("built" in kind.look) return { halfWidth: kind.look.halfWidth, halfDepth: kind.look.halfDepth };
+  const model = models[kind.look.model];
+  if (!model) return undefined;
+  return { halfWidth: model.halfWidth * kind.look.scale, halfDepth: model.halfDepth * kind.look.scale };
+}
+
+/** What of a prop kind stops the player, before rotation, or undefined if nothing does. */
+export function propBlockSize(kind: PropKind, models: Readonly<Record<string, ModelInfo>>): HalfSize | undefined {
+  if (kind.blocks === "none") return undefined;
+  if (kind.blocks === "footprint") return propFootprint(kind, models);
+  return kind.blocks;
+}
+
+/** Why a prop kind's blocking box would be an invisible wall (bigger than what is drawn), or undefined if it is fine. */
+export function propBlockProblem(kind: PropKind, models: Readonly<Record<string, ModelInfo>>): string | undefined {
+  if (typeof kind.blocks !== "object") return undefined;
+  const drawn = propFootprint(kind, models);
+  if (!drawn) return undefined;
+  for (const [axis, block, seen] of [
+    ["width", kind.blocks.halfWidth, drawn.halfWidth],
+    ["depth", kind.blocks.halfDepth, drawn.halfDepth],
+  ] as const) {
+    if (block > seen + MODEL_OVERHANG_METRES) {
+      return `blocking ${axis} ${(block * 2).toFixed(2)} m is bigger than the drawn ${(seen * 2).toFixed(2)} m (people would bump into thin air)`;
+    }
+  }
+  return undefined;
 }
 
 /** Why a model does not fit its building's footprint, or undefined if it does. */

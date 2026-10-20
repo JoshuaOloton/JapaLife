@@ -82,7 +82,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
 
   const districts = new Map<string, DistrictMap>();
   for (const city of Object.values(content.cities)) {
-    for (const district of city.districts) districts.set(district.id, new DistrictMap(district, content.models));
+    for (const district of city.districts) districts.set(district.id, new DistrictMap(district, content.models, content.propKinds));
   }
 
   return {

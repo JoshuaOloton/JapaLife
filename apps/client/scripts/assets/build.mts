@@ -11,8 +11,9 @@
  * - characters/hair-<id>.glb: hair meshes skinned to the same skeleton.
  * - characters/animations.glb: the clips the game uses, on the shared rig.
  *
- * - buildings/<id>.glb: a building, centred on its footprint and standing on
- *   y = 0, its meshes joined into one per material (fewer draw calls).
+ * - buildings/<id>.glb and props/<id>.glb: a building or street prop, centred
+ *   on its footprint and standing on y = 0, its meshes joined into one per
+ *   material (fewer draw calls).
  *
  * It also writes game/character/clipInfo.generated.json with each movement
  * clip's natural speed, so the game can play it at the speed the player moves,
@@ -71,32 +72,75 @@ const CLIPS = [
   { id: "run", file: UAL1, name: "Jog_Fwd_Loop", measureSpeed: true },
   { id: "interact", file: UAL1, name: "Interact" },
   { id: "work_phone", file: UAL2, name: "Idle_TalkingPhone_Loop" },
+  // Poses for the people who stand (or sit) in one spot: `npcSchema.pose` in packages/shared.
+  { id: "talk", file: UAL1, name: "Idle_Talking_Loop" },
+  { id: "sit", file: UAL1, name: "Sitting_Idle_Loop" },
+  { id: "sit_talk", file: UAL1, name: "Sitting_Talking_Loop" },
+  { id: "fold_arms", file: UAL2, name: "Idle_FoldArms_Loop" },
+  { id: "call", file: UAL2, name: "Idle_Rail_Call" },
 ] as const;
 
 const KAYKIT = join(vendorDir, "kaykit-city", "Assets", "gltf");
 const KENNEY_COMMERCIAL = join(vendorDir, "kenney-commercial", "Models");
 const KENNEY_SUBURBAN = join(vendorDir, "kenney-suburban", "Models");
 
+/** A rectangle on a colour sheet, in texture coordinates: [u0, v0, u1, v1]. */
+type UvRect = readonly [number, number, number, number];
+
 /**
- * Building models: game model id -> source file in a pack. A building in
- * `content/cities/<city>.json` refers to the id, with a scale that makes a
- * floor about 3 m. `texture` swaps in one of the pack's other colour sheets
- * (Kenney ships variations of the same layout).
+ * Window glass on each pack's colour sheet, found by measuring which sheet
+ * cells the buildings' wall faces use, then checked by eye at night
+ * (2026-10-19). KayKit's glass is the streaked grey square in the sheet's
+ * bottom-left quarter (its blue-grey cell is wall paint on the four-storey
+ * block); Kenney's City Kits share a 16x16 layout with light-blue glass at
+ * column 11, rows 6-7.
  */
-const BUILDINGS: readonly { id: string; file: string; texture?: string }[] = [
+const KAYKIT_GLASS: readonly UvRect[] = [[0, 0.75, 0.25, 1]];
+const KENNEY_CITY_GLASS: readonly UvRect[] = [[11 / 16, 6 / 16, 12 / 16, 8 / 16]];
+
+/**
+ * Models that do not move: game model id -> source file in a pack, and the
+ * folder under `/assets` it goes to. A building in `content/cities/<city>.json`
+ * refers to the id, with a scale that makes a floor about 3 m; a prop kind in
+ * `content/props/kinds.json` does the same. `texture` swaps in one of the
+ * pack's other colour sheets (Kenney ships variations of the same layout).
+ * `windows` says where the glass is on the colour sheet, for the night glow.
+ */
+const STATIC_MODELS: readonly {
+  id: string;
+  folder: "buildings" | "props";
+  file: string;
+  texture?: string;
+  windows?: readonly UvRect[];
+}[] = [
   // Painted walk-ups, the closest the free packs come to Yaba's blocks of flats.
-  { id: "flats-three-storey", file: join(KAYKIT, "building_F_withoutBase.gltf") },
-  { id: "flats-four-storey", file: join(KAYKIT, "building_H_withoutBase.gltf") },
-  { id: "office-block", file: join(KENNEY_COMMERCIAL, "GLB format", "building-j.glb") },
+  { id: "flats-three-storey", folder: "buildings", file: join(KAYKIT, "building_F_withoutBase.gltf"), windows: KAYKIT_GLASS },
+  { id: "flats-four-storey", folder: "buildings", file: join(KAYKIT, "building_H_withoutBase.gltf"), windows: KAYKIT_GLASS },
+  {
+    id: "office-block",
+    folder: "buildings",
+    file: join(KENNEY_COMMERCIAL, "GLB format", "building-j.glb"),
+    windows: KENNEY_CITY_GLASS,
+  },
   // Single storey with a porch; variation C's dark grey roof reads as old zinc.
   {
     id: "bungalow",
+    folder: "buildings",
     file: join(KENNEY_SUBURBAN, "GLB format", "building-type-g.glb"),
     texture: join(KENNEY_SUBURBAN, "Textures", "variation-c.png"),
+    windows: KENNEY_CITY_GLASS,
   },
+  // Street props. The Lagos-specific ones (generators, kiosks, poles, palms) are built in code instead.
+  { id: "tree-large", folder: "props", file: join(KENNEY_SUBURBAN, "GLB format", "tree-large.glb") },
+  { id: "tree-small", folder: "props", file: join(KENNEY_SUBURBAN, "GLB format", "tree-small.glb") },
+  { id: "planter", folder: "props", file: join(KENNEY_SUBURBAN, "GLB format", "planter.glb") },
+  { id: "bench", folder: "props", file: join(KAYKIT, "bench.gltf") },
+  { id: "bin", folder: "props", file: join(KAYKIT, "trash_A.gltf") },
+  { id: "umbrella", folder: "props", file: join(KENNEY_COMMERCIAL, "GLB format", "detail-parasol-a.glb") },
+  { id: "umbrella-striped", folder: "props", file: join(KENNEY_COMMERCIAL, "GLB format", "detail-parasol-b.glb") },
 ];
 
-/** Building textures are shared colour atlases: flat swatches, so a small size loses nothing. */
+/** Building and prop textures are shared colour atlases: flat swatches, so a small size loses nothing. */
 const BUILDING_TEXTURE_SIZE = 256;
 
 /** Texture edge length by material. The camera is ~14 m away; the body fills ~200 px on a phone. */
@@ -132,7 +176,7 @@ async function main(): Promise<void> {
   for (const hair of HAIRS) await buildHair(hair.id, hair.file);
   await buildAnimations();
   const models: Record<string, ModelEntry> = {};
-  for (const building of BUILDINGS) models[building.id] = await buildBuilding(building.id, building.file, building.texture);
+  for (const model of STATIC_MODELS) models[model.id] = await buildStaticModel(model);
   writeModelCatalog(models);
   rmSync(work, { recursive: true, force: true });
   report();
@@ -146,9 +190,10 @@ interface ModelEntry {
   height: number;
   triangles: number;
   bytes: number;
+  windows?: UvRect[];
 }
 
-async function buildBuilding(id: string, file: string, texture?: string): Promise<ModelEntry> {
+async function buildStaticModel({ id, folder, file, texture, windows }: (typeof STATIC_MODELS)[number]): Promise<ModelEntry> {
   for (const path of [file, texture]) {
     if (path && !existsSync(path)) fail(`${relative(process.cwd(), path)}: not found (is the pack unzipped in assets/vendor?)`);
   }
@@ -167,7 +212,7 @@ async function buildBuilding(id: string, file: string, texture?: string): Promis
   const triangles = countTriangles(document);
 
   await compressTextures(document, () => BUILDING_TEXTURE_SIZE);
-  const output = `buildings/${id}.glb`;
+  const output = `${folder}/${id}.glb`;
   await finish(document, output, { simplify: false });
   const round = (value: number): number => Math.round(value * 1000) / 1000;
   return {
@@ -177,6 +222,7 @@ async function buildBuilding(id: string, file: string, texture?: string): Promis
     height: round(max[1] - min[1]),
     triangles,
     bytes: statSync(join(outDir, output)).size,
+    ...(windows ? { windows: windows.map((rect) => [...rect] as const) } : {}),
   };
 }
 

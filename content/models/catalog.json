@@ -1,13 +1,37 @@
 {
   "generated": true,
   "models": {
+    "bench": {
+      "file": "props/bench.glb",
+      "halfWidth": 0.2,
+      "halfDepth": 0.075,
+      "height": 0.1,
+      "triangles": 44,
+      "bytes": 11804
+    },
+    "bin": {
+      "file": "props/bin.glb",
+      "halfWidth": 0.063,
+      "halfDepth": 0.067,
+      "height": 0.052,
+      "triangles": 18,
+      "bytes": 11680
+    },
     "bungalow": {
       "file": "buildings/bungalow.glb",
       "halfWidth": 0.725,
       "halfDepth": 0.589,
       "height": 0.768,
       "triangles": 1067,
-      "bytes": 14460
+      "bytes": 14460,
+      "windows": [
+        [
+          0.6875,
+          0.375,
+          0.75,
+          0.5
+        ]
+      ]
     },
     "flats-four-storey": {
       "file": "buildings/flats-four-storey.glb",
@@ -15,7 +39,15 @@
       "halfDepth": 0.65,
       "height": 2.95,
       "triangles": 1333,
-      "bytes": 18020
+      "bytes": 18020,
+      "windows": [
+        [
+          0,
+          0.75,
+          0.25,
+          1
+        ]
+      ]
     },
     "flats-three-storey": {
       "file": "buildings/flats-three-storey.glb",
@@ -23,7 +55,15 @@
       "halfDepth": 0.65,
       "height": 2.25,
       "triangles": 1097,
-      "bytes": 17096
+      "bytes": 17096,
+      "windows": [
+        [
+          0,
+          0.75,
+          0.25,
+          1
+        ]
+      ]
     },
     "office-block": {
       "file": "buildings/office-block.glb",
@@ -31,7 +71,55 @@
       "halfDepth": 0.67,
       "height": 1.693,
       "triangles": 5246,
-      "bytes": 25376
+      "bytes": 25376,
+      "windows": [
+        [
+          0.6875,
+          0.375,
+          0.75,
+          0.5
+        ]
+      ]
+    },
+    "planter": {
+      "file": "props/planter.glb",
+      "halfWidth": 0.2,
+      "halfDepth": 0.15,
+      "height": 0.177,
+      "triangles": 204,
+      "bytes": 10448
+    },
+    "tree-large": {
+      "file": "props/tree-large.glb",
+      "halfWidth": 0.105,
+      "halfDepth": 0.121,
+      "height": 0.767,
+      "triangles": 42,
+      "bytes": 9644
+    },
+    "tree-small": {
+      "file": "props/tree-small.glb",
+      "halfWidth": 0.105,
+      "halfDepth": 0.121,
+      "height": 0.567,
+      "triangles": 42,
+      "bytes": 9632
+    },
+    "umbrella": {
+      "file": "props/umbrella.glb",
+      "halfWidth": 0.173,
+      "halfDepth": 0.2,
+      "height": 0.45,
+      "triangles": 96,
+      "bytes": 9788
+    },
+    "umbrella-striped": {
+      "file": "props/umbrella-striped.glb",
+      "halfWidth": 0.173,
+      "halfDepth": 0.2,
+      "height": 0.45,
+      "triangles": 120,
+      "bytes": 10020
     }
   }
 }

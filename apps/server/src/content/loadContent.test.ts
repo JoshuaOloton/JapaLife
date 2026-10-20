@@ -1,6 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { PLAYER_RADIUS, districtObstacles, isBlocked } from "@japalife/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DistrictMap } from "../game/district";
 import { ContentError, DEFAULT_CONTENT_DIR, loadContent } from "./loadContent";
@@ -169,6 +170,100 @@ describe("loadContent (broken content)", () => {
     expect(problemsOf().join("\n")).toContain('unknown model "ghost-tower"');
   });
 
+  describe("props and NPCs", () => {
+    function addProp(prop: Record<string, unknown>): void {
+      edit("cities/lagos.json", (j) => j["districts"][0].props.push(prop));
+    }
+    function addNpc(npc: Record<string, unknown>): void {
+      edit("cities/lagos.json", (j) => j["districts"][0].npcs.push(npc));
+    }
+
+    it("rejects a prop on the spawn point", () => {
+      addProp({ kind: "generator", x: 0.2, z: 0 });
+      expect(problemsOf().join("\n")).toContain("the spawn point is inside a building, prop or person");
+    });
+
+    it("rejects a prop over a place", () => {
+      edit("cities/lagos.json", (j) => {
+        const { x, z } = interactable(j, "job_site").position;
+        j["districts"][0].props.push({ kind: "kiosk", x, z });
+      });
+      expect(problemsOf().join("\n")).toContain('"yaba-office" is inside a building, prop or person');
+    });
+
+    it("rejects props that wall a place off", () => {
+      edit("cities/lagos.json", (j) => {
+        const { x, z } = interactable(j, "fuel_station").position;
+        // A ring of container shops (6 x 2.4 m each), 5 m out from the pump.
+        for (const dx of [-6, 0, 6]) {
+          j["districts"][0].props.push({ kind: "container-shop", x: x + dx, z: z - 5 });
+          j["districts"][0].props.push({ kind: "container-shop", x: x + dx, z: z + 5 });
+        }
+        for (const dz of [-3, 3]) {
+          j["districts"][0].props.push({ kind: "container-shop", x: x - 7.8, z: z + dz, rotation: 90 });
+          j["districts"][0].props.push({ kind: "container-shop", x: x + 7.8, z: z + dz, rotation: 90 });
+        }
+      });
+      expect(problemsOf().join("\n")).toContain('"yaba-fuel-station" cannot be reached on foot');
+    });
+
+    it("rejects a blocking prop in the road, but not a speed bump", () => {
+      addProp({ kind: "generator", x: 20, z: 2 });
+      addProp({ kind: "speed-bump", x: 25, z: 0 });
+      const problems = problemsOf().join("\n");
+      expect(problems).toContain('("generator" at 20, 2) blocks a road');
+      expect(problems).not.toContain('"speed-bump" at 25, 0');
+    });
+
+    it("rejects a prop that sticks out of the district", () => {
+      addProp({ kind: "container-shop", x: 58.5, z: 20 });
+      expect(problemsOf().join("\n")).toContain('"container-shop" at 58.5, 20) sticks out of the walkable area');
+    });
+
+    it("rejects an unknown prop kind", () => {
+      addProp({ kind: "ghost-kiosk", x: 20, z: 20 });
+      expect(problemsOf().join("\n")).toContain('"ghost-kiosk" at 20, 20) is an unknown kind');
+    });
+
+    it("rejects a prop kind whose model is not in the catalog", () => {
+      edit("props/kinds.json", (j) => (j["kinds"]["bench"].look.model = "ghost-bench"));
+      expect(problemsOf().join("\n")).toContain('props/kinds.json "bench": unknown model "ghost-bench"');
+    });
+
+    it("rejects a blocking box bigger than what is drawn (an invisible wall)", () => {
+      edit("props/kinds.json", (j) => (j["kinds"]["palm"].blocks = { halfWidth: 3, halfDepth: 0.25 }));
+      expect(problemsOf().join("\n")).toContain('props/kinds.json "palm": blocking width 6.00 m is bigger than the drawn 4.40 m');
+    });
+
+    it("rejects a wire with only one pole", () => {
+      addProp({ kind: "electric-pole", x: 20, z: 20, wire: "lonely" });
+      expect(problemsOf().join("\n")).toContain('wire "lonely" has only one pole');
+    });
+
+    it("rejects a wire on something that is not a pole", () => {
+      addProp({ kind: "generator", x: 20, z: 20, wire: "main-north-east" });
+      expect(problemsOf().join("\n")).toContain("has a wire but is not an electric pole");
+    });
+
+    it("rejects an NPC standing in the road, and duplicate NPC ids", () => {
+      addNpc({ id: "mama-put", look: "hawker", pose: "idle", x: 20, z: 1 });
+      const problems = problemsOf().join("\n");
+      expect(problems).toContain('duplicate NPC id "mama-put"');
+      expect(problems).toContain('NPC "mama-put" stands in a road');
+    });
+
+    it("stops the player at a prop on the server, exactly where the shared obstacles say", () => {
+      const content = loadContent();
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds);
+      // The kiosk at (-8, 8) is 2 m wide: walking east into it from (-14, 8) stops at its west face.
+      const end = yaba.move({ x: -14, z: 8 }, { x: 10, z: 0 });
+      const westFace = -8 - 1 - PLAYER_RADIUS;
+      expect(end.x).toBeLessThanOrEqual(westFace);
+      expect(end.x).toBeGreaterThan(westFace - 0.2);
+      expect(isBlocked(end, districtObstacles(yaba.layout))).toBe(false);
+    });
+  });
+
   describe("model footprints", () => {
     // Gives the office block a 14 m wide (x) by 12 m deep (z) footprint, dressed by a test model.
     function withOfficeModel(halfWidth: number, halfDepth: number, building: Record<string, unknown> = {}): void {
@@ -186,7 +281,7 @@ describe("loadContent (broken content)", () => {
         j["models"]["unused"] = { file: "buildings/unused.glb", halfWidth: 1, halfDepth: 1, height: 1, triangles: 1, bytes: 1 };
       });
       const content = loadContent(dir);
-      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models);
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds);
       expect(Object.keys(yaba.layout.models)).toContain("test-office");
       expect(Object.keys(yaba.layout.models)).not.toContain("unused");
       expect(Object.keys(yaba.layout.models)).not.toContain("office-block"); // replaced by the test model

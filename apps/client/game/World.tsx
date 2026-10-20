@@ -1,12 +1,15 @@
 "use client";
 
-import type { DistrictLayout, Interactable, Road } from "@japalife/shared";
+import type { DistrictLayout, Interactable, Point, Road } from "@japalife/shared";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { CanvasTexture, type InstancedMesh, Object3D, SRGBColorSpace } from "three";
+import { type InstancedMesh, Object3D } from "three";
 import { Boxes, type Slab } from "./world/Boxes";
 import { ModelBuildings, Windows, plainBuildingSlabs } from "./world/Buildings";
 import { layOutGutters } from "./world/gutters";
-import { paintGround, paintRoad, seededRandom } from "./world/paint";
+import { Npcs } from "./world/Npcs";
+import { paintGround, paintRoad, paintSign, seededRandom } from "./world/paint";
+import { Props } from "./world/Props";
+import { propSlabs } from "./world/propShapes";
 import type { StreetState } from "./world/street";
 
 /**
@@ -41,7 +44,16 @@ const SIGN_COLOURS: Record<Interactable["kind"], string> = {
   fuel_station: "#8a2f6a",
 };
 
-export function World({ district, street }: { district: DistrictLayout; street: { current: StreetState } }) {
+export function World({
+  district,
+  street,
+  predicted,
+}: {
+  district: DistrictLayout;
+  street: { current: StreetState };
+  /** Where the player is, so far-away NPCs can stop animating. */
+  predicted: { current: Point };
+}) {
   const groundWidth = district.halfWidth * 2 + 60;
   const groundDepth = district.halfDepth * 2 + 60;
   const ground = useMemo(() => paintGround(), []);
@@ -66,6 +78,7 @@ export function World({ district, street }: { district: DistrictLayout; street: 
       wall(w + t, 0, t, d),
       ...plainBuildingSlabs(plainBuildings),
       ...gutterSlabs(district.roads, district),
+      ...propSlabs(district),
     ];
   }, [district, plainBuildings]);
 
@@ -81,7 +94,9 @@ export function World({ district, street }: { district: DistrictLayout; street: 
       <Potholes roads={district.roads} />
       <Boxes slabs={slabs} />
       <Windows buildings={plainBuildings} street={street} />
-      <ModelBuildings buildings={district.buildings} models={district.models} />
+      <ModelBuildings buildings={district.buildings} models={district.models} street={street} />
+      <Props layout={district} />
+      <Npcs npcs={district.npcs} predicted={predicted} />
       {district.interactables.map((place) => (
         <Sign key={place.id} place={place} radius={district.interactRadius} />
       ))}
@@ -186,7 +201,10 @@ function gutterSlabs(roads: readonly Road[], bounds: { halfWidth: number; halfDe
  * file is downloaded and the board costs one tiny texture.
  */
 function Sign({ place, radius }: { place: Interactable; radius: number }) {
-  const texture = useMemo(() => paintSign(place.label, SIGN_COLOURS[place.kind]), [place.label, place.kind]);
+  const texture = useMemo(
+    () => paintSign(place.label, { background: SIGN_COLOURS[place.kind] }),
+    [place.label, place.kind],
+  );
   useLayoutEffect(() => () => texture.dispose(), [texture]);
   const { x, z } = place.position;
 
@@ -207,31 +225,4 @@ function Sign({ place, radius }: { place: Interactable; radius: number }) {
       </mesh>
     </group>
   );
-}
-
-function paintSign(label: string, background: string): CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 64;
-  const context = canvas.getContext("2d");
-  if (context) {
-    context.fillStyle = background;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.strokeStyle = "#ffffff";
-    context.lineWidth = 4;
-    context.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
-    context.fillStyle = "#ffffff";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    // Shrink long names until they fit the board.
-    let size = 34;
-    do {
-      context.font = `bold ${size}px system-ui, sans-serif`;
-      size -= 2;
-    } while (context.measureText(label).width > canvas.width - 20 && size > 12);
-    context.fillText(label, canvas.width / 2, canvas.height / 2 + 2);
-  }
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  return texture;
 }
