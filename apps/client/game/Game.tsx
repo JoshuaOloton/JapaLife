@@ -52,10 +52,15 @@ export default function Game() {
   // How your character looks right now (saved, or the creator's draft), and whether the creator has the camera.
   const [shownLook, setShownLook] = useState<Appearance | null>(null);
   const [closeUp, setCloseUp] = useState(false);
+  // In the creator, how far you have turned your character round by dragging.
+  const turn = useRef(0);
   const showLook = useCallback((look: Appearance | null, creatorOpen: boolean) => {
     setShownLook(look);
     setCloseUp(creatorOpen);
   }, []);
+  useEffect(() => {
+    if (closeUp) turn.current = 0;
+  }, [closeUp]);
 
   useEffect(() => input.attachKeyboard(window), [input]);
 
@@ -79,8 +84,11 @@ export default function Game() {
         // The fog hides everything past 140 m, so nothing beyond it needs drawing.
         camera={{ fov: 50, near: 0.5, far: 150 }}
       >
-        <Lighting street={street} />
-        <World district={connection.district} street={street} predicted={predicted} quality={quality} />
+        <Lighting street={street} indoors={closeUp} />
+        {/* The creator takes place in a bedroom set, so the street is hidden (still simulated) meanwhile. */}
+        <group visible={!closeUp}>
+          <World district={connection.district} street={street} predicted={predicted} quality={quality} />
+        </group>
         <Player
           room={connection.room}
           district={connection.district}
@@ -89,11 +97,15 @@ export default function Game() {
           activity={activity}
           appearance={shownLook}
           closeUp={closeUp}
+          turn={turn}
         />
         <QualityProbe quality={quality} />
         {showFps && <FpsProbe output={fpsOutput} quality={quality} />}
       </Canvas>
       {touch && !closeUp && <Joystick input={input} />}
+      {closeUp && <TurnArea turn={turn} />}
+      {/* Going into or out of the bedroom cuts the scene; a quick fade from black hides the cut. */}
+      <div key={closeUp ? "indoors" : "street"} className={styles.sceneFade} />
       <Overlay
         room={connection.room}
         messages={connection.messages}
@@ -105,6 +117,30 @@ export default function Game() {
         onLook={showLook}
       />
     </div>
+  );
+}
+
+/** Radians your character turns per pixel dragged. */
+const TURN_PER_PIXEL = 0.012;
+
+/** In the creator, dragging across the view turns your character round to see them from every side. */
+function TurnArea({ turn }: { turn: { current: number } }) {
+  const lastX = useRef<number | null>(null);
+  return (
+    <div
+      className={styles.turnArea}
+      onPointerDown={(event) => {
+        lastX.current = event.clientX;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (lastX.current === null) return;
+        turn.current += (event.clientX - lastX.current) * TURN_PER_PIXEL;
+        lastX.current = event.clientX;
+      }}
+      onPointerUp={() => (lastX.current = null)}
+      onPointerCancel={() => (lastX.current = null)}
+    />
   );
 }
 

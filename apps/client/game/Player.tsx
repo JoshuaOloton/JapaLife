@@ -20,6 +20,7 @@ import { resolveLook } from "./character/appearance";
 import { Character } from "./character/Character";
 import { ModelBoundary } from "./ModelBoundary";
 import type { DistrictRoom } from "./connection";
+import { DressingRoom } from "./DressingRoom";
 import type { MoveInput } from "./input";
 import { MoveSender } from "./moveSender";
 import { reconcile } from "./reconcile";
@@ -37,12 +38,14 @@ const TURN_RATE = 12;
 /**
  * The character creator's close-up: in front at chest height, aimed near the
  * feet so the whole person stands in the band between the HUD bar and the
- * creator's sheet (which covers the bottom 42% of the screen).
+ * creator's sheet (which covers the bottom 42% of the screen). The creator
+ * takes place in a bedroom set (`DressingRoom`), so the camera cuts to it
+ * (under a fade) rather than gliding.
  */
 const CLOSE_UP_OFFSET = new Vector3(0, 1.3, 5.6);
 const CLOSE_UP_LOOK_HEIGHT = 0.2;
-/** How quickly the camera moves into and out of the close-up, per second. */
-const ZOOM_RATE = 4;
+/** How far behind the close-up camera the bedroom's front wall stands. */
+const ROOM_BEHIND_CAMERA = 0.8;
 /** Heading that faces the camera (south, +z). */
 const FACE_CAMERA = 0;
 const STILL = { x: 0, z: 0 } as const;
@@ -74,6 +77,7 @@ export function Player({
   activity,
   appearance,
   closeUp,
+  turn,
 }: {
   room: DistrictRoom;
   district: DistrictLayout;
@@ -83,10 +87,13 @@ export function Player({
   activity: { current: PlayerActivity };
   /** How the player looks: the saved character, or the creator's draft. Null shows the catalog's default. */
   appearance: Appearance | null;
-  /** The character creator is open: stand still, face the camera, and bring the camera in. */
+  /** The character creator is open: stand still in the bedroom set, face the camera, and bring the camera in. */
   closeUp: boolean;
+  /** In the creator, how far the player has turned the character round by dragging (radians). */
+  turn: { current: number };
 }) {
   const body = useRef<Group>(null);
+  const bedroom = useRef<Group>(null);
   const camera = useThree((three) => three.camera);
   const aspect = useThree((three) => three.size.width / three.size.height);
   const offset = useMemo(() => {
@@ -99,6 +106,7 @@ export function Player({
   }, [aspect, camera]);
   const closeOffset = useMemo(() => CLOSE_UP_OFFSET.clone().multiplyScalar(offset.length() / CAMERA_OFFSET.length()), [offset]);
   const viewOffset = useMemo(() => new Vector3(), []);
+  // 1 in the creator's close-up, 0 on the street. Switches at once: the fade hides the cut.
   const zoom = useRef(0);
   // Keyed by the look's code, not the object: an equal appearance arriving as a
   // new object must not rebuild the character, only a real change (a tap in the
@@ -188,7 +196,7 @@ export function Player({
     if (group) {
       group.position.set(position.x, 0, position.z);
       if (moving || closeUp) {
-        const want = closeUp ? FACE_CAMERA : Math.atan2(direction.x, direction.z);
+        const want = closeUp ? FACE_CAMERA + turn.current : Math.atan2(direction.x, direction.z);
         // Turn the short way round, smoothly.
         const diff = Math.atan2(Math.sin(want - heading.current), Math.cos(want - heading.current));
         heading.current += diff * (1 - Math.exp(-TURN_RATE * dt));
@@ -196,12 +204,17 @@ export function Player({
       }
     }
 
-    // Glide between the street camera and the creator's close-up rather than cutting.
-    zoom.current += ((closeUp ? 1 : 0) - zoom.current) * (1 - Math.exp(-ZOOM_RATE * dt));
+    bedroom.current?.position.set(position.x, 0, position.z);
+
+    // Cut between the street camera and the creator's close-up (a fade covers it): a glide
+    // would swing the camera through the bedroom's walls.
+    const cut = zoom.current !== (closeUp ? 1 : 0);
+    zoom.current = closeUp ? 1 : 0;
     viewOffset.lerpVectors(offset, closeOffset, zoom.current);
     const lookHeight = 1 + (CLOSE_UP_LOOK_HEIGHT - 1) * zoom.current;
     cameraTarget.set(position.x + viewOffset.x, viewOffset.y, position.z + viewOffset.z);
-    camera.position.lerp(cameraTarget, 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt));
+    if (cut) camera.position.copy(cameraTarget);
+    else camera.position.lerp(cameraTarget, 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt));
     // Look at a point that trails the camera the same way, so the view never tilts while following.
     lookAt.set(camera.position.x - viewOffset.x, lookHeight, camera.position.z - viewOffset.z);
     camera.lookAt(lookAt);
@@ -209,19 +222,27 @@ export function Player({
 
   const standIn = <Capsule />;
   return (
-    <group ref={body}>
-      {/* The capsule shows while the model downloads, or for good if the download fails. */}
-      <ModelBoundary fallback={standIn}>
-        <Suspense fallback={standIn}>
-          <Character look={look} motion={motion} />
-        </Suspense>
-      </ModelBoundary>
-      {/* A dark disc instead of a real shadow: almost free on the GPU. */}
-      <mesh rotation-x={-Math.PI / 2} position-y={0.04}>
-        <circleGeometry args={[PLAYER_RADIUS * 1.3, 16]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.3} />
-      </mesh>
-    </group>
+    <>
+      {/* Placed on the player every frame (they stand still while it is up). */}
+      {closeUp && (
+        <group ref={bedroom}>
+          <DressingRoom frontZ={closeOffset.z + ROOM_BEHIND_CAMERA} />
+        </group>
+      )}
+      <group ref={body}>
+        {/* The capsule shows while the model downloads, or for good if the download fails. */}
+        <ModelBoundary fallback={standIn}>
+          <Suspense fallback={standIn}>
+            <Character look={look} motion={motion} />
+          </Suspense>
+        </ModelBoundary>
+        {/* A dark disc instead of a real shadow: almost free on the GPU. */}
+        <mesh rotation-x={-Math.PI / 2} position-y={0.04}>
+          <circleGeometry args={[PLAYER_RADIUS * 1.3, 16]} />
+          <meshBasicMaterial color="#000000" transparent opacity={0.3} />
+        </mesh>
+      </group>
+    </>
   );
 }
 

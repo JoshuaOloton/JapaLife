@@ -3,7 +3,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { Color, type DirectionalLight, Fog, type HemisphereLight } from "three";
-import { localHour, skyAt, sunDirection } from "./sky";
+import { localHour, type SkyLook, skyAt, sunDirection } from "./sky";
 import type { StreetState } from "./street";
 
 /** Light changes slowly; recomputing it once a second is plenty and costs nothing. */
@@ -14,10 +14,26 @@ const FOG_NEAR = 50;
 const FOG_FAR = 140;
 
 /**
+ * Indoors (the wardrobe's bedroom): warm, even light from in front and above,
+ * the same at any hour, so clothes always show their true colours.
+ */
+const INDOORS: SkyLook = {
+  sky: "#3b2a20",
+  hemiSky: "#fff4e2",
+  hemiGround: "#8a6a4a",
+  hemiIntensity: 1.6,
+  sunColour: "#ffe8c8",
+  sunIntensity: 1.3,
+  darkness: 0,
+};
+const INDOOR_LIGHT_DIRECTION: [number, number, number] = [0.4, 1, 0.9];
+
+/**
  * Sky, fog and the two lights, following the city's clock (server time). The
  * background and fog share one colour, so far buildings fade into the sky.
+ * `indoors` swaps in fixed room lighting instead.
  */
-export function Lighting({ street }: { street: { current: StreetState } }) {
+export function Lighting({ street, indoors }: { street: { current: StreetState }; indoors: boolean }) {
   const scene = useThree((three) => three.scene);
   const hemisphere = useRef<HemisphereLight>(null);
   const sun = useRef<DirectionalLight>(null);
@@ -33,6 +49,11 @@ export function Lighting({ street }: { street: { current: StreetState } }) {
     };
   }, [scene, skyColour]);
 
+  // Going in or out changes the light at once, not at the next once-a-second update.
+  useLayoutEffect(() => {
+    sinceUpdate.current = Number.POSITIVE_INFINITY;
+  }, [indoors]);
+
   useFrame((_, frameSeconds) => {
     sinceUpdate.current += frameSeconds;
     if (sinceUpdate.current < UPDATE_EVERY_SECONDS) return;
@@ -42,7 +63,7 @@ export function Lighting({ street }: { street: { current: StreetState } }) {
     const now = serverNow?.() ?? 0;
     const hour = serverNow && timeZone ? localHour(now, timeZone) : DEFAULT_HOUR;
     const blackout = blackoutEndsAt !== null && Date.parse(blackoutEndsAt) > now;
-    const look = skyAt(hour, blackout);
+    const look = indoors ? INDOORS : skyAt(hour, blackout);
     skyColour.set(look.sky);
     if (scene.fog instanceof Fog) scene.fog.color.copy(skyColour);
     if (hemisphere.current) {
@@ -53,7 +74,7 @@ export function Lighting({ street }: { street: { current: StreetState } }) {
     if (sun.current) {
       sun.current.color.set(look.sunColour);
       sun.current.intensity = look.sunIntensity;
-      sun.current.position.set(...sunDirection(hour));
+      sun.current.position.set(...(indoors ? INDOOR_LIGHT_DIRECTION : sunDirection(hour)));
     }
   });
 

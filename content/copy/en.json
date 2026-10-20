@@ -89,7 +89,8 @@
     "done": "Done",
     "cancel": "Cancel",
     "saving": "Saving…",
-    "changeClothes": "Change clothes"
+    "changeClothes": "Change clothes",
+    "turnHint": "Drag to turn around"
   },
   "eventCard": {
     "replyWithin": "Reply within {time}",

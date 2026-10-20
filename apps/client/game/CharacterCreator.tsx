@@ -44,7 +44,10 @@ export function CharacterCreator({
   return (
     <section className={styles.creatorSheet} aria-label={mode === "create" ? text.title : text.changeTitle}>
       <div className={styles.sheetHeader}>
-        <h2>{mode === "create" ? text.title : text.changeTitle}</h2>
+        <div>
+          <h2>{mode === "create" ? text.title : text.changeTitle}</h2>
+          <p className={styles.turnHint}>{text.turnHint}</p>
+        </div>
       </div>
 
       <Row title={text.body}>

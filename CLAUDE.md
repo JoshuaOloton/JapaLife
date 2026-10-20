@@ -208,7 +208,7 @@ Not loaded every session; read the one you need.
 - [docs/known-limits.md](docs/known-limits.md): everything deliberately incomplete or likely to bite, with the reasoning behind "Rules from the build". Read the matching section before touching money, the server protocol, content, tooling or the client.
 - [docs/look-ahead.md](docs/look-ahead.md): what each later phase must account for. Read it before planning a phase.
 - [docs/phase-1.md](docs/phase-1.md): the Phase 1 record, slices 0–10 ("Slice 3" with no phase number means that table).
-- [docs/plans/](docs/plans/): approved plans, including [Slice 11](docs/plans/slice-11-look-and-feel.md) (and [11c](docs/plans/slice-11c-street-life.md), [11d](docs/plans/slice-11d-customisation.md), [11e](docs/plans/slice-11e-moving-life.md), [11f](docs/plans/slice-11f-nigerian-assets.md)), [Phase 2](docs/plans/phase-2-documents-and-applications.md) ("Slice 2.3" means its table) and the [CLAUDE.md split](docs/plans/claude-md-split.md).
+- [docs/plans/](docs/plans/): approved plans, including [Slice 11](docs/plans/slice-11-look-and-feel.md) (and [11c](docs/plans/slice-11c-street-life.md), [11d](docs/plans/slice-11d-customisation.md), [11e](docs/plans/slice-11e-moving-life.md), [11f](docs/plans/slice-11f-nigerian-assets.md), the [wardrobe screen](docs/plans/slice-11-wardrobe.md)), [Phase 2](docs/plans/phase-2-documents-and-applications.md) ("Slice 2.3" means its table) and the [CLAUDE.md split](docs/plans/claude-md-split.md).
 
 ## Current phase
 
@@ -234,7 +234,8 @@ Decisions (2026-10-17):
 
 **Up next (2026-10-20):**
 - Still to review from 11c: the billboard names and the conductor's line; the NPCs seated properly; the conductor's bubble.
-- 11c, 11d, 11e and 11f-1 are merged into `main` (PRs #17–#20).
+- 11c, 11d, 11e and 11f-1 are merged into `main` (PRs #17–#20). Not pushed yet, stacked in this order: `feat/hairstyles` (11f-2), `feat/ankara` (11f-3), `feat/wardrobe`.
+- Wardrobe screen (built 2026-10-20 on `feat/wardrobe`, [plan](docs/plans/slice-11-wardrobe.md)): the creator takes place in a Lagos bedroom set with indoor light and drag to turn. Play-tested 2026-10-20, works.
 - Still to check on the phone: the brighter night, model windows glowing at night, and a power cut (2026-10-19 follow-up to 11b, checked in desktop Chrome), and the character animations (11a).
 - Idea, not built: a dev-only `GAME_CLOCK_START=21:00` server setting that starts the game clock at a chosen Lagos time, so night can be tested without waiting or speeding everything up. Refused in production, like `GAME_CLOCK`.
 - `next dev` works from a phone: `allowedDevOrigins` in `apps/client/next.config.mjs` allows the private home and hotspot ranges (`192.168.*.*`, `10.*.*.*`). Without it, Next 16 blocks dev pages opened from a LAN address and no button works.
