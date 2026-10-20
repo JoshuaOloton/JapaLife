@@ -140,7 +140,34 @@
           "id": "gateman", "pose": "sit", "x": 18.6, "z": -12.2,
           "look": { "body": "body-1", "skinTone": "tone-7", "hair": "low-cut", "hairColour": "grey", "outfit": "security-uniform", "outfitColour": "black" }
         }
-      ]
+      ],
+      "traffic": {
+        "lanes": [
+          { "id": "main-east", "points": [{ "x": -75, "z": 2 }, { "x": 75, "z": 2 }] },
+          { "id": "main-west", "points": [{ "x": 75, "z": -2 }, { "x": -75, "z": -2 }] },
+          { "id": "cross-north", "points": [{ "x": 2, "z": 75 }, { "x": 2, "z": -75 }] },
+          { "id": "cross-south", "points": [{ "x": -2, "z": -75 }, { "x": -2, "z": 75 }] }
+        ],
+        "fleet": [
+          { "kind": "danfo", "lanes": ["cross-north", "main-east", "cross-south", "main-west"], "count": 4 },
+          { "kind": "keke", "lanes": ["main-west", "cross-north", "main-east"], "count": 3 },
+          { "kind": "okada", "lanes": ["cross-south", "main-east", "cross-north", "main-west"], "count": 4 },
+          { "kind": "sedan", "lanes": ["main-east", "main-west"], "count": 2 },
+          { "kind": "suv", "lanes": ["cross-south"], "count": 1 },
+          { "kind": "hatchback", "lanes": ["cross-north"], "count": 1 },
+          { "kind": "taxi", "lanes": ["main-west", "cross-south"], "count": 2 }
+        ],
+        "busStops": [{ "lane": "cross-north", "at": { "x": 2, "z": 25 }, "seconds": 5 }],
+        "pedestrians": {
+          "count": 8,
+          "walkways": [
+            { "id": "main-south-edge", "points": [{ "x": -58, "z": 3.6 }, { "x": 58, "z": 3.6 }] },
+            { "id": "main-north-edge", "points": [{ "x": 58, "z": -3.6 }, { "x": -58, "z": -3.6 }] },
+            { "id": "cross-east-edge", "points": [{ "x": 3.6, "z": -58 }, { "x": 3.6, "z": 58 }] },
+            { "id": "cross-west-edge", "points": [{ "x": -3.6, "z": 58 }, { "x": -3.6, "z": -58 }] }
+          ]
+        }
+      }
     }
   ]
 }

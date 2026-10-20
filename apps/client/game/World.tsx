@@ -7,6 +7,9 @@ import { Boxes, type Slab } from "./world/Boxes";
 import { ModelBuildings, Windows, plainBuildingSlabs } from "./world/Buildings";
 import { layOutGutters } from "./world/gutters";
 import { Npcs } from "./world/Npcs";
+import { Pedestrians } from "./world/Pedestrians";
+import type { QualityGovernor } from "./world/quality";
+import { Traffic } from "./world/Traffic";
 import { paintGround, paintRoad, paintSign, seededRandom } from "./world/paint";
 import { Props } from "./world/Props";
 import { propSlabs } from "./world/propShapes";
@@ -48,11 +51,14 @@ export function World({
   district,
   street,
   predicted,
+  quality,
 }: {
   district: DistrictLayout;
   street: { current: StreetState };
-  /** Where the player is, so far-away NPCs can stop animating. */
+  /** Where the player is, so far-away NPCs can stop animating and traffic can stop for them. */
   predicted: { current: Point };
+  /** Halves the traffic and people when the phone struggles. */
+  quality: QualityGovernor;
 }) {
   const groundWidth = district.halfWidth * 2 + 60;
   const groundDepth = district.halfDepth * 2 + 60;
@@ -97,6 +103,8 @@ export function World({
       <ModelBuildings buildings={district.buildings} models={district.models} street={street} />
       <Props layout={district} />
       <Npcs layout={district} predicted={predicted} />
+      <Traffic layout={district} predicted={predicted} street={street} quality={quality} />
+      <Pedestrians layout={district} predicted={predicted} street={street} quality={quality} />
       {district.interactables.map((place) => (
         <Sign key={place.id} place={place} radius={district.interactRadius} />
       ))}

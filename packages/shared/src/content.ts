@@ -348,6 +348,14 @@ export const buildingSchema = z.strictObject({
  * `content/models/catalog.json` so the server can check footprints without
  * reading GLB files.
  */
+/** A rectangle on a colour sheet, in texture coordinates: [u0, v0, u1, v1]. */
+const uvRectSchema = z.tuple([
+  z.number().min(0).max(1),
+  z.number().min(0).max(1),
+  z.number().min(0).max(1),
+  z.number().min(0).max(1),
+]);
+
 export const modelInfoSchema = z.strictObject({
   /** Path under the client's `/assets`. */
   file: z.string().regex(/^[a-z0-9/_-]+\.glb$/),
@@ -360,9 +368,9 @@ export const modelInfoSchema = z.strictObject({
    * Where the window glass is on the model's colour sheet, as texture-space
    * rectangles [u0, v0, u1, v1]. Surfaces painted from these glow at night.
    */
-  windows: z
-    .array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1)]))
-    .optional(),
+  windows: z.array(uvRectSchema).optional(),
+  /** Where the body paint is on the colour sheet (a vehicle), so it can be repainted (the danfo's yellow). */
+  paint: z.array(uvRectSchema).optional(),
 });
 
 export const modelCatalogSchema = z.strictObject({
@@ -480,6 +488,92 @@ export const npcSchema = z.strictObject({
 });
 export type Npc = z.infer<typeof npcSchema>;
 
+/** Vehicles built in code from boxes (no download), each with a builder in the client's `world/vehicleShapes.ts`. */
+export const BUILT_VEHICLES = ["keke", "okada"] as const;
+export type BuiltVehicle = (typeof BUILT_VEHICLES)[number];
+
+/**
+ * A kind of vehicle in the street traffic (`content/traffic/kinds.json`).
+ * Traffic is cosmetic and client-only: it never blocks the player and is not
+ * synced; it stops for the player instead.
+ */
+export const vehicleKindSchema = z.strictObject({
+  look: z.union([
+    z.strictObject({
+      /** A model from `content/models/catalog.json`; it faces +z. */
+      model: contentIdSchema,
+      scale: z.number().positive().max(10).default(1),
+      /** Repaints the model's body paint (its catalog `paint` cells), e.g. danfo yellow. */
+      paint: hexColour.optional(),
+      /** A band painted across the body, as shares of the model's height (the danfo's black stripe). */
+      stripe: z
+        .strictObject({ colour: hexColour, from: z.number().min(0).max(1), to: z.number().min(0).max(1) })
+        .optional(),
+    }),
+    z.strictObject({
+      built: z.enum(BUILT_VEHICLES),
+      /** Half its length (along its direction of travel), half its width, its height. */
+      halfLength: z.number().positive(),
+      halfWidth: z.number().positive(),
+      height: z.number().positive().max(5),
+      colour: hexColour.optional(),
+    }),
+  ]),
+  /** Cruising speed, metres per second. */
+  speed: z.number().positive().max(20),
+  /** Pauses at bus stops on its lane (the danfo). */
+  stopsAtBusStops: z.boolean().default(false),
+  /** Rush hours bring every one of these out (danfos); other kinds keep the daytime share. */
+  rushHourBoost: z.boolean().default(false),
+});
+export type VehicleKind = z.infer<typeof vehicleKindSchema>;
+
+/** How much of the traffic and how many people are out, by the city's hour. */
+export const trafficScheduleSchema = z.strictObject({
+  dayShare: z.number().min(0).max(1),
+  nightShare: z.number().min(0).max(1),
+  rushShare: z.number().min(0).max(1),
+  /** Local hours, from (inclusive) to (exclusive). */
+  rushHours: z.array(z.strictObject({ from: z.number().min(0).max(24), to: z.number().min(0).max(24) })),
+  /** When the street is "night quiet": from the evening hour to the morning hour. */
+  quietFrom: z.number().min(0).max(24),
+  quietUntil: z.number().min(0).max(24),
+});
+export type TrafficSchedule = z.infer<typeof trafficScheduleSchema>;
+
+export const vehicleKindsSchema = z.strictObject({
+  schedule: trafficScheduleSchema,
+  kinds: z.record(contentIdSchema, vehicleKindSchema),
+});
+export type VehicleKinds = z.infer<typeof vehicleKindsSchema>;
+
+/**
+ * A district's moving life: lanes the traffic drives, which vehicles drive
+ * them, where danfos stop, and the walkways people stroll. Visual only, but
+ * checked by the server: lanes stay on roads, walkways never cross a wall.
+ */
+export const trafficSchema = z.strictObject({
+  /** A lane runs in the order of its points; it may run past the district edge, so vehicles arrive off-screen. */
+  lanes: z.array(z.strictObject({ id: contentIdSchema, points: z.array(positionSchema).min(2) })),
+  fleet: z.array(
+    z.strictObject({
+      kind: contentIdSchema,
+      /** Spread over these lanes in turn. */
+      lanes: z.array(contentIdSchema).min(1),
+      count: z.int().min(1).max(20),
+    }),
+  ),
+  busStops: z
+    .array(z.strictObject({ lane: contentIdSchema, at: positionSchema, seconds: z.number().positive().max(30).default(5) }))
+    .default([]),
+  pedestrians: z.strictObject({
+    count: z.int().min(0).max(12),
+    /** People walk a walkway to its end and back. */
+    walkways: z.array(z.strictObject({ id: contentIdSchema, points: z.array(positionSchema).min(2) })),
+  }),
+});
+export type Traffic = z.infer<typeof trafficSchema>;
+
 export const districtSchema = z.strictObject({
   id: contentIdSchema,
   name: z.string().min(1).max(60),
@@ -494,6 +588,7 @@ export const districtSchema = z.strictObject({
   roads: z.array(roadSchema),
   props: z.array(propSchema).default([]),
   npcs: z.array(npcSchema).default([]),
+  traffic: trafficSchema.optional(),
 });
 
 export const citySchema = z.strictObject({
@@ -529,23 +624,32 @@ export const districtLayoutSchema = districtSchema.extend({
   propKinds: z.record(contentIdSchema, propKindSchema),
   /** The whole character catalog: NPCs are drawn from it, and the creator offers its starter options. */
   characters: characterCatalogSchema,
+  /** The traffic schedule and the vehicle kinds this district's fleet uses. */
+  vehicles: vehicleKindsSchema,
 });
 export type DistrictLayout = z.infer<typeof districtLayoutSchema>;
 
+/** Everything a district's layout draws on, from `content/`. */
+export interface LayoutCatalogs {
+  models: Readonly<Record<string, ModelInfo>>;
+  propKinds: Readonly<Record<string, PropKind>>;
+  characters: CharacterCatalog;
+  vehicles: VehicleKinds;
+}
+
 /**
- * The district plus only the models and prop kinds it uses, and the character
- * catalog with its hair models. The server sends this on join and the content
- * check tests the same thing, so what is checked is what is played. Unknown
- * ids are left out here; the content check reports them.
+ * The district plus only the models, prop kinds and vehicle kinds it uses,
+ * and the character catalog with its hair models. The server sends this on
+ * join and the content check tests the same thing, so what is checked is what
+ * is played. Unknown ids are left out here; the content check reports them.
  */
 export function buildDistrictLayout(
   config: DistrictConfig,
-  models: Readonly<Record<string, ModelInfo>>,
-  propKinds: Readonly<Record<string, PropKind>>,
-  characters: CharacterCatalog,
+  { models, propKinds, characters, vehicles }: LayoutCatalogs,
 ): DistrictLayout {
   const usedModels: Record<string, ModelInfo> = {};
   const usedKinds: Record<string, PropKind> = {};
+  const usedVehicles: Record<string, VehicleKind> = {};
   const useModel = (id: string | undefined): void => {
     const model = id ? models[id] : undefined;
     if (id && model) usedModels[id] = model;
@@ -560,7 +664,19 @@ export function buildDistrictLayout(
   for (const hair of Object.values(characters.hairs)) {
     for (const part of Object.values(hair.parts)) useModel(part);
   }
-  return { ...config, models: usedModels, propKinds: usedKinds, characters };
+  for (const group of config.traffic?.fleet ?? []) {
+    const kind = vehicles.kinds[group.kind];
+    if (!kind) continue;
+    usedVehicles[group.kind] = kind;
+    if ("model" in kind.look) useModel(kind.look.model);
+  }
+  return {
+    ...config,
+    models: usedModels,
+    propKinds: usedKinds,
+    characters,
+    vehicles: { schedule: vehicles.schedule, kinds: usedVehicles },
+  };
 }
 
 /** How far a model may stick out past its footprint, in metres: a roof edge or a step, never a walk-through wall. */

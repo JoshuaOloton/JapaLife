@@ -1,12 +1,10 @@
 import {
   type Box,
-  type CharacterCatalog,
   type DistrictConfig,
   type DistrictLayout,
   type Interactable,
-  type ModelInfo,
+  type LayoutCatalogs,
   type Point,
-  type PropKind,
   buildDistrictLayout,
   districtObstacles,
   moveWithCollisions,
@@ -14,18 +12,16 @@ import {
 
 /** A district's walkable area and the things in it, with the geometry checks the server needs. */
 export class DistrictMap {
-  /** What the client gets on join: the config, the models and prop kinds it uses, and the character catalog. */
+  /** What the client gets on join: the config and what it uses from the content catalogs. */
   readonly layout: DistrictLayout;
   /** Everything that stops a player: the same list the client predicts with. */
   private readonly obstacles: Box[];
 
   constructor(
     readonly config: DistrictConfig,
-    models: Readonly<Record<string, ModelInfo>>,
-    propKinds: Readonly<Record<string, PropKind>>,
-    characters: CharacterCatalog,
+    catalogs: LayoutCatalogs,
   ) {
-    this.layout = buildDistrictLayout(config, models, propKinds, characters);
+    this.layout = buildDistrictLayout(config, catalogs);
     this.obstacles = districtObstacles(this.layout);
   }
 

@@ -1,0 +1,38 @@
+{
+  "schedule": {
+    "dayShare": 0.8,
+    "nightShare": 0.35,
+    "rushShare": 1,
+    "rushHours": [
+      { "from": 7, "to": 9 },
+      { "from": 17, "to": 20 }
+    ],
+    "quietFrom": 22,
+    "quietUntil": 5
+  },
+  "kinds": {
+    "danfo": {
+      "look": {
+        "model": "van",
+        "scale": 1.7,
+        "paint": "#f2b705",
+        "stripe": { "colour": "#141414", "from": 0.42, "to": 0.5 }
+      },
+      "speed": 7,
+      "stopsAtBusStops": true,
+      "rushHourBoost": true
+    },
+    "keke": {
+      "look": { "built": "keke", "halfLength": 1.35, "halfWidth": 0.65, "height": 1.75, "colour": "#f2c200" },
+      "speed": 6
+    },
+    "okada": {
+      "look": { "built": "okada", "halfLength": 0.95, "halfWidth": 0.35, "height": 1.6, "colour": "#8a1f1f" },
+      "speed": 9
+    },
+    "sedan": { "look": { "model": "sedan", "scale": 1.6 }, "speed": 8 },
+    "suv": { "look": { "model": "suv", "scale": 1.6 }, "speed": 8 },
+    "hatchback": { "look": { "model": "hatchback", "scale": 1.6 }, "speed": 8 },
+    "taxi": { "look": { "model": "taxi", "scale": 1.6 }, "speed": 8 }
+  }
+}
