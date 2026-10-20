@@ -1,13 +1,13 @@
 "use client";
 
-import type { Npc, Point } from "@japalife/shared";
+import type { DistrictLayout, Point } from "@japalife/shared";
 import { useFrame } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import type { Mesh } from "three";
 import type { CharacterMotion } from "../character/animation";
+import { resolveLook } from "../character/appearance";
 import { Character } from "../character/Character";
 import { ModelBoundary } from "../ModelBoundary";
-import { NPC_LOOKS } from "./npcLooks";
 import { paintSign } from "./paint";
 
 /**
@@ -36,8 +36,20 @@ const STANDING: { current: CharacterMotion } = {
   current: { speed: 0, working: false, gestureAt: Number.NEGATIVE_INFINITY },
 };
 
-export function Npcs({ npcs, predicted }: { npcs: readonly Npc[]; predicted: { current: Point } }) {
+export function Npcs({
+  layout,
+  predicted,
+}: {
+  layout: Pick<DistrictLayout, "npcs" | "characters" | "models">;
+  predicted: { current: Point };
+}) {
+  const { npcs } = layout;
   const paused = useMemo(() => npcs.map(() => ({ current: false })), [npcs]);
+  // Resolved once per layout, so each NPC's look object is stable and never rebuilds them.
+  const looks = useMemo(
+    () => npcs.map((npc) => resolveLook(npc.look, layout.characters, layout.models)),
+    [npcs, layout.characters, layout.models],
+  );
   const bubbles = useRef<(Mesh | null)[]>([]);
   const sinceCheck = useRef(Number.POSITIVE_INFINITY);
 
@@ -58,13 +70,14 @@ export function Npcs({ npcs, predicted }: { npcs: readonly Npc[]; predicted: { c
   return (
     <>
       {npcs.map((npc, index) => {
-        const { body, look } = NPC_LOOKS[npc.look];
+        const look = looks[index];
+        if (!look) return null;
         return (
           <group key={npc.id} position={[npc.x, 0, npc.z]} rotation-y={(npc.facing * Math.PI) / 180}>
             {/* No stand-in: they arrive with the player's own character download. */}
             <ModelBoundary fallback={null}>
               <Suspense fallback={null}>
-                <Character body={body} look={look} motion={STANDING} pose={npc.pose} paused={paused[index]} />
+                <Character look={look} motion={STANDING} pose={npc.pose} paused={paused[index]} />
               </Suspense>
             </ModelBoundary>
             {npc.says ? (

@@ -328,3 +328,61 @@
   font: 12px ui-monospace, monospace;
   pointer-events: none;
 }
+
+/* Character creator: a sheet of choices under the close-up of your character. */
+.creatorSheet {
+  composes: sheet;
+  /* Shorter than a place sheet, so the whole character stays in view above it. */
+  max-height: 42dvh;
+}
+.creatorRow {
+  padding: 8px 0;
+  border-top: 1px solid #e7e0d2;
+}
+.creatorRow h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5b6670;
+}
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.option {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 2px solid #d8cfbd;
+  border-radius: 10px;
+  background: #fff;
+  color: #1d2b36;
+  font: 600 14px system-ui, sans-serif;
+  touch-action: manipulation;
+}
+.option[aria-pressed="true"] {
+  border-color: #2e7d4f;
+  background: #e6f2ea;
+}
+.swatch {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #d8cfbd;
+  touch-action: manipulation;
+}
+.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 3px #2e7d4f;
+}
+.creatorFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+}
+.secondaryAction {
+  composes: action;
+  background: #e7e0d2;
+  color: #1d2b36;
+}

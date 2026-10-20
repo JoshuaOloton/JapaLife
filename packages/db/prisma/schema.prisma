@@ -59,6 +59,25 @@ model Player {
   balanceFlags BalanceFlag[]
   eventChoices EventChoice[]
   inbox        InboxMessage[]
+  appearance   PlayerAppearance?
+}
+
+// ---- Character (Slice 11d) ---------------------------------------------------
+// Cosmetic avatar data, not money and not personal data about the real person:
+// catalog ids only (content/characters/catalog.json). No row means the player
+// has not made a character yet, so the client opens the creator.
+
+model PlayerAppearance {
+  playerId     String   @id
+  body         String
+  skinTone     String
+  hair         String
+  hairColour   String
+  outfit       String
+  outfitColour String
+  updatedAt    DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
 }
 
 // ---- Game state (Phase 1, Slice 4) -------------------------------------------

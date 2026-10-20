@@ -4,6 +4,7 @@ import { Ledger } from "../economy/ledger";
 import { WalletService } from "../economy/wallet";
 import type { GameContent } from "../content/loadContent";
 import { logError } from "../log";
+import { AppearanceService } from "./appearance";
 import { ChoiceService } from "./choices";
 import { type GameClock, createGameClock } from "./clock";
 import type { GameDeps } from "./deps";
@@ -34,6 +35,8 @@ export interface GameSystems {
   /** Answers and expiries for events that ask the player something (black tax). */
   choices: ChoiceService;
   stats: StatsService;
+  /** The player's character: made once, changed at home. */
+  appearance: AppearanceService;
   /** Live toasts for connected players. Game code tells players through `inbox`, which also uses this. */
   notices: NoticeBus;
   /** Every notice to a player, kept for when they come back. */
@@ -82,7 +85,9 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
 
   const districts = new Map<string, DistrictMap>();
   for (const city of Object.values(content.cities)) {
-    for (const district of city.districts) districts.set(district.id, new DistrictMap(district, content.models, content.propKinds));
+    for (const district of city.districts) {
+      districts.set(district.id, new DistrictMap(district, content.models, content.propKinds, content.characters));
+    }
   }
 
   return {
@@ -97,6 +102,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     events,
     choices,
     stats,
+    appearance: new AppearanceService(deps),
     notices,
     inbox,
     mutex: new KeyedMutex(),

@@ -104,7 +104,16 @@ describe("districtObstacles", () => {
       { kind: "umbrella", x: 0, z: -10, rotation: 0 },
       { kind: "tree", x: 10, z: -10, rotation: 0 },
     ],
-    npcs: [{ id: "mama-put", look: "mama_put", pose: "talk", x: -5, z: 5, facing: 0 }],
+    npcs: [
+      {
+        id: "mama-put",
+        look: { body: "body-2", skinTone: "tone-3", hair: "low-cut", hairColour: "black", outfit: "apron-wrapper", outfitColour: "white" },
+        pose: "talk",
+        x: -5,
+        z: 5,
+        facing: 0,
+      },
+    ],
     propKinds: {
       generator: { look: { built: "generator", halfWidth: 0.6, halfDepth: 0.4, height: 0.8 }, blocks: "footprint" },
       palm: { look: { built: "palm", halfWidth: 2, halfDepth: 2, height: 7 }, blocks: { halfWidth: 0.2, halfDepth: 0.2 } },

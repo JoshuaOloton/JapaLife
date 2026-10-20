@@ -65,6 +65,22 @@
         ]
       ]
     },
+    "hair-buzzed": {
+      "file": "characters/hair-buzzed.glb",
+      "halfWidth": 0.077,
+      "halfDepth": 0.095,
+      "height": 0.169,
+      "triangles": 830,
+      "bytes": 28688
+    },
+    "hair-buzzed-female": {
+      "file": "characters/hair-buzzed-female.glb",
+      "halfWidth": 0.079,
+      "halfDepth": 0.099,
+      "height": 0.17,
+      "triangles": 830,
+      "bytes": 29216
+    },
     "office-block": {
       "file": "buildings/office-block.glb",
       "halfWidth": 1.042,

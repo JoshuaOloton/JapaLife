@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { appearanceSchema } from "./appearance";
 import { EVENT_ANSWERS } from "./content";
 
 /**
@@ -65,6 +66,12 @@ export const answerEventIntentSchema = z.strictObject({
 /** Show the inbox; the server replies with the latest messages and marks them read. */
 export const openInboxIntentSchema = z.strictObject({});
 
+/**
+ * Make or change your character: catalog ids only. The server checks every id,
+ * that each item is yours, and (after the first time) that you are at home.
+ */
+export const setAppearanceIntentSchema = appearanceSchema;
+
 export const intentSchemas = {
   move: moveIntentSchema,
   interact: interactIntentSchema,
@@ -74,6 +81,7 @@ export const intentSchemas = {
   buyItem: buyItemIntentSchema,
   answerEvent: answerEventIntentSchema,
   openInbox: openInboxIntentSchema,
+  setAppearance: setAppearanceIntentSchema,
 } as const;
 
 export type IntentType = keyof typeof intentSchemas;

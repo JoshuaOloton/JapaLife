@@ -1,8 +1,17 @@
 "use client";
 
-import { COPY, type DistrictConfig, type Interactable, MAX_DEVICE_PIXEL_RATIO, type Point } from "@japalife/shared";
+import {
+  type Appearance,
+  COPY,
+  type DistrictConfig,
+  type DistrictLayout,
+  type Interactable,
+  MAX_DEVICE_PIXEL_RATIO,
+  type Point,
+} from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CharacterCreator } from "./CharacterCreator";
 import { type DistrictRoom, type MessageBuffer, useDistrictConnection } from "./connection";
 import { placePrompt } from "./format";
 import { FpsProbe, useFpsMeterEnabled } from "./FpsMeter";
@@ -37,6 +46,13 @@ export default function Game() {
   const showFps = useFpsMeterEnabled();
   const fpsOutput = useRef<HTMLParagraphElement>(null);
   const street = useRef<StreetState>(initialStreet());
+  // How your character looks right now (saved, or the creator's draft), and whether the creator has the camera.
+  const [shownLook, setShownLook] = useState<Appearance | null>(null);
+  const [closeUp, setCloseUp] = useState(false);
+  const showLook = useCallback((look: Appearance | null, creatorOpen: boolean) => {
+    setShownLook(look);
+    setCloseUp(creatorOpen);
+  }, []);
 
   useEffect(() => input.attachKeyboard(window), [input]);
 
@@ -68,10 +84,12 @@ export default function Game() {
           input={input}
           predicted={predicted}
           activity={activity}
+          appearance={shownLook}
+          closeUp={closeUp}
         />
         {showFps && <FpsProbe output={fpsOutput} />}
       </Canvas>
-      {touch && <Joystick input={input} />}
+      {touch && !closeUp && <Joystick input={input} />}
       <Overlay
         room={connection.room}
         messages={connection.messages}
@@ -80,6 +98,7 @@ export default function Game() {
         activity={activity}
         street={street}
         fpsOutput={showFps ? fpsOutput : undefined}
+        onLook={showLook}
       />
     </div>
   );
@@ -97,18 +116,43 @@ function Overlay({
   activity,
   street,
   fpsOutput,
+  onLook,
 }: {
   room: DistrictRoom;
   messages: MessageBuffer;
-  district: DistrictConfig;
+  district: DistrictLayout;
   predicted: { current: Point };
   activity: { current: PlayerActivity };
   street: { current: StreetState };
   fpsOutput: RefObject<HTMLParagraphElement | null> | undefined;
+  /** Tells the 3D view how your character looks and whether the creator is open. */
+  onLook: (look: Appearance | null, creatorOpen: boolean) => void;
 }) {
-  const { server, toasts, interaction, closeInteraction, inbox, closeInbox } = useGameMessages(messages);
+  const { server, toasts, interaction, closeInteraction, inbox, closeInbox, appearance, appearanceSaves, appearanceRefusals } =
+    useGameMessages(messages);
   const now = useTicker(server);
   const near = useNearbyPlace(district, predicted);
+  const [editing, setEditing] = useState<{ mode: "create" | "change"; draft: Appearance; saving: boolean } | null>(null);
+
+  // A new player makes their character before anything else (the server says null).
+  useEffect(() => {
+    if (appearance === null && !editing) setEditing({ mode: "create", draft: district.characters.defaults, saving: false });
+  }, [appearance, editing, district]);
+  // The server saved it: close the creator. Refused: let them try again.
+  useEffect(() => setEditing((current) => (current?.saving ? null : current)), [appearanceSaves]);
+  useEffect(() => setEditing((current) => (current?.saving ? { ...current, saving: false } : current)), [appearanceRefusals]);
+  // Show the draft live on your character; otherwise what the server saved.
+  useEffect(() => onLook(editing?.draft ?? appearance ?? null, editing !== null), [editing, appearance, onLook]);
+
+  const changeClothes = (): void => {
+    closeInteraction();
+    setEditing({ mode: "change", draft: appearance ?? district.characters.defaults, saving: false });
+  };
+  const saveLook = (): void => {
+    if (!editing) return;
+    room.send("setAppearance", editing.draft);
+    setEditing({ ...editing, saving: true });
+  };
 
   // Tell the 3D street what time it is and whether there is light.
   useEffect(() => {
@@ -165,23 +209,38 @@ function Overlay({
         }}
         fpsOutput={fpsOutput}
       />
-      {near && !interaction && !inbox && (
-        <button type="button" className={styles.use} onClick={() => open(near)}>
-          {placePrompt(near)}
-        </button>
-      )}
-      {inbox && <InboxPanel messages={inbox} stats={server?.stats ?? null} onClose={closeInbox} />}
-      {interaction && openPlace && !inbox && (
-        <PlacePanel
-          interaction={interaction}
-          label={openPlace.label}
-          stats={server?.stats ?? null}
-          now={now}
-          room={room}
-          onClose={closeInteraction}
+      {editing ? (
+        <CharacterCreator
+          catalog={district.characters}
+          draft={editing.draft}
+          mode={editing.mode}
+          saving={editing.saving}
+          onChange={(draft) => setEditing({ ...editing, draft })}
+          onDone={saveLook}
+          onCancel={() => setEditing(null)}
         />
+      ) : (
+        <>
+          {near && !interaction && !inbox && (
+            <button type="button" className={styles.use} onClick={() => open(near)}>
+              {placePrompt(near)}
+            </button>
+          )}
+          {inbox && <InboxPanel messages={inbox} stats={server?.stats ?? null} onClose={closeInbox} />}
+          {interaction && openPlace && !inbox && (
+            <PlacePanel
+              interaction={interaction}
+              label={openPlace.label}
+              stats={server?.stats ?? null}
+              now={now}
+              room={room}
+              onClose={closeInteraction}
+              onChangeClothes={changeClothes}
+            />
+          )}
+          {!interaction && !inbox && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
+        </>
       )}
-      {!interaction && !inbox && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
     </>
   );
 }

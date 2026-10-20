@@ -114,6 +114,25 @@ export const copySchema = z.strictObject({
     fuelRuns: text(["hours"]),
     fuelInTank: text(["hours"]),
   }),
+  /** The character creator, first time and "Change clothes" at home. Option names live in the character catalog. */
+  creator: z.strictObject({
+    title: text(),
+    changeTitle: text(),
+    body: text(),
+    /** "Body 1", "Body 2": no gender label (decided 2026-10-20). */
+    bodyOption: text(["number"]),
+    skin: text(),
+    hair: text(),
+    hairColour: text(),
+    outfit: text(),
+    outfitColour: text(),
+    /** Screen-reader label for a colour swatch, e.g. "Skin tone 3". */
+    swatch: text(["row", "number"]),
+    done: text(),
+    cancel: text(),
+    saving: text(),
+    changeClothes: text(),
+  }),
   eventCard: z.strictObject({
     replyWithin: text(["time"]),
     cannotAfford: text(["amount"]),

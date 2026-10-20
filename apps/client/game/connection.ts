@@ -2,6 +2,7 @@
 
 import { Client, type Room } from "@colyseus/sdk";
 import {
+  type AppearanceMessage,
   COPY,
   DEFAULT_SERVER_PORT,
   DISTRICT_ROOM_NAME,
@@ -34,7 +35,8 @@ export type ServerEvent =
   | { type: "notice"; notice: NoticeMessage }
   | { type: "rejected"; rejected: RejectedMessage }
   | { type: "interaction"; interaction: InteractionMessage }
-  | { type: "inbox"; inbox: InboxMessage };
+  | { type: "inbox"; inbox: InboxMessage }
+  | { type: "appearance"; appearance: AppearanceMessage };
 
 /** More than a join could ever produce; a cap only so a stalled UI cannot grow it forever. */
 const MAX_BUFFERED = 50;
@@ -61,6 +63,9 @@ export class MessageBuffer {
       this.deliver({ type: "interaction", interaction }),
     );
     room.onMessage(SERVER_MESSAGES.inbox, (inbox: InboxMessage) => this.deliver({ type: "inbox", inbox }));
+    room.onMessage(SERVER_MESSAGES.appearance, (appearance: AppearanceMessage) =>
+      this.deliver({ type: "appearance", appearance }),
+    );
   }
 
   /** One listener at a time (the HUD). Anything that arrived earlier is handed over first. */

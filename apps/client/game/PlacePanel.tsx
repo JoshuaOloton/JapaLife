@@ -19,6 +19,7 @@ export function PlacePanel({
   now,
   room,
   onClose,
+  onChangeClothes,
 }: {
   interaction: InteractionMessage;
   label: string;
@@ -26,6 +27,8 @@ export function PlacePanel({
   now: number;
   room: DistrictRoom;
   onClose: () => void;
+  /** Opens the character creator; offered at home only (the server refuses a change anywhere else). */
+  onChangeClothes: () => void;
 }) {
   return (
     <section className={styles.sheet} aria-label={label}>
@@ -35,7 +38,7 @@ export function PlacePanel({
           ×
         </button>
       </div>
-      <Body interaction={interaction} stats={stats} now={now} room={room} />
+      <Body interaction={interaction} stats={stats} now={now} room={room} onChangeClothes={onChangeClothes} />
     </section>
   );
 }
@@ -45,11 +48,13 @@ function Body({
   stats,
   now,
   room,
+  onChangeClothes,
 }: {
   interaction: InteractionMessage;
   stats: StatsMessage | null;
   now: number;
   room: DistrictRoom;
+  onChangeClothes: () => void;
 }) {
   switch (interaction.kind) {
     case "job_site": {
@@ -108,34 +113,42 @@ function Body({
       );
     case "home":
       return (
-        <div className={styles.row}>
-          <div>
-            <strong>{text.rent}</strong>
-            {stats && (
-              <div className={styles.detail}>
-                {stats.rentStatus === "ok"
-                  ? fill(text.rentDueIn, {
-                      amount: formatNaira(stats.rentAmountKobo),
-                      time: formatCountdown(Date.parse(stats.rentDueAt) - now),
-                    })
-                  : fill(stats.rentStatus === "due" ? text.rentDueNow : text.rentOverdue, {
-                      amount: formatNaira(stats.rentAmountKobo),
-                    })}
-              </div>
-            )}
-            {stats && stats.rentStatus !== "ok" && (
-              <div className={styles.detail}>
-                {fill(text.rentLateFee, {
-                  fee: formatNaira(stats.rentLateFeeKobo),
-                  time: formatCountdown(Date.parse(stats.rentLateFeeAt) - now),
-                })}
-              </div>
-            )}
+        <>
+          <div className={styles.row}>
+            <div>
+              <strong>{text.rent}</strong>
+              {stats && (
+                <div className={styles.detail}>
+                  {stats.rentStatus === "ok"
+                    ? fill(text.rentDueIn, {
+                        amount: formatNaira(stats.rentAmountKobo),
+                        time: formatCountdown(Date.parse(stats.rentDueAt) - now),
+                      })
+                    : fill(stats.rentStatus === "due" ? text.rentDueNow : text.rentOverdue, {
+                        amount: formatNaira(stats.rentAmountKobo),
+                      })}
+                </div>
+              )}
+              {stats && stats.rentStatus !== "ok" && (
+                <div className={styles.detail}>
+                  {fill(text.rentLateFee, {
+                    fee: formatNaira(stats.rentLateFeeKobo),
+                    time: formatCountdown(Date.parse(stats.rentLateFeeAt) - now),
+                  })}
+                </div>
+              )}
+            </div>
+            <button type="button" className={styles.action} onClick={() => room.send("payRent", {})}>
+              {text.payRent}
+            </button>
           </div>
-          <button type="button" className={styles.action} onClick={() => room.send("payRent", {})}>
-            {text.payRent}
-          </button>
-        </div>
+          <div className={styles.row}>
+            <strong>{COPY.creator.outfit}</strong>
+            <button type="button" className={styles.action} onClick={onChangeClothes}>
+              {COPY.creator.changeClothes}
+            </button>
+          </div>
+        </>
       );
     case "bus_stop":
       return <p className={styles.detail}>{text.noBuses}</p>;

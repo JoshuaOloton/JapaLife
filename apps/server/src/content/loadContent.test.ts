@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DistrictMap } from "../game/district";
 import { ContentError, DEFAULT_CONTENT_DIR, loadContent } from "./loadContent";
 
+/** A valid character look from the shipped catalog. */
+const LOOK = { body: "body-1", skinTone: "tone-4", hair: "low-cut", hairColour: "black", outfit: "office", outfitColour: "blue" };
+
 describe("loadContent (real content/)", () => {
   it("loads and validates the shipped Phase 1 content", () => {
     const content = loadContent();
@@ -246,21 +249,51 @@ describe("loadContent (broken content)", () => {
     });
 
     it("rejects an NPC standing in the road, and duplicate NPC ids", () => {
-      addNpc({ id: "mama-put", look: "hawker", pose: "idle", x: 20, z: 1 });
+      addNpc({ id: "mama-put", look: LOOK, pose: "idle", x: 20, z: 1 });
       const problems = problemsOf().join("\n");
       expect(problems).toContain('duplicate NPC id "mama-put"');
       expect(problems).toContain('NPC "mama-put" stands in a road');
     });
 
+    it("rejects an NPC wearing something the character catalog does not have, but allows non-starter clothes", () => {
+      addNpc({ id: "ghost", look: { ...LOOK, outfit: "agbada" }, pose: "idle", x: 20, z: 20 });
+      addNpc({ id: "guard", look: { ...LOOK, outfit: "security-uniform" }, pose: "idle", x: 22, z: 20 });
+      const problems = problemsOf().join("\n");
+      expect(problems).toContain('NPC "ghost": look outfit is not in characters/catalog.json');
+      expect(problems).not.toContain('NPC "guard"');
+    });
+
     it("stops the player at a prop on the server, exactly where the shared obstacles say", () => {
       const content = loadContent();
-      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds);
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds, content.characters);
       // The kiosk at (-8, 8) is 2 m wide: walking east into it from (-14, 8) stops at its west face.
       const end = yaba.move({ x: -14, z: 8 }, { x: 10, z: 0 });
       const westFace = -8 - 1 - PLAYER_RADIUS;
       expect(end.x).toBeLessThanOrEqual(westFace);
       expect(end.x).toBeGreaterThan(westFace - 0.2);
       expect(isBlocked(end, districtObstacles(yaba.layout))).toBe(false);
+    });
+  });
+
+  describe("character catalog", () => {
+    it("rejects a hair part that is not a built model", () => {
+      edit("characters/catalog.json", (j) => (j["hairs"]["low-cut"].parts["body-1"] = "hair-ghost"));
+      expect(problemsOf().join("\n")).toContain('hair "low-cut": unknown model "hair-ghost"');
+    });
+
+    it("rejects a hair that does not fit every body", () => {
+      edit("characters/catalog.json", (j) => delete j["hairs"]["low-cut"].parts["body-2"]);
+      expect(problemsOf().join("\n")).toContain('hair "low-cut": no part for body "body-2"');
+    });
+
+    it("rejects an outfit that leaves the hips bare", () => {
+      edit("characters/catalog.json", (j) => (j["outfits"]["tshirt-jeans"].fixed = { foot: "#262626" }));
+      expect(problemsOf().join("\n")).toContain('outfit "tshirt-jeans": leaves "hips" bare');
+    });
+
+    it("rejects defaults that are not free starter options", () => {
+      edit("characters/catalog.json", (j) => (j["defaults"].outfit = "security-uniform"));
+      expect(problemsOf().join("\n")).toContain("defaults: outfit is not a starter option");
     });
   });
 
@@ -281,7 +314,7 @@ describe("loadContent (broken content)", () => {
         j["models"]["unused"] = { file: "buildings/unused.glb", halfWidth: 1, halfDepth: 1, height: 1, triangles: 1, bytes: 1 };
       });
       const content = loadContent(dir);
-      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds);
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content.models, content.propKinds, content.characters);
       expect(Object.keys(yaba.layout.models)).toContain("test-office");
       expect(Object.keys(yaba.layout.models)).not.toContain("unused");
       expect(Object.keys(yaba.layout.models)).not.toContain("office-block"); // replaced by the test model

@@ -96,7 +96,7 @@ export function World({
       <Windows buildings={plainBuildings} street={street} />
       <ModelBuildings buildings={district.buildings} models={district.models} street={street} />
       <Props layout={district} />
-      <Npcs npcs={district.npcs} predicted={predicted} />
+      <Npcs layout={district} predicted={predicted} />
       {district.interactables.map((place) => (
         <Sign key={place.id} place={place} radius={district.interactRadius} />
       ))}

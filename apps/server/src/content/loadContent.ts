@@ -2,8 +2,11 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ALWAYS_COVERED,
   GAME_EVENT_IDS,
+  appearanceProblem,
   buildDistrictLayout,
+  characterCatalogSchema,
   citySchema,
   copySchema,
   type Copy,
@@ -15,6 +18,7 @@ import {
   ngnEconomySchema,
   propBlockProblem,
   propKindsSchema,
+  type CharacterCatalog,
   type CityConfig,
   type GameEventConfig,
   type GameEventId,
@@ -37,6 +41,8 @@ export type GameContent = {
   models: ModelCatalog["models"];
   /** Kinds of street prop by id: how each looks and what of it blocks. */
   propKinds: PropKinds["kinds"];
+  /** Every option a character can have; players and NPCs store only ids into it. */
+  characters: CharacterCatalog;
   /** Player-facing text. The client bundles the same file; checking it here stops a bad edit at boot. */
   copy: Copy;
   /** Values flagged `TODO` in the files, unsure and waiting for review. Printed at boot. */
@@ -119,6 +125,7 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   const copy = readJson("copy/en.json", copySchema);
   const modelCatalog = readJson("models/catalog.json", modelCatalogSchema);
   const propKinds = readJson("props/kinds.json", propKindsSchema);
+  const characters = readJson("characters/catalog.json", characterCatalogSchema);
 
   const events: Partial<Record<GameEventId, GameEventConfig>> = {};
   for (const file of jsonFilesIn("events")) {
@@ -147,9 +154,12 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   if (!cities["lagos"]) problems.push("cities/lagos.json: missing (Phase 1 starts in Lagos)");
 
   if (ngn && jobs) problems.push(...crossCheck(ngn, jobs, Object.values(cities)));
-  if (modelCatalog && propKinds) problems.push(...checkWorld(modelCatalog, propKinds, Object.values(cities)));
+  if (modelCatalog && characters) problems.push(...checkCharacters(characters, modelCatalog));
+  if (modelCatalog && propKinds && characters) {
+    problems.push(...checkWorld(modelCatalog, propKinds, characters, Object.values(cities)));
+  }
 
-  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog || !propKinds) {
+  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog || !propKinds || !characters) {
     throw new ContentError(problems);
   }
   const allEvents = events as Record<GameEventId, GameEventConfig>;
@@ -161,17 +171,58 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
     cities,
     models: modelCatalog.models,
     propKinds: propKinds.kinds,
+    characters,
     copy,
     todos: collectTodos(ngn, needs, jobs, allEvents),
   };
 }
 
 /**
+ * The character catalog can always dress someone: every hair part is a real
+ * model and fits every body, every outfit covers what it must, every section
+ * offers at least one free starter option, and the defaults are free starters.
+ */
+function checkCharacters(characters: CharacterCatalog, catalog: ModelCatalog): string[] {
+  const problems: string[] = [];
+  const where = "characters/catalog.json";
+  const bodies = Object.keys(characters.bodies);
+  for (const [id, hair] of Object.entries(characters.hairs)) {
+    const parts = Object.entries(hair.parts);
+    for (const [body, model] of parts) {
+      if (!characters.bodies[body]) problems.push(`${where} hair "${id}": part for unknown body "${body}"`);
+      if (!catalog.models[model]) problems.push(`${where} hair "${id}": unknown model "${model}" (not in models/catalog.json; run pnpm assets?)`);
+    }
+    // Every hair fits every body (decided 2026-10-20), unless it has no parts at all (bald).
+    if (parts.length > 0) {
+      for (const body of bodies) {
+        if (!hair.parts[body]) problems.push(`${where} hair "${id}": no part for body "${body}"`);
+      }
+    }
+  }
+  for (const [id, outfit] of Object.entries(characters.outfits)) {
+    for (const region of ALWAYS_COVERED) {
+      if (!outfit.chosen.includes(region) && !outfit.fixed[region]) {
+        problems.push(`${where} outfit "${id}": leaves "${region}" bare (the underwear on the base texture would show)`);
+      }
+    }
+  }
+  for (const section of ["bodies", "skinTones", "hairs", "hairColours", "outfits", "outfitColours"] as const) {
+    if (!Object.values(characters[section]).some((option) => option.starter)) {
+      problems.push(`${where} ${section}: no starter option, so the creator would have nothing to offer`);
+    }
+  }
+  const defaults = appearanceProblem(characters.defaults, characters, { starterOnly: true });
+  if (defaults) problems.push(`${where} defaults: ${defaults.slot} is ${defaults.reason === "unknown" ? "not in the catalog" : "not a starter option"}`);
+  return problems;
+}
+
+/**
  * What you see is what stops you: every model exists, every building's model
  * fills its footprint, no prop blocks more than it shows, and each district's
- * layout (with its props and NPCs) passes `checkLayout`.
+ * layout (with its props and NPCs) passes `checkLayout`. Every NPC wears
+ * something the character catalog has.
  */
-function checkWorld(catalog: ModelCatalog, propKinds: PropKinds, cities: CityConfig[]): string[] {
+function checkWorld(catalog: ModelCatalog, propKinds: PropKinds, characters: CharacterCatalog, cities: CityConfig[]): string[] {
   const problems: string[] = [];
   for (const [id, kind] of Object.entries(propKinds.kinds)) {
     const where = `props/kinds.json "${id}"`;
@@ -187,9 +238,14 @@ function checkWorld(catalog: ModelCatalog, propKinds: PropKinds, cities: CityCon
       problems.push(
         ...checkLayout(
           `cities/${city.id}.json district "${district.id}"`,
-          buildDistrictLayout(district, catalog.models, propKinds.kinds),
+          buildDistrictLayout(district, catalog.models, propKinds.kinds, characters),
         ),
       );
+      for (const npc of district.npcs) {
+        // NPCs may wear non-starter clothes (a gateman's uniform); they only need to exist.
+        const problem = appearanceProblem(npc.look, characters, { starterOnly: false });
+        if (problem) problems.push(`cities/${city.id}.json NPC "${npc.id}": look ${problem.slot} is not in characters/catalog.json`);
+      }
       for (const building of district.buildings) {
         if (!building.model) continue;
         const where = `cities/${city.id}.json building "${building.id}"`;

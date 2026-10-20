@@ -1,5 +1,6 @@
 import {
   type Box,
+  type CharacterCatalog,
   type DistrictConfig,
   type DistrictLayout,
   type Interactable,
@@ -13,17 +14,18 @@ import {
 
 /** A district's walkable area and the things in it, with the geometry checks the server needs. */
 export class DistrictMap {
-  /** What the client gets on join: the config plus the models and prop kinds it uses. */
+  /** What the client gets on join: the config, the models and prop kinds it uses, and the character catalog. */
   readonly layout: DistrictLayout;
   /** Everything that stops a player: the same list the client predicts with. */
   private readonly obstacles: Box[];
 
   constructor(
     readonly config: DistrictConfig,
-    models: Readonly<Record<string, ModelInfo>> = {},
-    propKinds: Readonly<Record<string, PropKind>> = {},
+    models: Readonly<Record<string, ModelInfo>>,
+    propKinds: Readonly<Record<string, PropKind>>,
+    characters: CharacterCatalog,
   ) {
-    this.layout = buildDistrictLayout(config, models, propKinds);
+    this.layout = buildDistrictLayout(config, models, propKinds, characters);
     this.obstacles = districtObstacles(this.layout);
   }
 

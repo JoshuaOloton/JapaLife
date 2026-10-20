@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  type Appearance,
   type DistrictLayout,
   PLAYER_RADIUS,
   PLAYER_SPEED_UNITS_PER_SECOND,
   type Point,
+  decodeAppearance,
   districtObstacles,
+  encodeAppearance,
   moveWithCollisions,
 } from "@japalife/shared";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -13,6 +16,7 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { type Group, PerspectiveCamera, Vector3 } from "three";
 import { fitCamera } from "./camera";
 import type { CharacterMotion } from "./character/animation";
+import { resolveLook } from "./character/appearance";
 import { Character } from "./character/Character";
 import { ModelBoundary } from "./ModelBoundary";
 import type { DistrictRoom } from "./connection";
@@ -29,6 +33,19 @@ const CAMERA_OFFSET = new Vector3(0, 9, 11);
 /** How tightly the camera follows, per second. Lower is floatier. */
 const CAMERA_FOLLOW_RATE = 6;
 const TURN_RATE = 12;
+
+/**
+ * The character creator's close-up: in front at chest height, aimed near the
+ * feet so the whole person stands in the band between the HUD bar and the
+ * creator's sheet (which covers the bottom 42% of the screen).
+ */
+const CLOSE_UP_OFFSET = new Vector3(0, 1.3, 5.6);
+const CLOSE_UP_LOOK_HEIGHT = 0.2;
+/** How quickly the camera moves into and out of the close-up, per second. */
+const ZOOM_RATE = 4;
+/** Heading that faces the camera (south, +z). */
+const FACE_CAMERA = 0;
+const STILL = { x: 0, z: 0 } as const;
 
 /** Same cap as the server, so one long frame (a phone waking up) cannot fling the player. */
 const MAX_FRAME_SECONDS = 0.25;
@@ -55,6 +72,8 @@ export function Player({
   input,
   predicted,
   activity,
+  appearance,
+  closeUp,
 }: {
   room: DistrictRoom;
   district: DistrictLayout;
@@ -62,6 +81,10 @@ export function Player({
   /** Where the player is drawn. Owned by the parent so the HUD can see which place is near. */
   predicted: { current: Point };
   activity: { current: PlayerActivity };
+  /** How the player looks: the saved character, or the creator's draft. Null shows the catalog's default. */
+  appearance: Appearance | null;
+  /** The character creator is open: stand still, face the camera, and bring the camera in. */
+  closeUp: boolean;
 }) {
   const body = useRef<Group>(null);
   const camera = useThree((three) => three.camera);
@@ -74,6 +97,18 @@ export function Player({
     }
     return CAMERA_OFFSET.clone().multiplyScalar(distanceScale);
   }, [aspect, camera]);
+  const closeOffset = useMemo(() => CLOSE_UP_OFFSET.clone().multiplyScalar(offset.length() / CAMERA_OFFSET.length()), [offset]);
+  const viewOffset = useMemo(() => new Vector3(), []);
+  const zoom = useRef(0);
+  // Keyed by the look's code, not the object: an equal appearance arriving as a
+  // new object must not rebuild the character, only a real change (a tap in the
+  // creator, a saved change) does.
+  const shown = appearance ?? district.characters.defaults;
+  const lookCode = encodeAppearance(shown);
+  const look = useMemo(
+    () => resolveLook(decodeAppearance(lookCode) ?? district.characters.defaults, district.characters, district.models),
+    [lookCode, district],
+  );
   const heading = useRef(Math.PI); // facing north, away from the camera
   const sender = useMemo(() => new MoveSender(room), [room]);
   const server = useMemo(() => new SnapshotBuffer(), []);
@@ -119,7 +154,8 @@ export function Player({
   useFrame((_, frameSeconds) => {
     const dt = Math.min(frameSeconds, MAX_FRAME_SECONDS);
     const now = performance.now();
-    const direction = input.direction();
+    // In the character creator the player stands still and turns to face the camera.
+    const direction = closeUp ? STILL : input.direction();
     const moving = direction.x !== 0 || direction.z !== 0;
     sender.update(direction, now);
 
@@ -151,8 +187,8 @@ export function Player({
     const group = body.current;
     if (group) {
       group.position.set(position.x, 0, position.z);
-      if (moving) {
-        const want = Math.atan2(direction.x, direction.z);
+      if (moving || closeUp) {
+        const want = closeUp ? FACE_CAMERA : Math.atan2(direction.x, direction.z);
         // Turn the short way round, smoothly.
         const diff = Math.atan2(Math.sin(want - heading.current), Math.cos(want - heading.current));
         heading.current += diff * (1 - Math.exp(-TURN_RATE * dt));
@@ -160,10 +196,14 @@ export function Player({
       }
     }
 
-    cameraTarget.set(position.x + offset.x, offset.y, position.z + offset.z);
+    // Glide between the street camera and the creator's close-up rather than cutting.
+    zoom.current += ((closeUp ? 1 : 0) - zoom.current) * (1 - Math.exp(-ZOOM_RATE * dt));
+    viewOffset.lerpVectors(offset, closeOffset, zoom.current);
+    const lookHeight = 1 + (CLOSE_UP_LOOK_HEIGHT - 1) * zoom.current;
+    cameraTarget.set(position.x + viewOffset.x, viewOffset.y, position.z + viewOffset.z);
     camera.position.lerp(cameraTarget, 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt));
     // Look at a point that trails the camera the same way, so the view never tilts while following.
-    lookAt.set(camera.position.x - offset.x, 1, camera.position.z - offset.z);
+    lookAt.set(camera.position.x - viewOffset.x, lookHeight, camera.position.z - viewOffset.z);
     camera.lookAt(lookAt);
   });
 
@@ -173,7 +213,7 @@ export function Player({
       {/* The capsule shows while the model downloads, or for good if the download fails. */}
       <ModelBoundary fallback={standIn}>
         <Suspense fallback={standIn}>
-          <Character body="male" motion={motion} />
+          <Character look={look} motion={motion} />
         </Suspense>
       </ModelBoundary>
       {/* A dark disc instead of a real shadow: almost free on the GPU. */}

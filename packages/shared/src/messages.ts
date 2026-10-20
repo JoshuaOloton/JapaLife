@@ -3,6 +3,7 @@
  * and never computes balances, meters or outcomes itself. Times are ISO strings
  * on the server clock: countdowns use `serverTime`, never the device clock.
  */
+import type { Appearance } from "./appearance";
 
 /** Why the server refused an intent. Stable codes so the client can show its own words. */
 export const REJECT_REASONS = [
@@ -25,6 +26,10 @@ export const REJECT_REASONS = [
   "already_answered",
   /** The request ran out before the answer arrived; it counted as declined. */
   "choice_expired",
+  /** An appearance item the player does not have (not a free starter item). */
+  "not_owned",
+  /** Clothes can only be changed at home, once the character exists. */
+  "not_at_home",
 ] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
@@ -148,6 +153,14 @@ export type InteractionMessage =
   | { targetId: string; kind: "fuel_station"; items: ShopOffer[] }
   | { targetId: string; kind: "home" | "bus_stop" };
 
+/**
+ * The player's own character. Null means they have never made one, so the
+ * client opens the character creator. Sent on join and after `setAppearance`.
+ */
+export interface AppearanceMessage {
+  appearance: Appearance | null;
+}
+
 export const SERVER_MESSAGES = {
   stats: "stats",
   notice: "notice",
@@ -161,4 +174,5 @@ export const SERVER_MESSAGES = {
    * is defined only on the server.
    */
   district: "district",
+  appearance: "appearance",
 } as const;

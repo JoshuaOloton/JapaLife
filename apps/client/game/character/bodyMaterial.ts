@@ -57,18 +57,3 @@ export function createBodyMaterial(skin: Texture | null, regionMask: Texture, lo
   material.customProgramCacheKey = () => "japalife-body";
   return material;
 }
-
-/** The look everyone has until the character creator exists (Slice 11d). */
-export const DEFAULT_LOOK: BodyLook = {
-  outfit: {
-    torso: "#c8553d",
-    upperArm: "#c8553d",
-    hips: "#2f4a6d",
-    thigh: "#2f4a6d",
-    calf: "#2f4a6d",
-    foot: "#262626",
-  },
-  skinTint: "#ffffff",
-};
-
-export const DEFAULT_HAIR_COLOUR = "#2a1f1a";

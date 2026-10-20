@@ -1,5 +1,7 @@
 import { type Client, Room, ServerError } from "@colyseus/core";
 import {
+  type Appearance,
+  type AppearanceMessage,
   type InboxMessage,
   type Intent,
   type Interactable,
@@ -8,6 +10,7 @@ import {
   POSITION_UPDATE_HZ,
   type RejectReason,
   SERVER_MESSAGES,
+  encodeAppearance,
   parseIntent,
 } from "@japalife/shared";
 import { z } from "zod";
@@ -103,9 +106,10 @@ export function createDistrictRoom(game: GameSystems) {
       // Catch up on whatever happened while the player was away, then show the HUD.
       // Not subscribed to toasts yet: what the catch-up finds was missed, so it
       // waits in the inbox as unread instead of flashing past as toasts.
-      await game.mutex.run(playerId, async () => {
+      const appearance = await game.mutex.run(playerId, async () => {
         await game.players.ensurePlayer(playerId);
         await this.catchUp(playerId);
+        return game.appearance.get(playerId);
       });
 
       live.unsubscribeNotices = game.notices.subscribe(playerId, (notice) => client.send(SERVER_MESSAGES.notice, notice));
@@ -116,7 +120,17 @@ export function createDistrictRoom(game: GameSystems) {
       this.state.players.set(client.sessionId, position);
       // The layout the client draws and predicts its walking from: one source of truth.
       client.send(SERVER_MESSAGES.district, this.district.layout);
+      // Null opens the character creator.
+      this.showAppearance(client, appearance);
       await this.sendStats(client, live);
+    }
+
+    /** Tells the player their character, and puts its code in the synced state (for drawing other players, Phase 5). */
+    private showAppearance(client: Client, appearance: Appearance | null): void {
+      const message: AppearanceMessage = { appearance };
+      client.send(SERVER_MESSAGES.appearance, message);
+      const synced = this.state.players.get(client.sessionId);
+      if (synced) synced.appearance = appearance ? encodeAppearance(appearance) : "";
     }
 
     override onLeave(client: Client): void {
@@ -234,6 +248,12 @@ export function createDistrictRoom(game: GameSystems) {
           const inbox: InboxMessage = { messages: await game.inbox.open(playerId, now) };
           client.send(SERVER_MESSAGES.inbox, inbox);
           outcome = { ok: true };
+          break;
+        }
+        case "setAppearance": {
+          const result = await game.appearance.set(playerId, intent.payload, position, this.district);
+          if (result.ok) this.showAppearance(client, result.appearance);
+          outcome = result;
           break;
         }
         case "move":
