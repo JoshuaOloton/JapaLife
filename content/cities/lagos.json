@@ -84,6 +84,8 @@
 
         { "kind": "bench", "x": 8, "z": -8 },
         { "kind": "umbrella-striped", "x": 8, "z": -9.8 },
+        { "kind": "okada-parked", "x": 10.2, "z": -8.1 },
+        { "kind": "okada-parked", "x": 11.0, "z": -8.1 },
 
         { "kind": "hawker-table", "x": 6.5, "z": 29 },
         { "kind": "umbrella", "x": 6.5, "z": 29.6 },

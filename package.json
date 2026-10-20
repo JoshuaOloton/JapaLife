@@ -13,6 +13,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "budget": "pnpm --filter @japalife/client budget",
     "assets": "pnpm --filter @japalife/client assets",
+    "blender": "node assets/blender/run.mjs",
     "db:migrate": "pnpm --filter @japalife/db migrate",
     "db:generate": "pnpm --filter @japalife/db generate",
     "fire-event": "pnpm --filter @japalife/server fire-event",

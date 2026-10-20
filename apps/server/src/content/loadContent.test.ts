@@ -315,14 +315,10 @@ describe("loadContent (broken content)", () => {
       expect(problems).toContain('bus stop at 10, -2 is not on lane "main-east"');
     });
 
-    it("rejects a vehicle model not in the catalog, and paint on a model with no measured paint", () => {
-      edit("traffic/kinds.json", (j) => {
-        j["kinds"]["sedan"].look.model = "molue";
-        j["kinds"]["taxi"].look.paint = "#f2b705";
-      });
+    it("rejects a vehicle model not in the catalog", () => {
+      edit("traffic/kinds.json", (j) => (j["kinds"]["sedan"].look.model = "molue"));
       const problems = problemsOf().join("\n");
       expect(problems).toContain('traffic/kinds.json "sedan": unknown model "molue"');
-      expect(problems).toContain('traffic/kinds.json "taxi": model "taxi" has no measured paint cells');
     });
   });
 

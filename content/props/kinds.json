@@ -71,6 +71,10 @@
     "umbrella-striped": {
       "look": { "model": "umbrella-striped", "scale": 6 },
       "blocks": "none"
+    },
+    "okada-parked": {
+      "look": { "model": "okada-parked" },
+      "blocks": "footprint"
     }
   }
 }

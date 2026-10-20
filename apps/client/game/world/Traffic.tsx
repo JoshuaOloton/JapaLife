@@ -2,19 +2,8 @@
 
 import type { DistrictLayout, ModelInfo, Point, VehicleKind } from "@japalife/shared";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import {
-  BoxGeometry,
-  Color,
-  Group,
-  InstancedMesh,
-  Matrix4,
-  Mesh,
-  MeshLambertMaterial,
-  type MeshStandardMaterial,
-  Quaternion,
-  Vector3,
-} from "three";
+import { Suspense, useEffect, useMemo } from "react";
+import { Group, InstancedMesh, Matrix4, Mesh, MeshLambertMaterial, type MeshStandardMaterial, Quaternion, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { ASSET_ROOT, withDecoders } from "../character/loaders";
 import { ModelBoundary } from "../ModelBoundary";
@@ -22,16 +11,12 @@ import type { QualityGovernor } from "./quality";
 import { localHour } from "./sky";
 import type { StreetState } from "./street";
 import { type TrafficWorld, type Vehicle, activeShare, createTraffic, pointOnLane, stepTraffic } from "./trafficSim";
-import { BODY_PAINT_ATTRIBUTE, addBodyPaint } from "./vehiclePaint";
-import { type BuiltVehicleLook, builtVehicleParts } from "./vehicleShapes";
-import { flagUvCells } from "./windowGlass";
 
 /**
- * The street traffic: danfos, cars, keke and okadas driving the district's
- * lanes. Client-only and cosmetic (see `trafficSim.ts`). Every copy of a car model
- * is one instanced mesh whose positions are rewritten each frame, and every
- * keke and okada is part of one moving instanced box mesh, so the whole fleet
- * costs a handful of draw calls.
+ * The street traffic: danfos, keke, okadas and cars driving the district's
+ * lanes. Client-only and cosmetic (see `trafficSim.ts`). Every copy of a
+ * vehicle model is one instanced mesh whose positions are rewritten each
+ * frame, so the whole fleet costs about one draw call per kind of vehicle.
  */
 
 /** Before the first stats arrive, the street looks like midday. */
@@ -65,18 +50,18 @@ export function Traffic({
     stepTraffic(world, Math.min(frameSeconds, MAX_STEP_SECONDS), predicted.current, share);
   }, SIMULATE_FIRST);
 
-  const modelKinds = useMemo(
+  const fleets = useMemo(
     () =>
       Object.entries(kinds).flatMap(([id, kind]) => {
-        const model = "model" in kind.look ? layout.models[kind.look.model] : undefined;
-        return model && "model" in kind.look ? [{ id, look: kind.look, model }] : [];
+        const model = layout.models[kind.look.model];
+        return model ? [{ id, look: kind.look, model }] : [];
       }),
     [kinds, layout.models],
   );
 
   return (
     <>
-      {modelKinds.map(({ id, look, model }) => (
+      {fleets.map(({ id, look, model }) => (
         // No stand-in while a model downloads: traffic arrives after the street is on screen.
         <ModelBoundary key={id} fallback={null}>
           <Suspense fallback={null}>
@@ -84,7 +69,6 @@ export function Traffic({
           </Suspense>
         </ModelBoundary>
       ))}
-      <BuiltFleet world={world} kinds={kinds} />
     </>
   );
 }
@@ -96,7 +80,7 @@ function placeVehicle(vehicle: Vehicle, scale: number, target: Matrix4): Matrix4
   return target.compose(new Vector3(x, 0, z), new Quaternion().setFromAxisAngle(UP, heading), new Vector3(scale, scale, scale));
 }
 
-/** Every vehicle of one model kind, as one instanced mesh per mesh in the model. */
+/** Every vehicle of one kind, as one instanced mesh per mesh in its model (usually just one). */
 function ModelFleet({
   world,
   kindId,
@@ -105,7 +89,7 @@ function ModelFleet({
 }: {
   world: TrafficWorld;
   kindId: string;
-  look: Extract<VehicleKind["look"], { model: string }>;
+  look: VehicleKind["look"];
   model: ModelInfo;
 }) {
   const gl = useThree((three) => three.gl);
@@ -121,13 +105,6 @@ function ModelFleet({
       const original = object.material as MeshStandardMaterial;
       // Lambert, not the glTF's physically based material: far cheaper on a weak GPU.
       const material = new MeshLambertMaterial({ map: original.map, color: original.color.clone() });
-      if (look.paint && model.paint) {
-        flagUvCells(object.geometry, model.paint, BODY_PAINT_ATTRIBUTE);
-        const stripe = look.stripe
-          ? { colour: look.stripe.colour, from: look.stripe.from * model.height, to: look.stripe.to * model.height }
-          : undefined;
-        addBodyPaint(material, { paint: look.paint, stripe });
-      }
       const mesh = new InstancedMesh(object.geometry, material, Math.max(1, fleet.length));
       // The instances move every frame, so their bounds are never up to date; there are few of them.
       mesh.frustumCulled = false;
@@ -135,7 +112,7 @@ function ModelFleet({
       parts.push({ mesh, local: object.matrixWorld.clone() });
     });
     return { group: root, meshes: parts };
-  }, [gltf, look, model, fleet.length]);
+  }, [gltf, fleet.length]);
 
   // Geometry and textures belong to the loader's cache; only the materials are ours.
   useEffect(
@@ -156,60 +133,4 @@ function ModelFleet({
   });
 
   return <primitive object={group} />;
-}
-
-/** Every keke and okada (and rider) as parts of one moving instanced box mesh: one draw call for all of them. */
-function BuiltFleet({ world, kinds }: { world: TrafficWorld; kinds: Readonly<Record<string, VehicleKind>> }) {
-  const slots = useMemo(
-    () =>
-      world.vehicles.flatMap((vehicle) => {
-        const look = kinds[vehicle.kind]?.look;
-        if (!look || !("built" in look)) return [];
-        return builtVehicleParts(look as BuiltVehicleLook).map((part) => ({
-          vehicle,
-          colour: part.colour,
-          local: new Matrix4().compose(
-            new Vector3(part.dx, part.y + part.height / 2, part.dz),
-            new Quaternion(),
-            new Vector3(part.halfWidth * 2, part.height, part.halfDepth * 2),
-          ),
-        }));
-      }),
-    [world, kinds],
-  );
-  const geometry = useMemo(() => new BoxGeometry(), []);
-  const mesh = useRef<InstancedMesh>(null);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-
-  useLayoutEffect(() => {
-    const instanced = mesh.current;
-    if (!instanced) return;
-    const colour = new Color();
-    slots.forEach((slot, index) => instanced.setColorAt(index, colour.set(slot.colour)));
-    if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
-  }, [slots]);
-
-  const placed = useMemo(() => new Matrix4(), []);
-  const combined = useMemo(() => new Matrix4(), []);
-  useFrame(() => {
-    const instanced = mesh.current;
-    if (!instanced) return;
-    let current: Vehicle | undefined;
-    let at: Matrix4 | null = null;
-    slots.forEach((slot, index) => {
-      if (slot.vehicle !== current) {
-        current = slot.vehicle;
-        at = placeVehicle(slot.vehicle, 1, placed);
-      }
-      instanced.setMatrixAt(index, at ? combined.multiplyMatrices(at, slot.local) : HIDDEN);
-    });
-    instanced.instanceMatrix.needsUpdate = true;
-  });
-
-  if (slots.length === 0) return null;
-  return (
-    <instancedMesh ref={mesh} args={[geometry, undefined, slots.length]} key={slots.length} frustumCulled={false}>
-      <meshLambertMaterial />
-    </instancedMesh>
-  );
 }

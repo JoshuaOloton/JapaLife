@@ -10,3 +10,5 @@ coverage
 packages/db/src/generated
 # Raw third-party asset packs (hundreds of MB). Only processed GLBs are committed.
 assets/vendor
+# What the Blender scripts in assets/blender/ build (rebuilt by `pnpm blender`).
+assets/built

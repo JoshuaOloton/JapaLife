@@ -225,17 +225,12 @@ function checkCharacters(characters: CharacterCatalog, catalog: ModelCatalog): s
   return problems;
 }
 
-/** Every vehicle model exists, and painting needs a model whose paint cells the pipeline measured. */
+/** Every vehicle model exists. */
 function checkVehicles(vehicles: VehicleKinds, catalog: ModelCatalog): string[] {
   const problems: string[] = [];
   for (const [id, kind] of Object.entries(vehicles.kinds)) {
-    if (!("model" in kind.look)) continue;
-    const where = `traffic/kinds.json "${id}"`;
-    const model = catalog.models[kind.look.model];
-    if (!model) {
-      problems.push(`${where}: unknown model "${kind.look.model}" (not in models/catalog.json; run pnpm assets?)`);
-    } else if ((kind.look.paint || kind.look.stripe) && !model.paint) {
-      problems.push(`${where}: model "${kind.look.model}" has no measured paint cells to repaint (see build.mts)`);
+    if (!catalog.models[kind.look.model]) {
+      problems.push(`traffic/kinds.json "${id}": unknown model "${kind.look.model}" (not in models/catalog.json; run pnpm assets?)`);
     }
   }
   return problems;

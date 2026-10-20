@@ -227,12 +227,11 @@ export function createTraffic(layout: Pick<DistrictLayout, "traffic" | "roads" |
   return { lanes, vehicles, junctions: createJunctions(junctionBoxes.length), time: 0 };
 }
 
-/** A vehicle's half length (along its travel) and half width: measured for a model, declared for a built one. */
+/** A vehicle's half length (along its travel) and half width, measured from its model. */
 export function vehicleSize(
   look: DistrictLayout["vehicles"]["kinds"][string]["look"],
   models: DistrictLayout["models"],
 ): { halfLength: number; halfWidth: number } {
-  if ("built" in look) return { halfLength: look.halfLength, halfWidth: look.halfWidth };
   const model = models[look.model];
   // Models face +z, so their depth is their length.
   return model ? { halfLength: model.halfDepth * look.scale, halfWidth: model.halfWidth * look.scale } : { halfLength: 2, halfWidth: 1 };
