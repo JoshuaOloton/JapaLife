@@ -10,6 +10,7 @@ import {
   districtObstacles,
   encodeAppearance,
   moveWithCollisions,
+  obstacleGrid,
 } from "@japalife/shared";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
@@ -124,7 +125,7 @@ export function Player({
   const lookAt = useMemo(() => new Vector3(), []);
   const motion = useRef<CharacterMotion>({ speed: 0, working: false, gestureAt: Number.NEGATIVE_INFINITY });
   // The same walls, props and people the server stops the player at, so the prediction agrees with it.
-  const obstacles = useMemo(() => districtObstacles(district), [district]);
+  const obstacles = useMemo(() => obstacleGrid(districtObstacles(district)), [district]);
 
   useEffect(() => {
     const record = (): void => {
@@ -180,7 +181,7 @@ export function Player({
         server: truth,
         moving,
         deltaSeconds: dt,
-        boxes: obstacles,
+        obstacles,
         bounds: district,
       });
     }

@@ -89,8 +89,9 @@ Each street has a class:
   - grid queries per cell;
   - each target mapped to its cell once, instead of `walkable.some` per target.
   - Target: under 2 s at 600 m at server start, and still workable at 1 km.
-- `checkLayout`: `onRoad` and the walkway sampling use a grid of roads and obstacles.
-- `DistrictMap.nearest` and the client's `nearestPlace` use a grid of interactables.
+- `checkLayout`'s walkway sampling uses the obstacle grid.
+- As built (2026-10-22), the road checks, `DistrictMap.nearest` and the client's `nearestPlace` keep their plain loops. They run over roads and places, which number tens even at 600 m, so a grid would add code for no gain (see [known-limits](../known-limits.md#server-and-protocol)).
+- Measured on a 600 m stand-in city (1,125 boxes, 225 targets): `reachableTargets` takes about 40 ms against about 2 s before, and about 115 ms at 1 km.
 
 ### 11h-2 Generator and street plan
 

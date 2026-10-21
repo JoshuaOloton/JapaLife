@@ -1,4 +1,4 @@
-import { PLAYER_RADIUS, POSITION_UPDATE_HZ } from "@japalife/shared";
+import { PLAYER_RADIUS, POSITION_UPDATE_HZ, obstacleGrid } from "@japalife/shared";
 import { describe, expect, it } from "vitest";
 import { fitCamera } from "./camera";
 import { RUN_PUSH, WALK_FRACTION } from "./gait";
@@ -35,7 +35,7 @@ describe("SnapshotBuffer (interpolating the server's position)", () => {
 });
 
 describe("reconcile (prediction versus the server)", () => {
-  const base = { moving: false, deltaSeconds: 1 / 60, boxes: [], bounds };
+  const base = { moving: false, deltaSeconds: 1 / 60, obstacles: obstacleGrid([]), bounds };
 
   it("leaves a walking prediction alone while it is within the leash", () => {
     const predicted = { x: MOVING_TOLERANCE - 0.1, z: 0 };
@@ -64,7 +64,7 @@ describe("reconcile (prediction versus the server)", () => {
 
   it("never pulls the player through a wall while correcting", () => {
     const wall = { x: 0, z: 0, halfWidth: 0.5, halfDepth: 5 };
-    const result = reconcile({ ...base, boxes: [wall], predicted: { x: -2, z: 0 }, server: { x: 2, z: 0 }, deltaSeconds: 1 });
+    const result = reconcile({ ...base, obstacles: obstacleGrid([wall]), predicted: { x: -2, z: 0 }, server: { x: 2, z: 0 }, deltaSeconds: 1 });
     expect(result.x).toBeLessThanOrEqual(-(0.5 + PLAYER_RADIUS));
   });
 });

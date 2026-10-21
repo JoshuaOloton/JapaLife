@@ -1,7 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { PLAYER_RADIUS, districtObstacles, isBlocked } from "@japalife/shared";
+import { PLAYER_RADIUS, districtObstacles, isBlocked, obstacleGrid } from "@japalife/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DistrictMap } from "../game/district";
 import { ContentError, DEFAULT_CONTENT_DIR, loadContent } from "./loadContent";
@@ -271,13 +271,13 @@ describe("loadContent (broken content)", () => {
       const westFace = -8 - 1 - PLAYER_RADIUS;
       expect(end.x).toBeLessThanOrEqual(westFace);
       expect(end.x).toBeGreaterThan(westFace - 0.2);
-      expect(isBlocked(end, districtObstacles(yaba.layout))).toBe(false);
+      expect(isBlocked(end, obstacleGrid(districtObstacles(yaba.layout)))).toBe(false);
     });
 
     it("lets the player walk under the fuel canopy's roof and stops them only at its pump island", () => {
       const content = loadContent();
       const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content);
-      const obstacles = districtObstacles(yaba.layout);
+      const obstacles = obstacleGrid(districtObstacles(yaba.layout));
       // The canopy at (38, 19.5) roofs 9 x 6 m; its island is 6 x 1.4 m.
       expect(isBlocked({ x: 38, z: 21.5 }, obstacles)).toBe(false);
       expect(isBlocked({ x: 34, z: 19.5 }, obstacles)).toBe(false);

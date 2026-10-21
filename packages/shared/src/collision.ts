@@ -1,5 +1,6 @@
 import { PLAYER_RADIUS } from "./constants";
 import { type DistrictLayout, NPC_HALF_SIZE, propBlockSize, turnHalfSize } from "./content";
+import { SpatialGrid } from "./spatialGrid";
 
 /**
  * Walking and collision, written once and run by BOTH the server (the authority)
@@ -54,20 +55,30 @@ export function districtObstacles(
   return boxes;
 }
 
+/**
+ * The obstacles a player walks against, bucketed by position so each check
+ * looks only at the boxes nearby. Every collision function takes this, never
+ * a plain list, so nothing scans the whole district on every step.
+ */
+export type Obstacles = SpatialGrid<Box>;
+
+/** Puts boxes (usually `districtObstacles(layout)`) into the grid the collision functions take. */
+export function obstacleGrid(boxes: readonly Box[]): Obstacles {
+  return new SpatialGrid(boxes);
+}
+
 /** Longest single sub-step, as a fraction of the player's radius. Small enough to stop flush against a wall. */
 const STEP_FRACTION_OF_RADIUS = 0.25;
 
-/** True if a player standing at `point` would overlap any of the boxes. */
-export function isBlocked(point: Point, boxes: readonly Box[], radius = PLAYER_RADIUS): boolean {
-  for (const box of boxes) {
-    if (
-      Math.abs(point.x - box.x) < box.halfWidth + radius &&
-      Math.abs(point.z - box.z) < box.halfDepth + radius
-    ) {
-      return true;
-    }
-  }
-  return false;
+/** True if a player standing at `point` would overlap any of the obstacles. */
+export function isBlocked(point: Point, obstacles: Obstacles, radius = PLAYER_RADIUS): boolean {
+  return obstacles.some(
+    point.x,
+    point.z,
+    radius,
+    radius,
+    (box) => Math.abs(point.x - box.x) < box.halfWidth + radius && Math.abs(point.z - box.z) < box.halfDepth + radius,
+  );
 }
 
 /** Keeps the player's centre far enough inside the walkable area that their body stays inside. */
@@ -84,7 +95,7 @@ function clampToBounds(point: Point, bounds: Bounds, radius: number): Point {
 export function moveWithCollisions(
   from: Point,
   delta: Point,
-  boxes: readonly Box[],
+  obstacles: Obstacles,
   bounds: Bounds,
   radius = PLAYER_RADIUS,
 ): Point {
@@ -99,9 +110,9 @@ export function moveWithCollisions(
   for (let i = 0; i < steps; i++) {
     // One axis at a time: if x is blocked we can still slide along z, and the reverse.
     const tryX = clampToBounds({ x: current.x + stepX, z: current.z }, bounds, radius);
-    if (!isBlocked(tryX, boxes, radius)) current = tryX;
+    if (!isBlocked(tryX, obstacles, radius)) current = tryX;
     const tryZ = clampToBounds({ x: current.x, z: current.z + stepZ }, bounds, radius);
-    if (!isBlocked(tryZ, boxes, radius)) current = tryZ;
+    if (!isBlocked(tryZ, obstacles, radius)) current = tryZ;
   }
   return current;
 }
@@ -111,16 +122,25 @@ export function distanceBetween(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.z - b.z);
 }
 
+/** A flood-fill cell not visited yet. */
+const UNSEEN = 0;
+/** A flood-fill cell the player can stand in and walk to. */
+const WALKABLE = 1;
+/** A flood-fill cell the player cannot stand in, so it is never tested twice. */
+const BLOCKED = 2;
+
 /**
  * For each target, can a player walk from `start` to within `reach` of it?
  * Used when loading content, so a building can never wall off a location.
- * Flood-fills a grid of walkable cells (cells are `cellSize` apart).
+ * Flood-fills a grid of walkable cells (cells are `cellSize` apart). Runs once
+ * at server start over the whole district, so it keeps to typed arrays: at
+ * 600 m that is about 1.4 million cells.
  */
 export function reachableTargets(
   start: Point,
   targets: readonly Point[],
   reach: number,
-  boxes: readonly Box[],
+  obstacles: Obstacles,
   bounds: Bounds,
   radius = PLAYER_RADIUS,
   cellSize = 0.5,
@@ -129,38 +149,54 @@ export function reachableTargets(
   const maxZ = Math.max(0, bounds.halfDepth - radius);
   const columns = Math.floor((2 * maxX) / cellSize) + 1;
   const rows = Math.floor((2 * maxZ) / cellSize) + 1;
-  const centre = (column: number, row: number): Point => ({
-    x: -maxX + column * cellSize,
-    z: -maxZ + row * cellSize,
-  });
+  const toColumn = (x: number): number => Math.min(columns - 1, Math.max(0, Math.round((x + maxX) / cellSize)));
+  const toRow = (z: number): number => Math.min(rows - 1, Math.max(0, Math.round((z + maxZ) / cellSize)));
 
-  const toCell = (point: Point): [number, number] => [
-    Math.min(columns - 1, Math.max(0, Math.round((point.x + maxX) / cellSize))),
-    Math.min(rows - 1, Math.max(0, Math.round((point.z + maxZ) / cellSize))),
-  ];
+  const state = new Uint8Array(columns * rows);
+  const queue = new Int32Array(columns * rows);
+  const first = toRow(start.z) * columns + toColumn(start.x);
+  queue[0] = first;
+  state[first] = WALKABLE;
+  let tail = 1;
+  const probe = { x: 0, z: 0 }; // reused, so a million-cell fill does not allocate a point per cell
 
-  const seen = new Uint8Array(columns * rows);
-  const [startColumn, startRow] = toCell(start);
-  const queue: number[] = [startRow * columns + startColumn];
-  seen[queue[0] as number] = 1;
-  const walkable: Point[] = [];
-
-  for (let head = 0; head < queue.length; head++) {
+  for (let head = 0; head < tail; head++) {
     const index = queue[head] as number;
     const column = index % columns;
-    const row = Math.floor(index / columns);
-    const here = centre(column, row);
-    walkable.push(here);
+    const row = (index - column) / columns;
     for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
       const nc = column + dc;
       const nr = row + dr;
       if (nc < 0 || nr < 0 || nc >= columns || nr >= rows) continue;
       const next = nr * columns + nc;
-      if (seen[next] || isBlocked(centre(nc, nr), boxes, radius)) continue;
-      seen[next] = 1;
-      queue.push(next);
+      if (state[next] !== UNSEEN) continue;
+      probe.x = -maxX + nc * cellSize;
+      probe.z = -maxZ + nr * cellSize;
+      if (isBlocked(probe, obstacles, radius)) {
+        state[next] = BLOCKED;
+      } else {
+        state[next] = WALKABLE;
+        queue[tail++] = next;
+      }
     }
   }
 
-  return targets.map((target) => walkable.some((cell) => distanceBetween(cell, target) <= reach));
+  // Look only at the cells within `reach` of each target, not every walkable cell.
+  return targets.map((target) => {
+    const reachCells = Math.ceil(reach / cellSize);
+    const centreColumn = toColumn(target.x);
+    const centreRow = toRow(target.z);
+    for (let row = Math.max(0, centreRow - reachCells); row <= Math.min(rows - 1, centreRow + reachCells); row++) {
+      for (
+        let column = Math.max(0, centreColumn - reachCells);
+        column <= Math.min(columns - 1, centreColumn + reachCells);
+        column++
+      ) {
+        if (state[row * columns + column] !== WALKABLE) continue;
+        const cell = { x: -maxX + column * cellSize, z: -maxZ + row * cellSize };
+        if (distanceBetween(cell, target) <= reach) return true;
+      }
+    }
+    return false;
+  });
 }

@@ -1,4 +1,4 @@
-import { type Bounds, type Box, type Point, distanceBetween, moveWithCollisions } from "@japalife/shared";
+import { type Bounds, type Obstacles, type Point, distanceBetween, moveWithCollisions } from "@japalife/shared";
 
 /**
  * Reconciliation: the client predicts its own walking (so a key press moves the
@@ -24,11 +24,11 @@ export interface ReconcileInput {
   server: Point;
   moving: boolean;
   deltaSeconds: number;
-  boxes: readonly Box[];
+  obstacles: Obstacles;
   bounds: Bounds;
 }
 
-export function reconcile({ predicted, server, moving, deltaSeconds, boxes, bounds }: ReconcileInput): Point {
+export function reconcile({ predicted, server, moving, deltaSeconds, obstacles, bounds }: ReconcileInput): Point {
   const error = distanceBetween(predicted, server);
   if (error === 0) return predicted;
   if (error > SNAP_DISTANCE) return { x: server.x, z: server.z };
@@ -43,5 +43,5 @@ export function reconcile({ predicted, server, moving, deltaSeconds, boxes, boun
     z: (server.z - predicted.z) * excess * fraction,
   };
   // The correction also respects walls, so it can never pull the player into a building corner.
-  return moveWithCollisions(predicted, delta, boxes, bounds);
+  return moveWithCollisions(predicted, delta, obstacles, bounds);
 }

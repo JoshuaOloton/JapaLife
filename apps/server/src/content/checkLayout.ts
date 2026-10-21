@@ -3,12 +3,14 @@ import {
   type Box,
   type DistrictLayout,
   NPC_HALF_SIZE,
+  type Obstacles,
   PLAYER_RADIUS,
   type Point,
   type Traffic,
   distanceBetween,
   districtObstacles,
   isBlocked,
+  obstacleGrid,
   propBlockSize,
   reachableTargets,
   turnHalfSize,
@@ -76,7 +78,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
     if (onRoad(box)) problems.push(`${where}: NPC "${npc.id}" stands in a road`);
   }
 
-  const obstacles = districtObstacles(layout);
+  const obstacles = obstacleGrid(districtObstacles(layout));
   if (layout.traffic) problems.push(...checkTraffic(where, layout.traffic, roads, bounds, obstacles));
 
   if (isBlocked(spawn, obstacles)) {
@@ -120,7 +122,7 @@ const BUS_STOP_REACH = 0.5;
  * people never walk through a wall, a generator or Mama Put, and every fleet
  * and bus stop names a real lane.
  */
-function checkTraffic(where: string, traffic: Traffic, roads: readonly Box[], bounds: Bounds, obstacles: readonly Box[]): string[] {
+function checkTraffic(where: string, traffic: Traffic, roads: readonly Box[], bounds: Bounds, obstacles: Obstacles): string[] {
   const problems: string[] = [];
   const inside = (point: Point, margin = 0): boolean =>
     Math.abs(point.x) <= bounds.halfWidth - margin && Math.abs(point.z) <= bounds.halfDepth - margin;

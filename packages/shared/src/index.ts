@@ -10,3 +10,4 @@ export * from "./events";
 export * from "./format";
 export * from "./intents";
 export * from "./messages";
+export * from "./spatialGrid";
