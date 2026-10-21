@@ -50,7 +50,7 @@ export interface GameSystems {
 export interface GameSystemsOptions {
   db: PrismaClient;
   content: GameContent;
-  /** Defaults to the real clock, or the dev multiplier from GAME_CLOCK. */
+  /** Defaults to the real clock, or the dev settings GAME_CLOCK (speed) and GAME_CLOCK_START (start time). */
   clock?: GameClock;
   wallet?: WalletService;
   rng?: () => number;
@@ -61,7 +61,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
   const lagos = content.cities["lagos"];
   if (!lagos) throw new Error("content is missing the Lagos city");
 
-  const clock = options.clock ?? createGameClock();
+  const clock = options.clock ?? createGameClock(process.env, lagos.timeZone);
   const deps: GameDeps = {
     db,
     content,

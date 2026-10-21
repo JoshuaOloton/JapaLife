@@ -35,6 +35,17 @@ describe("FpsCounter", () => {
     expect(readings.at(-1)?.lowestFps).toBeLessThan(50);
   });
 
+  it("counts shaders compiled after warm-up, and the busiest frame's draw calls", () => {
+    const counter = new FpsCounter(1000);
+    for (let t = 0; t < 1000; t += 20) counter.frame(t, { shaders: 3, textures: 1, calls: 120 }); // loading: not counted
+    let last = null;
+    for (let t = 1000; t <= 2000; t += 20) last = counter.frame(t, { shaders: 9, textures: 4, calls: 40 }) ?? last;
+    expect(last?.lateShaders).toBe(0);
+    for (let t = 2020; t <= 3100; t += 20) last = counter.frame(t, { shaders: t > 2500 ? 10 : 9, textures: 4, calls: t === 2600 ? 85 : 40 }) ?? last;
+    expect(last?.lateShaders).toBe(1);
+    expect(last?.peakCalls).toBe(85);
+  });
+
   it("does not count the time the page was hidden as a frame", () => {
     const counter = new FpsCounter(0);
     run(counter, 0, 1000, 20);
@@ -67,6 +78,15 @@ describe("formatFpsReading", () => {
     expect(
       formatFpsReading({ fps: 60, lowestFps: 58, worstFrameMs: 25 }, 1.5, { calls: 47, triangles: 61_234 }),
     ).toBe("60 fps · low 58 · worst 25 ms · dpr 1.50 · 47 calls · 61.2k tris");
+  });
+
+  it("warns about shaders compiled after warm-up and frames over the draw-call budget", () => {
+    expect(formatFpsReading({ fps: 60, lowestFps: 58, worstFrameMs: 25, lateShaders: 0, peakCalls: 41 }, 1.5)).toBe(
+      "60 fps · low 58 · worst 25 ms · dpr 1.50",
+    );
+    expect(formatFpsReading({ fps: 60, lowestFps: 20, worstFrameMs: 900, lateShaders: 2, peakCalls: 95 }, 1.5)).toBe(
+      "60 fps · low 20 · worst 900 ms · dpr 1.50 · ⚠ late shaders 2 · ⚠ 95 calls peak",
+    );
   });
 
   it("names the set-up work behind the worst frame, when there was any", () => {

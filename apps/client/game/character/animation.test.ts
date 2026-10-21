@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { RUN_SPEED, WALK_SPEED } from "../gait";
-import { CADENCE, type CharacterMotion, chooseClip, moveTimeScale } from "./animation";
+import {
+  CADENCE,
+  type CharacterMotion,
+  RUN_STANCE_MIX,
+  calmBounce,
+  chooseClip,
+  moveTimeScale,
+  runStanceWeight,
+} from "./animation";
 import clipInfo from "./clipInfo.generated.json";
 
 const still: CharacterMotion = { speed: 0, working: false, gestureAt: Number.NEGATIVE_INFINITY };
@@ -41,18 +49,40 @@ describe("chooseClip", () => {
 });
 
 describe("moveTimeScale", () => {
-  it("applies each gait's cadence to an exact ground match", () => {
-    expect(moveTimeScale("run", clipInfo.run.metresPerSecond)).toBeCloseTo(CADENCE.run);
+  it("applies each gait's cadence to an exact ground match, with the run's shortened stride", () => {
+    const runStride = clipInfo.run.metresPerSecond * (1 - RUN_STANCE_MIX);
+    expect(moveTimeScale("run", runStride)).toBeCloseTo(CADENCE.run);
     expect(moveTimeScale("walk", clipInfo.walk.metresPerSecond)).toBeCloseTo(CADENCE.walk);
   });
 
   it("scales with the character's real speed", () => {
-    expect(moveTimeScale("run", clipInfo.run.metresPerSecond / 2)).toBeCloseTo(CADENCE.run / 2);
+    expect(moveTimeScale("run", RUN_SPEED / 2)).toBeCloseTo(moveTimeScale("run", RUN_SPEED) / 2);
   });
 
-  it("plays the run near its recorded rate at running pace, so it does not look like hopping", () => {
+  it("plays the run a little quicker than its recorded rate at running pace, so the steps look swift, not hopping", () => {
     const rate = moveTimeScale("run", RUN_SPEED);
-    expect(rate).toBeGreaterThan(0.9);
-    expect(rate).toBeLessThan(1.1);
+    expect(rate).toBeGreaterThan(1.1);
+    expect(rate).toBeLessThan(1.4);
+  });
+});
+
+describe("calmBounce", () => {
+  it("halves the hips' up-and-down around the average height, leaving sway and posture alone", () => {
+    // Three keys: x (sway), y (height: 0.9 to 1.1 around 1.0), z.
+    const values = [0.1, 0.9, 0, -0.1, 1.1, 0, 0, 1.0, 0];
+    calmBounce(values, 0.5);
+    expect(values[1]).toBeCloseTo(0.95);
+    expect(values[4]).toBeCloseTo(1.05);
+    expect(values[7]).toBeCloseTo(1.0);
+    expect([values[0], values[3]]).toEqual([0.1, -0.1]);
+  });
+});
+
+describe("runStanceWeight", () => {
+  it("makes the idle pose a quarter of a full run, and nothing when not running", () => {
+    const run = 1;
+    const stance = runStanceWeight(run);
+    expect(stance / (run + stance)).toBeCloseTo(RUN_STANCE_MIX);
+    expect(runStanceWeight(0)).toBe(0);
   });
 });

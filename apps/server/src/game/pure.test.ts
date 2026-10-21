@@ -35,6 +35,38 @@ describe("GAME_CLOCK", () => {
   });
 });
 
+describe("GAME_CLOCK_START", () => {
+  // 10:15 in Lagos (UTC+1) on 2026-10-21.
+  const morning = Date.parse("2026-10-21T09:15:00Z");
+
+  it("starts game time at the next such hour in the city, then runs on", () => {
+    let real = morning;
+    const clock = createGameClock({ GAME_CLOCK_START: "21:00" }, "Africa/Lagos", () => real);
+    expect(clock.now().toISOString()).toBe("2026-10-21T20:00:00.000Z"); // 21:00 Lagos, the same day
+    real += 60_000;
+    expect(clock.now().toISOString()).toBe("2026-10-21T20:01:00.000Z");
+  });
+
+  it("only moves time forward: a time already past today means tomorrow", () => {
+    const clock = createGameClock({ GAME_CLOCK_START: "06:30" }, "Africa/Lagos", () => morning);
+    expect(clock.now().toISOString()).toBe("2026-10-22T05:30:00.000Z");
+  });
+
+  it("runs at the GAME_CLOCK speed from there", () => {
+    let real = morning;
+    const clock = createGameClock({ GAME_CLOCK_START: "21:00", GAME_CLOCK: "60" }, "Africa/Lagos", () => real);
+    real += 60_000;
+    expect(clock.now().toISOString()).toBe("2026-10-21T21:00:00.000Z"); // one real minute, one game hour
+  });
+
+  it("is refused in production and rejects times that are not HH:MM", () => {
+    expect(() => createGameClock({ NODE_ENV: "production", GAME_CLOCK_START: "21:00" })).toThrow(/dev-only/);
+    for (const bad of ["9pm", "24:00", "21:60", "21"]) {
+      expect(() => createGameClock({ GAME_CLOCK_START: bad }), bad).toThrow(/GAME_CLOCK_START/);
+    }
+  });
+});
+
 describe("calendarDay", () => {
   it("rolls over at midnight Lagos time (UTC+1), not UTC", () => {
     // 23:30 UTC is 00:30 the next day in Lagos.

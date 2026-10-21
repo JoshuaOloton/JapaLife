@@ -46,19 +46,54 @@ export function chooseClip(motion: CharacterMotion, now: number, gestureSeconds:
 }
 
 /**
+ * How much of the standing (idle) pose is mixed into the run. The pack's jog
+ * is recorded at 5.4 m/s, faster than our 4 m/s, so its strides are long and
+ * its arms swing wide: matched to our speed it looked like hopping
+ * (play-tested 2026-10-18), and sped up it still looked like the legs went too
+ * far apart (2026-10-21). Mixing in the idle pose pulls every joint part of
+ * the way back toward standing: shorter strides, smaller arm swing, at the
+ * clip's own tempo. This is ordinary animation blending (two clips at once,
+ * weighted), done by `CharacterAnimator`.
+ */
+export const RUN_STANCE_MIX = 0.25;
+
+/** How long a step is compared with the clip as recorded. */
+const STRIDE = { walk: 1, run: 1 - RUN_STANCE_MIX } as const;
+
+/**
  * How much faster than an exact ground match each gait plays. An exact match
  * means the feet never slide, but it is not always what looks natural:
  *
- * - run: matched exactly, the clip is slowed to 0.75x and spends too long with
- *   both feet in the air, so it looks like hopping (play-tested 2026-10-18).
- *   Quicker steps read as a normal run.
+ * - run: quicker than an exact match. With the shortened stride an exact match
+ *   is the clip's own tempo, which still looked like a little hop on the phone
+ *   (2026-10-21): the feet hang in the air too long. Quicker, lighter steps read
+ *   as a swift run; the slight foot slide is invisible from the game camera.
  * - walk: the clip was recorded as a slow stroll (about 1 m/s); matching our
  *   brisker pace exactly makes the steps hurried, so it takes longer strides
- *   instead.
- *
- * The small foot slide either way is invisible from the game camera.
+ *   instead. The small foot slide is invisible from the game camera.
  */
-export const CADENCE = { walk: 0.8, run: 1.3 } as const;
+export const CADENCE = { walk: 0.8, run: 1.25 } as const;
+
+/**
+ * How much of the run clip's up-and-down hip bounce is kept, around its average
+ * height. The recorded jog bounces a lot each step, which reads as hopping.
+ */
+export const RUN_BOUNCE = 0.5;
+
+/**
+ * Scales the up-and-down part of a position track (x, y, z per key) around its
+ * average height, leaving the average posture and the sideways sway alone. Edits `values`.
+ */
+export function calmBounce(values: Float32Array | number[], keep: number): void {
+  let sum = 0;
+  const keys = values.length / 3;
+  for (let key = 0; key < keys; key++) sum += values[key * 3 + 1] ?? 0;
+  const average = sum / keys;
+  for (let key = 0; key < keys; key++) {
+    const at = key * 3 + 1;
+    values[at] = average + ((values[at] ?? average) - average) * keep;
+  }
+}
 
 /**
  * Playback rate for a movement clip at the character's speed. Each clip's
@@ -66,5 +101,16 @@ export const CADENCE = { walk: 0.8, run: 1.3 } as const;
  * the character really moves (slower along a wall, for example).
  */
 export function moveTimeScale(gait: "walk" | "run", speed: number): number {
-  return (speed / clipInfo[gait].metresPerSecond) * CADENCE[gait];
+  return (speed / (clipInfo[gait].metresPerSecond * STRIDE[gait])) * CADENCE[gait];
+}
+
+/**
+ * The idle pose's weight under the run, for a run at `runWeight` (which
+ * crossfades from 0 to 1). three.js averages the weights of clips playing
+ * together, so idle at a third of the run's weight is a quarter of the pose.
+ * It must be the idle clip, not a lower run weight: a total under 1 is filled
+ * from the skeleton's rest pose, a T-pose with the arms out.
+ */
+export function runStanceWeight(runWeight: number): number {
+  return (runWeight * RUN_STANCE_MIX) / (1 - RUN_STANCE_MIX);
 }

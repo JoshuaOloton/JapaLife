@@ -20,7 +20,7 @@ if (!databaseUrl) {
 }
 
 const db = createPrismaClient(databaseUrl);
-// Refuses to start if GAME_CLOCK is set in production.
+// Refuses to start if GAME_CLOCK or GAME_CLOCK_START is set in production.
 const game = createGameSystems({ db, content });
 const stopLoop = startGameLoop(game);
 const stopBalanceWatch = startBalanceWatch(game);

@@ -16,7 +16,7 @@ import { propSlabs } from "./world/propShapes";
 import type { StreetState } from "./world/street";
 
 /**
- * Draws the district from the layout the server sent: laterite ground, tarred
+ * Draws the district from the layout the server sent: sandy ground, tarred
  * roads with potholes and open gutters, the buildings, and a sign over each
  * place the player can use.
  *

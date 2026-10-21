@@ -22,6 +22,7 @@ import { MoveInput } from "./input";
 import { Joystick } from "./Joystick";
 import { nearestPlace } from "./nearby";
 import { PlacePanel } from "./PlacePanel";
+import { ShaderWarmUp, WARM_UP_WHILE_HIDDEN } from "./ShaderWarmUp";
 import { Player, type PlayerActivity } from "./Player";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
@@ -86,7 +87,7 @@ export default function Game() {
       >
         <Lighting street={street} indoors={closeUp} />
         {/* The creator takes place in a bedroom set, so the street is hidden (still simulated) meanwhile. */}
-        <group visible={!closeUp}>
+        <group visible={!closeUp} userData={{ [WARM_UP_WHILE_HIDDEN]: true }}>
           <World district={connection.district} street={street} predicted={predicted} quality={quality} />
         </group>
         <Player
@@ -100,6 +101,7 @@ export default function Game() {
           turn={turn}
         />
         <QualityProbe quality={quality} />
+        <ShaderWarmUp />
         {showFps && <FpsProbe output={fpsOutput} quality={quality} />}
       </Canvas>
       {touch && !closeUp && <Joystick input={input} />}

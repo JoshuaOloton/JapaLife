@@ -390,6 +390,11 @@ describe("loadContent (broken content)", () => {
       expect(Object.keys(yaba.layout.models)).toEqual(expect.arrayContaining(["hair-cap-female", "dress-skirt-female"]));
     });
 
+    it("refuses a district whose models are over its download budget", () => {
+      edit("models/catalog.json", (j) => (j["models"]["church"].bytes = 7_000_000));
+      expect(problemsOf().join("\n")).toMatch(/district "yaba": its models download 7\.\d\d MB, over the 6\.00 MB budget/);
+    });
+
     it("rejects a model bigger than its footprint (an invisible wall would let you walk into it)", () => {
       withOfficeModel(7.5, 6);
       expect(problemsOf().join("\n")).toContain("model width 15.00 m is bigger than the footprint's 14.00 m");
