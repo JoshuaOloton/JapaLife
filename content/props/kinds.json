@@ -44,6 +44,14 @@
       "look": { "built": "speed_bump", "halfWidth": 0.4, "halfDepth": 3.9, "height": 0.12 },
       "blocks": "none"
     },
+    "signboard": {
+      "look": { "built": "signboard", "halfWidth": 1.4, "halfDepth": 0.12, "height": 2.4, "colour": "#f4f1e8" },
+      "blocks": "footprint"
+    },
+    "signboard-yellow": {
+      "look": { "built": "signboard", "halfWidth": 1.4, "halfDepth": 0.12, "height": 2.4, "colour": "#f2d16b" },
+      "blocks": "footprint"
+    },
     "tree-large": {
       "look": { "model": "tree-large", "scale": 8 },
       "blocks": { "halfWidth": 0.2, "halfDepth": 0.2 }
@@ -75,6 +83,10 @@
     "okada-parked": {
       "look": { "model": "okada-parked" },
       "blocks": "footprint"
+    },
+    "fuel-canopy": {
+      "look": { "model": "fuel-canopy" },
+      "blocks": { "halfWidth": 3, "halfDepth": 0.7 }
     }
   }
 }

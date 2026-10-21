@@ -273,6 +273,20 @@ describe("loadContent (broken content)", () => {
       expect(end.x).toBeGreaterThan(westFace - 0.2);
       expect(isBlocked(end, districtObstacles(yaba.layout))).toBe(false);
     });
+
+    it("lets the player walk under the fuel canopy's roof and stops them only at its pump island", () => {
+      const content = loadContent();
+      const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content);
+      const obstacles = districtObstacles(yaba.layout);
+      // The canopy at (38, 19.5) roofs 9 x 6 m; its island is 6 x 1.4 m.
+      expect(isBlocked({ x: 38, z: 21.5 }, obstacles)).toBe(false);
+      expect(isBlocked({ x: 34, z: 19.5 }, obstacles)).toBe(false);
+      expect(isBlocked({ x: 38, z: 19.5 }, obstacles)).toBe(true);
+      // Walking north under the roof stops at the island's south edge.
+      const end = yaba.move({ x: 38, z: 22 }, { x: 0, z: -5 });
+      expect(end.z).toBeGreaterThanOrEqual(19.5 + 0.7 + PLAYER_RADIUS - 0.01);
+      expect(end.z).toBeLessThan(19.5 + 0.7 + PLAYER_RADIUS + 0.2);
+    });
   });
 
   describe("traffic", () => {

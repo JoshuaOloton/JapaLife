@@ -19,8 +19,15 @@ export function useFpsMeterEnabled(): boolean {
  */
 export function FpsProbe({ output, quality }: { output: RefObject<HTMLElement | null>; quality: QualityGovernor }) {
   const counter = useMemo(() => new FpsCounter(), []);
+  useEffect(() => {
+    const onVisibility = (): void => {
+      if (document.visibilityState === "hidden") counter.pause();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [counter]);
   useFrame(({ gl }) => {
-    const reading = counter.frame(performance.now());
+    const reading = counter.frame(performance.now(), { shaders: gl.info.programs?.length ?? 0, textures: gl.info.memory.textures });
     // `info.render` still holds the previous frame's counts: this runs before the frame is drawn.
     const { calls, triangles } = gl.info.render;
     if (reading && output.current) {

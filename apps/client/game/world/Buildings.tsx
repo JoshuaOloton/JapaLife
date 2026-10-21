@@ -1,6 +1,6 @@
 "use client";
 
-import type { Building, ModelInfo } from "@japalife/shared";
+import type { Building, ModelInfo, Point } from "@japalife/shared";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Color, type InstancedMesh, Mesh, MeshLambertMaterial, type MeshStandardMaterial, Object3D } from "three";
@@ -8,8 +8,9 @@ import { type GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { ASSET_ROOT, withDecoders } from "../character/loaders";
 import { ModelBoundary } from "../ModelBoundary";
 import type { Slab } from "./Boxes";
+import { blocksView } from "./occlusion";
 import type { StreetState } from "./street";
-import { WINDOW_GLOW_COLOUR, type WindowGlow, addWindowGlow, flagWindowGlass } from "./windowGlass";
+import { type BuildingFade, WINDOW_GLOW_COLOUR, type WindowGlow, addBuildingEffects, flagWindowGlass } from "./windowGlass";
 import {
   type StreetPower,
   WINDOW_HEIGHT,
@@ -42,6 +43,11 @@ const WINDOW_COLOURS = { glass: "#34424e", lit: "#ffd98a", dark: "#161b22" } as 
 const WINDOW_CHECK_SECONDS = 1;
 /** How strongly a model's lit glass glows (times `WINDOW_GLOW_COLOUR`), on top of its painted colour. */
 const MODEL_WINDOW_GLOW = 0.9;
+/** A building hiding the player loses this share of its pixels, quickly but not in a blink. */
+const FADED_AMOUNT = 0.7;
+const FADE_PER_SECOND = 4;
+/** The point of the player the camera must see. */
+const PLAYER_CHEST_HEIGHT = 1.2;
 
 /** The boxes for plain buildings: walls and roofs, drawn by the world's single `Boxes` call. */
 export function plainBuildingSlabs(buildings: readonly Building[]): Slab[] {
@@ -64,10 +70,13 @@ export function ModelBuildings({
   buildings,
   models,
   street,
+  predicted,
 }: {
   buildings: readonly Building[];
   models: Readonly<Record<string, ModelInfo>>;
   street: { current: StreetState };
+  /** Where the player is, so a building hiding them from the camera can turn see-through. */
+  predicted: { current: Point };
 }) {
   return (
     <>
@@ -78,7 +87,7 @@ export function ModelBuildings({
         return (
           <ModelBoundary key={building.id} fallback={standIn}>
             <Suspense fallback={standIn}>
-              <BuildingModel building={building} model={model} street={street} />
+              <BuildingModel building={building} model={model} street={street} predicted={predicted} />
             </Suspense>
           </ModelBoundary>
         );
@@ -87,10 +96,37 @@ export function ModelBuildings({
   );
 }
 
-function BuildingModel({ building, model, street }: { building: Building; model: ModelInfo; street: { current: StreetState } }) {
+function BuildingModel({
+  building,
+  model,
+  street,
+  predicted,
+}: {
+  building: Building;
+  model: ModelInfo;
+  street: { current: StreetState };
+  predicted: { current: Point };
+}) {
   const gl = useThree((three) => three.gl);
+  const camera = useThree((three) => three.camera);
   const gltf = useLoader(GLTFLoader, `${ASSET_ROOT}/${model.file}`, withDecoders(gl));
-  const { object, glows, ownMaterials } = useMemo(() => withWindowGlow(cheapCopy(gltf), model.windows), [gltf, model.windows]);  useEffect(() => () => ownMaterials.forEach((material) => material.dispose()), [ownMaterials]);
+  const { object, glows, fades, ownMaterials } = useMemo(
+    () => withOwnMaterials(cheapCopy(gltf), model.windows),
+    [gltf, model.windows],
+  );
+  useEffect(() => () => ownMaterials.forEach((material) => material.dispose()), [ownMaterials]);
+
+  // Dithered out while it stands between the camera and the player (occlusion fading).
+  const faded = useRef(0);
+  useFrame((_, frameSeconds) => {
+    const { x, z } = predicted.current;
+    const hides = blocksView(building, camera.position, { x, y: PLAYER_CHEST_HEIGHT, z });
+    const want = hides ? FADED_AMOUNT : 0;
+    if (faded.current === want) return;
+    const step = Math.min(frameSeconds, 0.25) * FADE_PER_SECOND;
+    faded.current = want > faded.current ? Math.min(want, faded.current + step) : Math.max(want, faded.current - step);
+    for (const fade of fades) fade.value = faded.current;
+  });
 
   // Check about once a second whether night fell or the power went; only then touch the glow.
   const shown = useRef<StreetPower | null>(null);
@@ -103,7 +139,8 @@ function BuildingModel({ building, model, street }: { building: Building; model:
     const power = streetPower(isNight, blackoutEndsAt, serverNow?.() ?? 0);
     if (power === shown.current) return;
     shown.current = power;
-    const lit = modelWindowsLit(building.id, power);    for (const glow of glows) {
+    const lit = modelWindowsLit(building.id, power);
+    for (const glow of glows) {
       if (lit) glow.value.set(WINDOW_GLOW_COLOUR).multiplyScalar(MODEL_WINDOW_GLOW);
       else glow.value.setRGB(0, 0, 0);
     }
@@ -146,26 +183,32 @@ function cheapCopy(gltf: GLTF): Object3D {
 }
 
 /**
- * Gives a building copy its own materials with the window glow added, when its
- * model has window glass. Each building needs its own, because one building
- * can be on generator in a power cut while its neighbour is dark.
+ * Gives a building copy its own materials, with the building effects (window
+ * glow, occlusion fade) added. Each building needs its own: one can be on
+ * generator in a power cut while its neighbour is dark, and one can fade out
+ * while it hides the player.
  */
-function withWindowGlow(
+function withOwnMaterials(
   object: Object3D,
   windows: ModelInfo["windows"],
-): { object: Object3D; glows: WindowGlow[]; ownMaterials: MeshLambertMaterial[] } {
+): { object: Object3D; glows: WindowGlow[]; fades: BuildingFade[]; ownMaterials: MeshLambertMaterial[] } {
   const glows: WindowGlow[] = [];
+  const fades: BuildingFade[] = [];
   const ownMaterials: MeshLambertMaterial[] = [];
-  if (!windows) return { object, glows, ownMaterials };
   object.traverse((part) => {
     if (!(part instanceof Mesh)) return;
-    flagWindowGlass(part.geometry, windows);
     const own = (part.material as MeshLambertMaterial).clone();
-    glows.push(addWindowGlow(own));
+    const { glow, fade } = addBuildingEffects(own);
+    // Without flagged glass the glow reads 0 everywhere, so a model without windows never glows.
+    if (windows) {
+      flagWindowGlass(part.geometry, windows);
+      glows.push(glow);
+    }
+    fades.push(fade);
     ownMaterials.push(own);
     part.material = own;
   });
-  return { object, glows, ownMaterials };
+  return { object, glows, fades, ownMaterials };
 }
 
 /** One plain building on its own (a model's stand-in while it downloads). */
