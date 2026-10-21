@@ -100,7 +100,7 @@ export function World({
       <Potholes roads={district.roads} />
       <Boxes slabs={slabs} />
       <Windows buildings={plainBuildings} street={street} />
-      <ModelBuildings buildings={district.buildings} models={district.models} street={street} />
+      <ModelBuildings buildings={district.buildings} models={district.models} street={street} predicted={predicted} />
       <Props layout={district} />
       <Npcs layout={district} predicted={predicted} />
       <Traffic layout={district} predicted={predicted} street={street} quality={quality} />

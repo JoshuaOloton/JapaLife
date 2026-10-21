@@ -17,6 +17,22 @@
       "triangles": 18,
       "bytes": 11680
     },
+    "buka": {
+      "file": "buildings/buka.glb",
+      "halfWidth": 6,
+      "halfDepth": 3.995,
+      "height": 3.398,
+      "triangles": 996,
+      "bytes": 7272,
+      "windows": [
+        [
+          0.375,
+          0.0625,
+          0.4375,
+          0.125
+        ]
+      ]
+    },
     "bungalow": {
       "file": "buildings/bungalow.glb",
       "halfWidth": 0.725,
@@ -33,13 +49,45 @@
         ]
       ]
     },
+    "bus-shelter": {
+      "file": "buildings/bus-shelter.glb",
+      "halfWidth": 1.6,
+      "halfDepth": 0.905,
+      "height": 2.6,
+      "triangles": 156,
+      "bytes": 4792,
+      "windows": [
+        [
+          0.375,
+          0.0625,
+          0.4375,
+          0.125
+        ]
+      ]
+    },
+    "church": {
+      "file": "buildings/church.glb",
+      "halfWidth": 5.232,
+      "halfDepth": 6.201,
+      "height": 9.899,
+      "triangles": 292,
+      "bytes": 5292,
+      "windows": [
+        [
+          0.375,
+          0.0625,
+          0.4375,
+          0.125
+        ]
+      ]
+    },
     "danfo": {
       "file": "vehicles/danfo.glb",
       "halfWidth": 0.98,
       "halfDepth": 2.39,
       "height": 2.05,
       "triangles": 720,
-      "bytes": 5768
+      "bytes": 6360
     },
     "dress-skirt-female": {
       "file": "characters/dress-skirt-female.glb",
@@ -89,6 +137,30 @@
         ]
       ]
     },
+    "fuel-canopy": {
+      "file": "props/fuel-canopy.glb",
+      "halfWidth": 4.53,
+      "halfDepth": 3.03,
+      "height": 5.15,
+      "triangles": 348,
+      "bytes": 5252
+    },
+    "fuel-station": {
+      "file": "buildings/fuel-station.glb",
+      "halfWidth": 5.03,
+      "halfDepth": 2.515,
+      "height": 4.42,
+      "triangles": 284,
+      "bytes": 5256,
+      "windows": [
+        [
+          0.375,
+          0.0625,
+          0.4375,
+          0.125
+        ]
+      ]
+    },
     "hair-buzzed": {
       "file": "characters/hair-buzzed.glb",
       "halfWidth": 0.077,
@@ -111,7 +183,7 @@
       "halfDepth": 0.104,
       "height": 0.164,
       "triangles": 1524,
-      "bytes": 8028
+      "bytes": 7952
     },
     "hair-cap-male": {
       "file": "characters/hair-cap-male.glb",
@@ -119,7 +191,7 @@
       "halfDepth": 0.103,
       "height": 0.172,
       "triangles": 1520,
-      "bytes": 7928
+      "bytes": 7940
     },
     "hatchback": {
       "file": "vehicles/hatchback.glb",
@@ -135,7 +207,23 @@
       "halfDepth": 1.278,
       "height": 1.75,
       "triangles": 480,
-      "bytes": 5240
+      "bytes": 5832
+    },
+    "market": {
+      "file": "buildings/market.glb",
+      "halfWidth": 8,
+      "halfDepth": 6.106,
+      "height": 5.45,
+      "triangles": 2392,
+      "bytes": 11716,
+      "windows": [
+        [
+          0.375,
+          0.0625,
+          0.4375,
+          0.125
+        ]
+      ]
     },
     "office-block": {
       "file": "buildings/office-block.glb",
@@ -159,7 +247,7 @@
       "halfDepth": 0.98,
       "height": 1.7,
       "triangles": 396,
-      "bytes": 4976
+      "bytes": 5568
     },
     "okada-parked": {
       "file": "props/okada-parked.glb",
@@ -167,7 +255,7 @@
       "halfDepth": 0.98,
       "height": 1.06,
       "triangles": 276,
-      "bytes": 4640
+      "bytes": 5232
     },
     "planter": {
       "file": "props/planter.glb",

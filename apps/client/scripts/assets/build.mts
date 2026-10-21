@@ -113,6 +113,14 @@ type UvRect = readonly [number, number, number, number];
  */
 const KAYKIT_GLASS: readonly UvRect[] = [[0, 0.75, 0.25, 1]];
 const KENNEY_CITY_GLASS: readonly UvRect[] = [[11 / 16, 6 / 16, 12 / 16, 8 / 16]];
+/** Our own models' glass swatch on the shared palette, as `pnpm blender` records it in `assets/built/palette.json`. */
+const OUR_GLASS: readonly UvRect[] = ourPaletteGlass();
+
+function ourPaletteGlass(): UvRect[] {
+  const file = join(BUILT, "palette.json");
+  if (!existsSync(file)) fail(`${relative(process.cwd(), file)}: not found (run pnpm blender first)`);
+  return (JSON.parse(readFileSync(file, "utf8")) as { glass: UvRect[] }).glass;
+}
 
 /**
  * Models that do not move: game model id -> source file in a pack, and the
@@ -146,6 +154,14 @@ const STATIC_MODELS: readonly {
     texture: join(KENNEY_SUBURBAN, "Textures", "variation-c.png"),
     windows: KENNEY_CITY_GLASS,
   },
+  // Our own Lagos buildings (assets/blender/), replacing the painted boxes.
+  { id: "buka", folder: "buildings", file: join(BUILT, "buka.glb"), windows: OUR_GLASS },
+  { id: "fuel-station", folder: "buildings", file: join(BUILT, "fuel-station.glb"), windows: OUR_GLASS },
+  { id: "bus-shelter", folder: "buildings", file: join(BUILT, "bus-shelter.glb"), windows: OUR_GLASS },
+  { id: "market", folder: "buildings", file: join(BUILT, "market.glb"), windows: OUR_GLASS },
+  { id: "church", folder: "buildings", file: join(BUILT, "church.glb"), windows: OUR_GLASS },
+  // The fuel station's canopy over its pumps: a prop, blocking only at its pump island.
+  { id: "fuel-canopy", folder: "props", file: join(BUILT, "fuel-canopy.glb") },
   // Street props. The Lagos-specific ones (generators, kiosks, poles, palms) are built in code instead.
   { id: "tree-large", folder: "props", file: join(KENNEY_SUBURBAN, "GLB format", "tree-large.glb") },
   { id: "tree-small", folder: "props", file: join(KENNEY_SUBURBAN, "GLB format", "tree-small.glb") },

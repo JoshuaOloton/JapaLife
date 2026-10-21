@@ -59,15 +59,28 @@ export interface WindowGlow {
   readonly value: Color;
 }
 
+/** The handle a building keeps to fade itself out while it hides the player: 0 solid, 1 gone. */
+export interface BuildingFade {
+  value: number;
+}
+
 /**
- * Makes `material` glow where the geometry is flagged as glass, by `glow`.
+ * Two effects in a building's shader:
+ *  - its glass glows where the geometry is flagged as glass, by `glow`;
+ *  - it fades out by `fade` with a dither: a fixed 4x4 pattern of screen
+ *    pixels is skipped, more of them the higher `fade`. Unlike real
+ *    transparency this needs no second shader and no back-to-front sorting, so
+ *    fading never compiles anything mid-game (a compile can freeze a phone for
+ *    a second or more).
  * Every building's material gets the same added code, so they share one
  * compiled shader.
  */
-export function addWindowGlow(material: MeshLambertMaterial): WindowGlow {
+export function addBuildingEffects(material: MeshLambertMaterial): { glow: WindowGlow; fade: BuildingFade } {
   const glow: WindowGlow = { value: new Color(0, 0, 0) };
+  const fade: BuildingFade = { value: 0 };
   material.onBeforeCompile = (shader) => {
     shader.uniforms["windowGlow"] = glow;
+    shader.uniforms["buildingFade"] = fade;
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
@@ -75,9 +88,24 @@ export function addWindowGlow(material: MeshLambertMaterial): WindowGlow {
       )
       .replace("#include <begin_vertex>", `#include <begin_vertex>\nvWindowGlass = ${WINDOW_GLASS_ATTRIBUTE};`);
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform vec3 windowGlow;\nvarying float vWindowGlass;")
+      .replace(
+        "#include <common>",
+        `#include <common>
+        uniform vec3 windowGlow;
+        uniform float buildingFade;
+        varying float vWindowGlass;
+        const float DITHER[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);`,
+      )
+      .replace(
+        "#include <clipping_planes_fragment>",
+        `#include <clipping_planes_fragment>
+        if (buildingFade > 0.0) {
+          ivec2 cell = ivec2(mod(gl_FragCoord.xy, 4.0));
+          if ((DITHER[cell.x + cell.y * 4] + 0.5) / 16.0 < buildingFade) discard;
+        }`,
+      )
       .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += windowGlow * vWindowGlass;");
   };
-  material.customProgramCacheKey = () => "window-glow";
-  return glow;
+  material.customProgramCacheKey = () => "building";
+  return { glow, fade };
 }

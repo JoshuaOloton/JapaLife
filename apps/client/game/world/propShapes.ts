@@ -33,6 +33,7 @@ const DEFAULT_COLOURS: Record<BuiltPropShape, string> = {
   hawker_table: "#8a6a46",
   plastic_chair: "#f2f2ee",
   speed_bump: "#e0b42a",
+  signboard: "#f4f1e8",
 };
 
 const ZINC = "#8d9196";
@@ -178,6 +179,13 @@ const SHAPES: Record<BuiltPropShape, (look: BuiltLook, colour: string) => Part[]
     { dx: 0, dz: 0, halfWidth: 0.22, halfDepth: 0.22, height: h * 0.62, colour: "#5a5a5a" },
     { dx: 0, dz: 0, halfWidth: w, halfDepth: d * 0.5, height: h * 0.38, y: h * 0.62, colour },
     { dx: 0, dz: d * 0.75, halfWidth: w * 0.98, halfDepth: d * 0.25, height: 0.06, y: h * 0.6, colour: "#444444" },
+  ],
+
+  signboard: ({ halfWidth: w, halfDepth: d, height: h }, colour) => [
+    // A painted board on two posts, like a church's or a buka's sign by the road.
+    { dx: -(w - 0.12), dz: 0, halfWidth: 0.05, halfDepth: 0.05, height: h, colour: "#3a3a3a" },
+    { dx: w - 0.12, dz: 0, halfWidth: 0.05, halfDepth: 0.05, height: h, colour: "#3a3a3a" },
+    { dx: 0, dz: d * 0.3, halfWidth: w, halfDepth: d * 0.4, height: h * 0.45, y: h * 0.52, colour },
   ],
 
   hawker_table: ({ halfWidth: w, halfDepth: d, height: h }, colour) => [
@@ -356,6 +364,12 @@ export function propLabels(layout: Pick<DistrictLayout, "props" | "propKinds">):
         return face(d * 0.7 + 0.01, h * 0.86, w * 1.8, h * 0.1, { background: "#f2d16b", ink: DARK, lines: 1 });
       case "container_shop":
         return face(d + 0.01, h * 0.8, w * 1.4, h * 0.18, { background: "#f4f1e8", ink: "#b5432f", lines: 1 });
+      case "signboard":
+        return face(d * 0.7 + 0.01, h * 0.745, w * 2 - 0.2, h * 0.45 - 0.12, {
+          background: look.colour ?? DEFAULT_COLOURS.signboard,
+          ink: "#1f3a8a",
+          lines: 2,
+        });
       default:
         return [];
     }

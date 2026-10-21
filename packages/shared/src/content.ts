@@ -408,6 +408,7 @@ export const BUILT_PROP_SHAPES = [
   "hawker_table",
   "plastic_chair",
   "speed_bump",
+  "signboard",
 ] as const;
 export type BuiltPropShape = (typeof BUILT_PROP_SHAPES)[number];
 

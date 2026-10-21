@@ -34,6 +34,26 @@ describe("FpsCounter", () => {
     expect(readings.at(-1)?.worstFrameMs).toBe(150);
     expect(readings.at(-1)?.lowestFps).toBeLessThan(50);
   });
+
+  it("does not count the time the page was hidden as a frame", () => {
+    const counter = new FpsCounter(0);
+    run(counter, 0, 1000, 20);
+    counter.pause(); // another app for 30 s
+    const readings = run(counter, 31_000, 33_000, 20);
+    expect(readings.at(-1)?.worstFrameMs).toBe(20);
+    expect(readings.at(-1)?.lowestFps).toBeGreaterThan(45);
+  });
+
+  it("says what the GPU had to set up during the worst frame", () => {
+    const counter = new FpsCounter(0);
+    for (let t = 0; t <= 1000; t += 20) counter.frame(t, { shaders: 10, textures: 5 });
+    // Frame drawn at 1000 compiled two shaders and took 400 ms; seen at 1400.
+    counter.frame(1400, { shaders: 12, textures: 5 });
+    let last = null;
+    for (let t = 1420; t <= 3000; t += 20) last = counter.frame(t, { shaders: 12, textures: 5 }) ?? last;
+    expect(last?.worstFrameMs).toBe(400);
+    expect(last?.worstFrameWork).toEqual({ shaders: 2, textures: 0 });
+  });
 });
 
 describe("formatFpsReading", () => {
@@ -47,5 +67,11 @@ describe("formatFpsReading", () => {
     expect(
       formatFpsReading({ fps: 60, lowestFps: 58, worstFrameMs: 25 }, 1.5, { calls: 47, triangles: 61_234 }),
     ).toBe("60 fps · low 58 · worst 25 ms · dpr 1.50 · 47 calls · 61.2k tris");
+  });
+
+  it("names the set-up work behind the worst frame, when there was any", () => {
+    expect(
+      formatFpsReading({ fps: 60, lowestFps: 40, worstFrameMs: 812, worstFrameWork: { shaders: 3, textures: 1 } }, 1.5),
+    ).toBe("60 fps · low 40 · worst 812 ms (+3 shaders, +1 textures) · dpr 1.50");
   });
 });

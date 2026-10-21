@@ -11,6 +11,7 @@ Units are metres; +y is up and the model faces +z (Blender: -y forward, z up;
 the glTF exporter converts), standing on y = 0, like the packs.
 """
 
+import json
 import math
 import os
 import sys
@@ -44,7 +45,29 @@ PALETTE = [
     ("rack", (0.22, 0.22, 0.23)),
     ("rust", (0.45, 0.27, 0.16)),
     ("white", (0.93, 0.93, 0.90)),
+    # Buildings (11f-4).
+    ("window_glass", (0.42, 0.58, 0.66)),
+    ("concrete", (0.66, 0.64, 0.60)),
+    ("wall_cream", (0.93, 0.86, 0.68)),
+    ("wall_green", (0.22, 0.52, 0.36)),
+    ("wood", (0.47, 0.30, 0.17)),
+    ("wood_dark", (0.27, 0.17, 0.10)),
+    ("zinc", (0.62, 0.64, 0.66)),
+    ("pot", (0.70, 0.71, 0.72)),
+    ("brand_red", (0.78, 0.16, 0.13)),
+    ("shelter_yellow", (0.96, 0.76, 0.10)),
+    ("roof_red", (0.62, 0.20, 0.14)),
+    ("tarp_blue", (0.13, 0.36, 0.72)),
+    ("tomato", (0.85, 0.18, 0.10)),
+    ("pepper_green", (0.28, 0.58, 0.18)),
+    ("yam", (0.55, 0.40, 0.26)),
+    ("onion", (0.58, 0.28, 0.42)),
+    ("cross_gold", (0.85, 0.66, 0.22)),
+    ("lamp", (1.0, 0.97, 0.88)),
 ]
+
+# Swatches the game treats specially, recorded in palette.json for `pnpm assets`: glass glows at night.
+GLASS_SWATCHES = ["window_glass"]
 GRID = 16
 CELL_PX = 16
 SHEET_PX = GRID * CELL_PX
@@ -72,6 +95,21 @@ def cell_uv(colour):
     return ((column + 0.5) / GRID, 1 - (row + 0.5) / GRID)
 
 
+def write_palette_cells():
+    """
+    Where the special swatches are on the sheet, as glTF texture rectangles
+    [u0, v0, u1, v1] (v runs down), for `pnpm assets` to record as `windows`.
+    """
+    names = [entry[0] for entry in PALETTE]
+    cells = {}
+    for name in GLASS_SWATCHES:
+        index = names.index(name)
+        column, row = index % GRID, index // GRID
+        cells[name] = [column / GRID, row / GRID, (column + 1) / GRID, (row + 1) / GRID]
+    with open(os.path.join(OUT_DIR, "palette.json"), "w") as file:
+        json.dump({"glass": [cells[name] for name in GLASS_SWATCHES]}, file, indent=2)
+
+
 def palette_material():
     """One material for every model: the palette sheet, unlit by nothing fancy."""
     image = bpy.data.images.get("palette") or bpy.data.images.new("palette", SHEET_PX, SHEET_PX, alpha=False)
@@ -88,6 +126,7 @@ def palette_material():
     image.filepath_raw = os.path.join(OUT_DIR, "palette.png")
     image.file_format = "PNG"
     image.save()
+    write_palette_cells()
 
     material = bpy.data.materials.new("palette")
     material.use_nodes = True
@@ -116,7 +155,11 @@ class Model:
                 loop[self.uv].uv = (u, v)
 
     def box(self, colour, size, at, rotate=(0, 0, 0)):
-        """A box `size` = (width x, length z, height y) in game axes, centred at `at` = (x, y_bottom, z)."""
+        """
+        A box `size` = (width x, length z, height y) in game axes, centred at `at` = (x, y_bottom, z).
+        `rotate` is degrees about Blender's x, y and z axes (game x, game -z and game y): tilt a
+        roof slope about x for a ridge running across, about y for a ridge running front to back.
+        """
         width, length, height = size
         x, y_bottom, z = at
         result = bmesh.ops.create_cube(self.bm, size=1.0)
@@ -125,6 +168,7 @@ class Model:
         transform = (
             Matrix.Translation(Vector((x, -z, y_bottom + height / 2)))
             @ Matrix.Rotation(math.radians(rotate[2]), 4, "Z")
+            @ Matrix.Rotation(math.radians(rotate[1]), 4, "Y")
             @ Matrix.Rotation(math.radians(rotate[0]), 4, "X")
             @ Matrix.Diagonal(Vector((width, length, height, 1)))
         )
@@ -144,6 +188,33 @@ class Model:
             "y": Matrix.Identity(4),
         }[axis]
         bmesh.ops.transform(self.bm, matrix=Matrix.Translation(Vector((x, -z, y))) @ turn, verts=verts)
+        self._paint({face for vert in verts for face in vert.link_faces}, colour)
+
+    def gable(self, colour, width, length, height, at):
+        """
+        A gable end: a triangle `width` wide at the bottom and `height` tall at its
+        middle, `length` thick along game z, its bottom centred at `at` = (x, y_bottom, z).
+        """
+        x, y, z = at
+        half_w, half_l = width / 2, length / 2
+        points = [(-half_w, 0), (half_w, 0), (0, height)]
+        front = [self.bm.verts.new((x + px, -(z + half_l), y + py)) for px, py in points]
+        back = [self.bm.verts.new((x + px, -(z - half_l), y + py)) for px, py in points]
+        faces = [self.bm.faces.new(front), self.bm.faces.new(list(reversed(back)))]
+        for index in range(3):
+            following = (index + 1) % 3
+            faces.append(self.bm.faces.new([front[following], front[index], back[index], back[following]]))
+        bmesh.ops.recalc_face_normals(self.bm, faces=faces)
+        self._paint(faces, colour)
+
+    def cone(self, colour, radius, height, at, segments=10):
+        """An upright cone (an umbrella's canopy), its base centred at `at` = (x, y_bottom, z)."""
+        x, y, z = at
+        result = bmesh.ops.create_cone(
+            self.bm, cap_ends=True, cap_tris=False, segments=segments, radius1=radius, radius2=0, depth=height
+        )
+        verts = result["verts"]
+        bmesh.ops.transform(self.bm, matrix=Matrix.Translation(Vector((x, -z, y + height / 2))), verts=verts)
         self._paint({face for vert in verts for face in vert.link_faces}, colour)
 
     def wheel(self, radius, width, at):
