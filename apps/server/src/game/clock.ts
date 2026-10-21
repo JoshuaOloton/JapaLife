@@ -18,12 +18,16 @@ export interface GameClock {
  */
 export class MultiplierClock implements GameClock {
   private readonly anchor: number;
+  private readonly gameAnchor: number;
 
   constructor(
     private readonly multiplier = 1,
     private readonly realNow: () => number = Date.now,
+    /** Game time at boot, when GAME_CLOCK_START moves it ahead; real time otherwise. */
+    startAt?: number,
   ) {
     this.anchor = realNow();
+    this.gameAnchor = startAt ?? this.anchor;
   }
 
   get speed(): number {
@@ -31,7 +35,7 @@ export class MultiplierClock implements GameClock {
   }
 
   now(): Date {
-    return new Date(this.anchor + (this.realNow() - this.anchor) * this.multiplier);
+    return new Date(this.gameAnchor + (this.realNow() - this.anchor) * this.multiplier);
   }
 }
 
@@ -55,21 +59,45 @@ export class ManualClock implements GameClock {
 }
 
 /**
- * Builds the clock from the `GAME_CLOCK` environment setting (a speed-up
- * multiplier). It is dev-only: the server refuses to start with it set when
- * NODE_ENV=production, so a real player can never get a fast clock.
+ * Builds the clock from two dev-only environment settings, both refused when
+ * NODE_ENV=production so a real player never gets a fast or shifted clock:
+ *  - `GAME_CLOCK`: a speed-up multiplier;
+ *  - `GAME_CLOCK_START`: a local time ("21:00") in `timeZone`. Game time starts
+ *    at its next occurrence, so night (or rent day) can be tested without
+ *    waiting. It only moves time forward (by under a day), so no stored timer
+ *    ends up behind the clock.
  */
-export function createGameClock(env: NodeJS.ProcessEnv = process.env): GameClock {
-  const setting = env["GAME_CLOCK"];
-  if (setting === undefined || setting === "") return new MultiplierClock(1);
+export function createGameClock(env: NodeJS.ProcessEnv = process.env, timeZone = "Africa/Lagos", realNow: () => number = Date.now): GameClock {
+  const speedSetting = env["GAME_CLOCK"];
+  const startSetting = env["GAME_CLOCK_START"];
+  const speedSet = speedSetting !== undefined && speedSetting !== "";
+  const startSet = startSetting !== undefined && startSetting !== "";
+  if (!speedSet && !startSet) return new MultiplierClock(1, realNow);
   if (env["NODE_ENV"] === "production") {
-    throw new Error("GAME_CLOCK is a dev-only setting and is refused when NODE_ENV=production");
+    throw new Error("GAME_CLOCK and GAME_CLOCK_START are dev-only settings and are refused when NODE_ENV=production");
   }
-  const multiplier = Number(setting);
+  const multiplier = speedSet ? Number(speedSetting) : 1;
   if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 100_000) {
-    throw new Error(`GAME_CLOCK must be a number between 0 and 100000, got "${setting}"`);
+    throw new Error(`GAME_CLOCK must be a number between 0 and 100000, got "${speedSetting}"`);
   }
-  return new MultiplierClock(multiplier);
+  const startAt = startSet ? nextLocalTime(startSetting, timeZone, realNow()) : undefined;
+  return new MultiplierClock(multiplier, realNow, startAt);
+}
+
+/** The next instant (after `now`) when the clocks in `timeZone` read `time` ("HH:MM"). */
+function nextLocalTime(time: string, timeZone: string, now: number): number {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time);
+  const hour = Number(match?.[1]);
+  const minute = Number(match?.[2]);
+  if (!match || hour > 23 || minute > 59) {
+    throw new Error(`GAME_CLOCK_START must be a local time like "21:00", got "${time}"`);
+  }
+  const today = calendarDay(new Date(now), timeZone);
+  for (const day of [today, nextDay(today)]) {
+    const instant = zonedInstant(day, hour, timeZone).getTime() + minute * 60_000;
+    if (instant > now) return instant;
+  }
+  throw new Error(`no next ${time} in ${timeZone}`);
 }
 
 export const MS_PER_HOUR = 3_600_000;

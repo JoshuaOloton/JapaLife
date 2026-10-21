@@ -20,6 +20,7 @@ export class QualityGovernor {
   private windowStart = 0;
   private framesInWindow = 0;
   private lowSince: number | null = null;
+  private restarting = false;
 
   /** Call once per rendered frame with `performance.now()`. */
   frame(now: number): void {
@@ -27,6 +28,12 @@ export class QualityGovernor {
     if (this.startedAt === null) {
       this.startedAt = now;
       this.windowStart = now;
+      return;
+    }
+    if (this.restarting) {
+      this.restarting = false;
+      this.windowStart = now;
+      this.framesInWindow = 0;
       return;
     }
     if (now - this.startedAt < WARM_UP_MS) {
@@ -46,5 +53,15 @@ export class QualityGovernor {
     }
     this.lowSince ??= now - elapsed;
     if (now - this.lowSince >= LOW_FOR_MS) this.scale = REDUCED_SCALE;
+  }
+
+  /**
+   * The page was hidden (another app, the screen off). The browser draws
+   * nothing meanwhile, and that gap is not the phone struggling: without this,
+   * ten seconds in another app halved the street for good. Start watching afresh.
+   */
+  pause(): void {
+    this.restarting = true;
+    this.lowSince = null;
   }
 }

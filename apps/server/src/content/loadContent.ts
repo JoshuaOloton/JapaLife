@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ALWAYS_COVERED,
+  DISTRICT_DOWNLOAD_BUDGET_BYTES,
   GAME_EVENT_IDS,
   appearanceProblem,
   buildDistrictLayout,
@@ -250,8 +251,8 @@ function checkVehicles(vehicles: VehicleKinds, catalog: ModelCatalog): string[] 
 /**
  * What you see is what stops you: every model exists, every building's model
  * fills its footprint, no prop blocks more than it shows, and each district's
- * layout (with its props, NPCs and traffic) passes `checkLayout`. Every NPC
- * wears something the character catalog has.
+ * layout (with its props, NPCs and traffic) passes `checkLayout` and stays
+ * within its download budget. Every NPC wears something the character catalog has.
  */
 function checkWorld(catalogs: LayoutCatalogs, cities: CityConfig[]): string[] {
   const { models, propKinds, characters } = catalogs;
@@ -268,7 +269,14 @@ function checkWorld(catalogs: LayoutCatalogs, cities: CityConfig[]): string[] {
   for (const city of cities) {
     for (const district of city.districts) {
       const where = `cities/${city.id}.json district "${district.id}"`;
-      problems.push(...checkLayout(where, buildDistrictLayout(district, catalogs)));
+      const layout = buildDistrictLayout(district, catalogs);
+      problems.push(...checkLayout(where, layout));
+      // Everything the district makes a phone download (its models, plus every hair and garment piece).
+      const download = Object.values(layout.models).reduce((sum, model) => sum + model.bytes, 0);
+      if (download > DISTRICT_DOWNLOAD_BUDGET_BYTES) {
+        const mb = (bytes: number): string => (bytes / 1_000_000).toFixed(2);
+        problems.push(`${where}: its models download ${mb(download)} MB, over the ${mb(DISTRICT_DOWNLOAD_BUDGET_BYTES)} MB budget`);
+      }
       for (const group of district.traffic?.fleet ?? []) {
         if (!catalogs.vehicles.kinds[group.kind]) {
           problems.push(`${where}: fleet uses unknown vehicle kind "${group.kind}" (not in traffic/kinds.json)`);

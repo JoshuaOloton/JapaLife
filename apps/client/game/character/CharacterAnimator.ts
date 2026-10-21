@@ -1,5 +1,13 @@
 import { type AnimationAction, type AnimationClip, AnimationMixer, LoopOnce, type Object3D, type Vector3 } from "three";
-import { type CharacterMotion, type ClipId, chooseClip, moveTimeScale } from "./animation";
+import {
+  type CharacterMotion,
+  type ClipId,
+  RUN_BOUNCE,
+  calmBounce,
+  chooseClip,
+  moveTimeScale,
+  runStanceWeight,
+} from "./animation";
 
 /** How long one clip blends into the next. Short enough to feel responsive, long enough not to pop. */
 const CROSSFADE_SECONDS = 0.2;
@@ -13,6 +21,8 @@ export class CharacterAnimator {
   private readonly mixer: AnimationMixer;
   private readonly actions: Map<ClipId, AnimationAction>;
   private readonly gestureSeconds: number;
+  /** A second copy of the idle clip, mixed in under the run to shorten its strides (`runStanceWeight`). */
+  private readonly stance: AnimationAction | undefined;
   private current: ClipId | undefined;
 
   constructor(
@@ -22,6 +32,14 @@ export class CharacterAnimator {
     this.mixer = new AnimationMixer(root);
     this.actions = new Map();
     for (const clip of clips) this.actions.set(clip.name as ClipId, this.mixer.clipAction(clip));
+    // Its own copy, so it never fights the idle action's own crossfades.
+    const idle = clips.find((clip) => clip.name === "idle");
+    if (idle) {
+      const copy = idle.clone();
+      copy.name = "idle_under_run";
+      this.stance = this.mixer.clipAction(copy);
+      this.stance.setEffectiveWeight(0).play();
+    }
     const gesture = this.actions.get("interact");
     if (gesture) {
       gesture.setLoop(LoopOnce, 1);
@@ -41,6 +59,9 @@ export class CharacterAnimator {
       this.current = next;
     }
     if ((next === "walk" || next === "run") && action) action.timeScale = moveTimeScale(next, motion.speed);
+    // Follows the run's own fade in and out (a weight of 0 costs nothing: the mixer skips it).
+    const run = this.actions.get("run");
+    if (this.stance && run) this.stance.setEffectiveWeight(runStanceWeight(run.isRunning() ? run.getEffectiveWeight() : 0));
     this.mixer.update(deltaSeconds);
   }
 
@@ -53,7 +74,8 @@ export class CharacterAnimator {
 /**
  * The shared clips store the pelvis's movement as an offset from rest (see the
  * asset pipeline), because each body's hips sit at a different height. This
- * makes a copy of the clips with this body's own rest position added back.
+ * makes a copy of the clips with this body's own rest position added back, and
+ * the run's hip bounce calmed (`RUN_BOUNCE`).
  */
 export function clipsForBody(clips: readonly AnimationClip[], pelvisRest: Vector3): AnimationClip[] {
   return clips.map((clip) => {
@@ -61,6 +83,7 @@ export function clipsForBody(clips: readonly AnimationClip[], pelvisRest: Vector
     for (const track of copy.tracks) {
       if (track.name !== "pelvis.position") continue;
       const values = track.values;
+      if (clip.name === "run") calmBounce(values, RUN_BOUNCE);
       for (let i = 0; i < values.length; i += 3) {
         values[i] = (values[i] ?? 0) + pelvisRest.x;
         values[i + 1] = (values[i + 1] ?? 0) + pelvisRest.y;

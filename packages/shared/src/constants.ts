@@ -26,5 +26,12 @@ export const PLAYER_SPEED_UNITS_PER_SECOND = 4;
 /** The player's body radius in world units. Collision grows every building by this much. */
 export const PLAYER_RADIUS = 0.4;
 
+/**
+ * Most a district may make a phone download in 3D models (Slice 11 budget:
+ * Yaba ≤ 6 MB). The content check refuses a district over it; characters have
+ * their own 1.5 MB budget, checked by `pnpm budget`.
+ */
+export const DISTRICT_DOWNLOAD_BUDGET_BYTES = 6_000_000;
+
 /** Cap on devicePixelRatio for low-end Android GPUs. */
 export const MAX_DEVICE_PIXEL_RATIO = 1.5;

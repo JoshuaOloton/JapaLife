@@ -27,9 +27,13 @@ export function FpsProbe({ output, quality }: { output: RefObject<HTMLElement | 
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [counter]);
   useFrame(({ gl }) => {
-    const reading = counter.frame(performance.now(), { shaders: gl.info.programs?.length ?? 0, textures: gl.info.memory.textures });
     // `info.render` still holds the previous frame's counts: this runs before the frame is drawn.
     const { calls, triangles } = gl.info.render;
+    const reading = counter.frame(performance.now(), {
+      shaders: gl.info.programs?.length ?? 0,
+      textures: gl.info.memory.textures,
+      calls,
+    });
     if (reading && output.current) {
       output.current.textContent = formatFpsReading(reading, gl.getPixelRatio(), { calls, triangles, street: quality.scale });
     }
@@ -39,6 +43,13 @@ export function FpsProbe({ output, quality }: { output: RefObject<HTMLElement | 
 
 /** Feeds the adaptive-quality governor every frame (always on, not only with `?fps`). */
 export function QualityProbe({ quality }: { quality: QualityGovernor }) {
+  useEffect(() => {
+    const onVisibility = (): void => {
+      if (document.visibilityState === "hidden") quality.pause();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [quality]);
   useFrame(() => quality.frame(performance.now()));
   return null;
 }
