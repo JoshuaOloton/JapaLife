@@ -6,8 +6,15 @@ import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
  * same Yaba.
  */
 
-const LATERITE = "#94583f";
-const LATERITE_MOTTLE = ["#7f4c37", "#a2654b", "#875440", "#9a6a55"];
+/**
+ * Lagos is on the coast: its bare ground is greyish-tan sand packed hard by
+ * feet, not the red laterite of inland Nigeria (changed 2026-10-21). A mid
+ * tone, because the midday light washes pale sand out to white.
+ */
+const SAND = "#a6957a";
+const SAND_MOTTLE = ["#978769", "#b3a385", "#8c7d65", "#a99b84", "#857661"];
+/** Where the road's tar breaks up into the ground. */
+const ROAD_EDGE = "#8a7b63";
 const GRASS = ["#5f7336", "#6c7d3e", "#55682f"];
 const ASPHALT = "#3f3f43";
 
@@ -24,7 +31,7 @@ export function seededRandom(seed: number): () => number {
 }
 
 /**
- * Red laterite earth over the whole ground, with worn patches of grass. One
+ * Packed sandy earth over the whole ground, with worn patches of grass. One
  * 512-pixel texture for the district (about 0.35 m a pixel at Yaba's size):
  * the grain comes from specks, the patches from soft blobs.
  */
@@ -35,7 +42,7 @@ export function paintGround(size = 512): CanvasTexture {
   const context = canvas.getContext("2d");
   const random = seededRandom(0x1a905);
   if (context) {
-    context.fillStyle = LATERITE;
+    context.fillStyle = SAND;
     context.fillRect(0, 0, size, size);
 
     for (let index = 0; index < 22; index++) {
@@ -61,7 +68,7 @@ export function paintGround(size = 512): CanvasTexture {
       const x = random() * size;
       const y = random() * size;
       const r = 2 + random() * 7;
-      const colour = LATERITE_MOTTLE[Math.floor(random() * LATERITE_MOTTLE.length)] ?? LATERITE;
+      const colour = SAND_MOTTLE[Math.floor(random() * SAND_MOTTLE.length)] ?? SAND;
       const blob = context.createRadialGradient(x, y, 0, x, y, r);
       blob.addColorStop(0, `${colour}55`);
       blob.addColorStop(1, `${colour}00`);
@@ -74,7 +81,7 @@ export function paintGround(size = 512): CanvasTexture {
 
 /**
  * A strip of tarred road, across its width from edge to edge: worn, broken
- * edges where the tar crumbles into the laterite, faded patches and cracks.
+ * edges where the tar crumbles into the earth, faded patches and cracks.
  * It repeats along the road's length.
  */
 export function paintRoad(): CanvasTexture {
@@ -110,7 +117,7 @@ export function paintRoad(): CanvasTexture {
         wear = Math.min(6, Math.max(1, wear + (random() - 0.5) * 1.2));
         const bite = random() < 0.03 ? 2 + random() * 3 : 0;
         const pixels = Math.round(wear + bite);
-        context.fillStyle = "#7f5340";
+        context.fillStyle = ROAD_EDGE;
         context.fillRect(side === 0 ? 0 : width - pixels, y, pixels, 1);
       }
     }
