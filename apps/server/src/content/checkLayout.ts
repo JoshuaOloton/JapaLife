@@ -6,6 +6,7 @@ import {
   type Obstacles,
   PLAYER_RADIUS,
   type Point,
+  SpatialGrid,
   type Traffic,
   distanceBetween,
   districtObstacles,
@@ -37,12 +38,24 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
     );
 
   const seen = new Set<string>();
+  const buildingGrid = new SpatialGrid(buildings);
   for (const building of buildings) {
     if (seen.has(building.id)) problems.push(`${where}: duplicate building id "${building.id}"`);
     seen.add(building.id);
     if (sticksOut(building)) {
       problems.push(`${where}: building "${building.id}" sticks out of the walkable area`);
     }
+    if (onRoad(building)) problems.push(`${where}: building "${building.id}" stands on a road`);
+    const clash = buildingGrid
+      .near(building.x, building.z, building.halfWidth, building.halfDepth)
+      .find(
+        (other) =>
+          other !== building &&
+          building.id < other.id && // report each pair once
+          Math.abs(building.x - other.x) < building.halfWidth + other.halfWidth &&
+          Math.abs(building.z - other.z) < building.halfDepth + other.halfDepth,
+      );
+    if (clash) problems.push(`${where}: buildings "${building.id}" and "${clash.id}" overlap`);
   }
 
   const wires = new Map<string, number>();

@@ -67,7 +67,7 @@ export type RuleValue<T> = {
 /** A price or amount I am unsure of: the loader prints these at boot so they get reviewed. */
 const todoNote = z.string().min(1).max(200).optional();
 
-const positionSchema = z.strictObject({ x: z.number(), z: z.number() });
+export const positionSchema = z.strictObject({ x: z.number(), z: z.number() });
 
 // ---- economy/ngn.json: starting money, rent, food ---------------------------
 
@@ -290,7 +290,7 @@ const signedSpot = {
   position: positionSchema,
 };
 
-const interactableSchema = z.discriminatedUnion("kind", [
+export const interactableSchema = z.discriminatedUnion("kind", [
   z.strictObject({ ...signedSpot, kind: z.literal("job_site"), jobId: contentIdSchema }),
   z.strictObject({
     ...signedSpot,
@@ -377,6 +377,13 @@ export const modelCatalogSchema = z.strictObject({
   models: z.record(contentIdSchema, modelInfoSchema),
 });
 
+/**
+ * How big a street is: a `main` road (danfo routes, no okada), an `inner`
+ * street (okada allowed) or a `lane` (narrow, people only, no traffic).
+ */
+export const ROAD_CLASSES = ["main", "inner", "lane"] as const;
+export type RoadClass = (typeof ROAD_CLASSES)[number];
+
 /** A flat strip of road. Walkable and purely visual. */
 export const roadSchema = z.strictObject({
   x: z.number(),
@@ -384,7 +391,19 @@ export const roadSchema = z.strictObject({
   halfWidth: z.number().positive(),
   halfDepth: z.number().positive(),
   colour: hexColour,
+  /** The street's name, for the map. A place name, so it lives in content, not copy. */
+  name: z.string().min(1).max(60).optional(),
+  class: z.enum(ROAD_CLASSES).optional(),
 });
+
+/** A named place drawn on the map (a market, a college). Its buildings and props are listed with the others. */
+export const landmarkSchema = z.strictObject({
+  id: contentIdSchema,
+  name: z.string().min(1).max(60),
+  x: z.number(),
+  z: z.number(),
+});
+export type Landmark = z.infer<typeof landmarkSchema>;
 
 /** Half the width and depth of a box on the ground. */
 const halfSizeSchema = z.strictObject({
@@ -546,7 +565,7 @@ export const trafficSchema = z.strictObject({
     .array(z.strictObject({ lane: contentIdSchema, at: positionSchema, seconds: z.number().positive().max(30).default(5) }))
     .default([]),
   pedestrians: z.strictObject({
-    count: z.int().min(0).max(12),
+    count: z.int().min(0).max(60),
     /** People walk a walkway to its end and back. */
     walkways: z.array(z.strictObject({ id: contentIdSchema, points: z.array(positionSchema).min(2) })),
   }),
@@ -567,10 +586,13 @@ export const districtSchema = z.strictObject({
   roads: z.array(roadSchema),
   props: z.array(propSchema).default([]),
   npcs: z.array(npcSchema).default([]),
+  landmarks: z.array(landmarkSchema).default([]),
   traffic: trafficSchema.optional(),
 });
 
 export const citySchema = z.strictObject({
+  /** Written by `pnpm city` from `content/cities/plans/`; edit the plan, not the city file. */
+  generated: z.literal(true).optional(),
   meta: contentMetaSchema,
   id: contentIdSchema,
   name: z.string().min(1).max(60),

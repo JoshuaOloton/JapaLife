@@ -95,6 +95,18 @@ Each street has a class:
 
 ### 11h-2 Generator and street plan
 
+As built (2026-10-22):
+- **Plan files:** the plan lives in `content/cities/plans/lagos/` (`city.json` for the city's own fields, `yaba.json` for the district), not a single `yaba.plan.json`.
+- **Generator:** `apps/server/src/city/`, run by `apps/server/src/generateCity.ts`.
+- **Roads:**
+  - main roads are 8 m with one lane each way, not 4 lanes;
+  - streets get a road `name` and `class`, and the district gets `landmarks` for the map;
+  - there is no separate `streets` field.
+- **Result:** 915 buildings (213 models), 1,175 props, 18 roads and 20 NPCs. The join message is 253 KB, and the content check takes 87 ms.
+- **Deviations from the plan's wording:** see [known-limits, Content](../known-limits.md#content).
+
+The plan as written before building:
+
 - **Plan file:** `content/cities/plans/yaba.plan.json`, written by hand. It holds:
   - streets: `name`, `axis`, `at`, `from`, `to`, `class`;
   - zones: `market`, `residential`, `commercial`, `school`;

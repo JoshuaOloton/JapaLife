@@ -1,6 +1,6 @@
 "use client";
 
-import type { DistrictLayout, Interactable, Point, Road } from "@japalife/shared";
+import { type DistrictLayout, type Interactable, type Point, type Road, seededRandom } from "@japalife/shared";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { type InstancedMesh, Object3D } from "three";
 import { Boxes, type Slab } from "./world/Boxes";
@@ -10,7 +10,7 @@ import { Npcs } from "./world/Npcs";
 import { Pedestrians } from "./world/Pedestrians";
 import type { QualityGovernor } from "./world/quality";
 import { Traffic } from "./world/Traffic";
-import { paintGround, paintRoad, paintSign, seededRandom } from "./world/paint";
+import { paintGround, paintRoad, paintSign } from "./world/paint";
 import { Props } from "./world/Props";
 import { propSlabs } from "./world/propShapes";
 import type { StreetState } from "./world/street";

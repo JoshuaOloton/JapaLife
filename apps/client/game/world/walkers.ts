@@ -1,5 +1,4 @@
-import type { Appearance, CharacterCatalog, DistrictLayout, Point } from "@japalife/shared";
-import { seededRandom } from "./paint";
+import { type Appearance, type CharacterCatalog, type DistrictLayout, type Point, seededRandom } from "@japalife/shared";
 import { type Lane, buildLane, pointOnLane } from "./trafficSim";
 
 /**

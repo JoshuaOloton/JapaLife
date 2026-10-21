@@ -84,6 +84,14 @@
       "look": { "model": "okada-parked" },
       "blocks": "footprint"
     },
+    "danfo-parked": {
+      "look": { "model": "danfo" },
+      "blocks": "footprint"
+    },
+    "keke-parked": {
+      "look": { "model": "keke" },
+      "blocks": "footprint"
+    },
     "fuel-canopy": {
       "look": { "model": "fuel-canopy" },
       "blocks": { "halfWidth": 3, "halfDepth": 0.7 }

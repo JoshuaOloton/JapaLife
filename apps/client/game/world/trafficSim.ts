@@ -1,5 +1,11 @@
-import { type Box, type DistrictLayout, PLAYER_RADIUS, type Point, type TrafficSchedule } from "@japalife/shared";
-import { seededRandom } from "./paint";
+import {
+  type Box,
+  type DistrictLayout,
+  PLAYER_RADIUS,
+  type Point,
+  type TrafficSchedule,
+  seededRandom,
+} from "@japalife/shared";
 
 /**
  * The street traffic, as a tiny simulation the client runs on its own (it is

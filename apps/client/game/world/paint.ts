@@ -1,3 +1,4 @@
+import { seededRandom } from "@japalife/shared";
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
 
 /**
@@ -17,18 +18,6 @@ const SAND_MOTTLE = ["#978769", "#b3a385", "#8c7d65", "#a99b84", "#857661"];
 const ROAD_EDGE = "#8a7b63";
 const GRASS = ["#5f7336", "#6c7d3e", "#55682f"];
 const ASPHALT = "#3f3f43";
-
-/** Small, seeded random numbers (mulberry32), so the painting is the same every time. */
-export function seededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 0x1_0000_0000;
-  };
-}
 
 /**
  * Packed sandy earth over the whole ground, with worn patches of grass. One

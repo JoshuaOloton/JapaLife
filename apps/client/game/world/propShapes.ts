@@ -1,6 +1,12 @@
-import type { BuiltPropShape, DistrictLayout, Prop, PropKind, QuarterTurn } from "@japalife/shared";
+import {
+  type BuiltPropShape,
+  type DistrictLayout,
+  type Prop,
+  type PropKind,
+  type QuarterTurn,
+  seededRandom,
+} from "@japalife/shared";
 import type { Slab } from "./Boxes";
-import { seededRandom } from "./paint";
 
 /**
  * Street props built in code: generators, kiosks, container shops, electric

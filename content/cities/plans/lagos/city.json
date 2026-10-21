@@ -1,0 +1,9 @@
+{
+  "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
+  "id": "lagos",
+  "name": "Lagos",
+  "timeZone": "Africa/Lagos",
+  "night": { "startsHour": 19, "endsHour": 6 },
+  "currency": "NGN",
+  "districts": ["yaba"]
+}

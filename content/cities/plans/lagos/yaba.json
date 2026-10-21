@@ -1,0 +1,453 @@
+{
+  "id": "yaba",
+  "name": "Yaba",
+  "seed": 2026,
+  "halfWidth": 300,
+  "halfDepth": 300,
+  "spawn": { "x": 0, "z": 0 },
+  "interactRadius": 3,
+  "roadColour": "#4a4a4f",
+  "colours": ["#e8dcc0", "#a9c4d6", "#e7b48f", "#b9d3b0", "#eed98a", "#ece8e0", "#c98a6a", "#b8b4ac", "#d9a9b4", "#d6c7a1"],
+  "shopLabels": [
+    "Recharge Card • POS",
+    "Provisions • Cold Drinks",
+    "Tailor • Fashion Designer",
+    "Unisex Barbing Salon",
+    "Chemist • Patent Medicine",
+    "Pure Water • Ice Block",
+    "Printing • Photocopy • Typing",
+    "Mama Ngozi Provisions",
+    "God's Grace Electricals",
+    "Blessed Hands Hair Salon",
+    "Fabric & Lace • Ankara",
+    "Gas Refill Point",
+    "Mobile Money • Transfers",
+    "Shoe Repairs • Cobbler",
+    "Spare Parts • Okada & Keke",
+    "Phone Repairs • Screen Change"
+  ],
+  "classes": {
+    "main": {
+      "halfWidth": 4, "setback": 4, "traffic": true, "poles": true, "bumps": true,
+      "mix": [
+        { "type": "shop", "weight": 4 }, { "type": "storey", "weight": 3 }, { "type": "office", "weight": 1 },
+        { "type": "flats-4", "weight": 1 }, { "type": "flats-3", "weight": 1 }, { "type": "kiosk", "weight": 1 }, { "type": "container", "weight": 1 }
+      ]
+    },
+    "inner": {
+      "halfWidth": 3, "setback": 3, "traffic": true, "poles": true,
+      "mix": [
+        { "type": "house", "weight": 4 }, { "type": "bungalow", "weight": 1.5 }, { "type": "flats-3", "weight": 1 },
+        { "type": "shop", "weight": 2 }, { "type": "storey", "weight": 2 }, { "type": "kiosk", "weight": 0.5 }
+      ]
+    },
+    "lane": {
+      "halfWidth": 2, "setback": 2.5, "traffic": false, "poles": false,
+      "mix": [{ "type": "house", "weight": 4 }, { "type": "bungalow", "weight": 1 }, { "type": "shop", "weight": 1 }]
+    }
+  },
+  "buildingTypes": {
+    "shop": { "name": "Shop", "frontage": [6, 9], "depth": [6, 8], "height": [3.2, 4.2] },
+    "house": { "name": "House", "frontage": [8, 12], "depth": [7, 10], "height": [3.4, 4.4] },
+    "storey": { "name": "Storey building", "frontage": [9, 14], "depth": [8, 12], "height": [6.5, 10] },
+    "bungalow": { "name": "House", "model": "bungalow", "scale": 7 },
+    "flats-3": { "name": "Flats", "model": "flats-three-storey", "scale": 5 },
+    "flats-4": { "name": "Flats", "model": "flats-four-storey", "scale": 5 },
+    "office": { "name": "Office block", "model": "office-block", "scale": 7.5 },
+    "buka": { "name": "Buka", "model": "buka" },
+    "kiosk": { "prop": "kiosk", "labelled": true },
+    "container": { "prop": "container-shop", "labelled": true }
+  },
+  "zones": [
+    {
+      "id": "tejuosho-trade", "x": -105, "z": 150, "halfWidth": 50, "halfDepth": 35,
+      "mix": [{ "type": "container", "weight": 3 }, { "type": "kiosk", "weight": 3 }, { "type": "shop", "weight": 3 }, { "type": "buka", "weight": 1 }]
+    },
+    {
+      "id": "sabo-trade", "x": 190, "z": 20, "halfWidth": 40, "halfDepth": 40,
+      "mix": [{ "type": "container", "weight": 3 }, { "type": "kiosk", "weight": 3 }, { "type": "shop", "weight": 3 }, { "type": "buka", "weight": 1 }]
+    }
+  ],
+  "streets": [
+    { "id": "hughes-avenue", "name": "Hughes Avenue", "axis": "ew", "at": -240, "class": "inner" },
+    { "id": "montgomery-road", "name": "Montgomery Road", "axis": "ew", "at": -120, "class": "inner" },
+    { "id": "commercial-avenue", "name": "Commercial Avenue", "axis": "ew", "at": 0, "class": "main" },
+    { "id": "tejuosho-street", "name": "Tejuosho Street", "axis": "ew", "at": 120, "class": "inner" },
+    { "id": "alagomeji-road", "name": "Alagomeji Road", "axis": "ew", "at": 240, "class": "inner" },
+    { "id": "murtala-muhammed-way", "name": "Murtala Muhammed Way", "axis": "ns", "at": -280, "class": "main" },
+    { "id": "ojuelegba-road", "name": "Ojuelegba Road", "axis": "ns", "at": -150, "class": "inner" },
+    { "id": "herbert-macaulay-way", "name": "Herbert Macaulay Way", "axis": "ns", "at": 0, "class": "main" },
+    { "id": "iwaya-road", "name": "Iwaya Road", "axis": "ns", "at": 150, "class": "inner" },
+    { "id": "lane-north", "axis": "ew", "at": -180, "to": 0, "class": "lane" },
+    { "id": "lane-north-east", "axis": "ew", "at": -180, "from": 150, "class": "lane" },
+    { "id": "lane-centre-north", "axis": "ew", "at": -60, "class": "lane" },
+    { "id": "lane-centre-south", "axis": "ew", "at": 60, "class": "lane" },
+    { "id": "lane-south", "axis": "ew", "at": 180, "class": "lane" },
+    { "id": "lane-far-west", "axis": "ns", "at": -215, "class": "lane" },
+    { "id": "lane-west", "axis": "ns", "at": -75, "class": "lane" },
+    { "id": "lane-east", "axis": "ns", "at": 75, "from": -120, "class": "lane" },
+    { "id": "lane-far-east", "axis": "ns", "at": 215, "class": "lane" }
+  ],
+  "landmarks": [
+    {
+      "id": "yaba-junction",
+      "x": 0, "z": 0,
+      "clear": { "halfWidth": 58, "halfDepth": 58 },
+      "interactables": [
+        { "id": "face-me-face-you", "label": "Your room", "kind": "home", "position": { "x": -11.5, "z": -25.5 } },
+        { "id": "yaba-office", "label": "Yaba Office", "kind": "job_site", "position": { "x": 20, "z": -10 }, "jobId": "office-assistant" },
+        { "id": "mama-put-buka", "label": "Mama Put Buka", "prompt": "Buy food at Mama Put", "kind": "food_vendor", "position": { "x": -15, "z": 12 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] },
+        { "id": "yaba-bus-stop", "label": "Bus Stop", "kind": "bus_stop", "position": { "x": 8, "z": 25 } },
+        { "id": "yaba-fuel-station", "label": "Fuel Station", "prompt": "Buy petrol for your gen", "kind": "fuel_station", "position": { "x": 30, "z": 20 }, "shopItemIds": ["generator-petrol"] }
+      ],
+      "buildings": [
+        { "id": "yaba-office-block", "name": "Office block", "x": 28, "z": -18, "halfWidth": 7.8, "halfDepth": 5, "height": 12.7, "colour": "#8fa3b8", "model": "office-block", "scale": 7.5 },
+        { "id": "face-me-face-you-house", "name": "Face-me-face-you house", "x": -9, "z": -31, "halfWidth": 5, "halfDepth": 4.1, "height": 5.4, "colour": "#d9a679", "model": "bungalow", "scale": 7 },
+        { "id": "mama-put-shop", "name": "Mama Put's shop", "x": -22, "z": 18, "halfWidth": 6, "halfDepth": 4, "height": 3.4, "colour": "#e0c25a", "model": "buka", "rotation": 180 },
+        { "id": "fuel-station-building", "name": "Fuel station", "x": 40, "z": 29.5, "halfWidth": 5, "halfDepth": 2.5, "height": 4.4, "colour": "#c95f5f", "model": "fuel-station", "rotation": 180 },
+        { "id": "bus-shelter", "name": "Bus shelter", "x": 11, "z": 27, "halfWidth": 0.9, "halfDepth": 1.6, "height": 2.6, "colour": "#e0b42a", "model": "bus-shelter", "rotation": 270 },
+        { "id": "yaba-flats-1", "name": "Flats", "x": -35, "z": -15, "halfWidth": 5, "halfDepth": 3.25, "height": 14.75, "colour": "#b9a9c9", "model": "flats-four-storey", "scale": 5 },
+        { "id": "yaba-flats-2", "name": "Flats", "x": 40, "z": -40, "halfWidth": 5, "halfDepth": 3.25, "height": 11.25, "colour": "#a9c9b9", "model": "flats-three-storey", "scale": 5 },
+        { "id": "yaba-market", "name": "Market", "x": -42, "z": 40, "halfWidth": 8, "halfDepth": 6.1, "height": 5.45, "colour": "#d68f5d", "model": "market", "rotation": 180 },
+        { "id": "yaba-church", "name": "Church", "x": 16, "z": 44, "halfWidth": 5.2, "halfDepth": 6.2, "height": 9.9, "colour": "#e8e2d6", "model": "church", "rotation": 180 }
+      ],
+      "props": [
+        { "kind": "electric-pole", "x": -54, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
+        { "kind": "electric-pole", "x": -42, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
+        { "kind": "electric-pole", "x": -30, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
+        { "kind": "electric-pole", "x": -18, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
+        { "kind": "electric-pole", "x": 18, "z": -5.6, "rotation": 90, "wire": "main-north-east" },
+        { "kind": "electric-pole", "x": 30, "z": -5.6, "rotation": 90, "wire": "main-north-east" },
+        { "kind": "electric-pole", "x": 42, "z": -5.6, "rotation": 90, "wire": "main-north-east" },
+        { "kind": "electric-pole", "x": 54, "z": -5.6, "rotation": 90, "wire": "main-north-east" },
+        { "kind": "electric-pole", "x": -54, "z": 5.6, "rotation": 90, "wire": "main-south-west" },
+        { "kind": "electric-pole", "x": -42, "z": 5.6, "rotation": 90, "wire": "main-south-west" },
+        { "kind": "electric-pole", "x": -30, "z": 5.6, "rotation": 90, "wire": "main-south-west" },
+        { "kind": "electric-pole", "x": -18, "z": 5.6, "rotation": 90, "wire": "main-south-west" },
+        { "kind": "electric-pole", "x": 18, "z": 5.6, "rotation": 90, "wire": "main-south-east" },
+        { "kind": "electric-pole", "x": 30, "z": 5.6, "rotation": 90, "wire": "main-south-east" },
+        { "kind": "electric-pole", "x": 42, "z": 5.6, "rotation": 90, "wire": "main-south-east" },
+        { "kind": "electric-pole", "x": 54, "z": 5.6, "rotation": 90, "wire": "main-south-east" },
+        { "kind": "electric-pole", "x": 5.6, "z": -54, "wire": "cross-east-north" },
+        { "kind": "electric-pole", "x": 5.6, "z": -42, "wire": "cross-east-north" },
+        { "kind": "electric-pole", "x": 5.6, "z": -30, "wire": "cross-east-north" },
+        { "kind": "electric-pole", "x": 5.6, "z": -18, "wire": "cross-east-north" },
+        { "kind": "electric-pole", "x": 5.6, "z": 18, "wire": "cross-east-south" },
+        { "kind": "electric-pole", "x": 5.6, "z": 30, "wire": "cross-east-south" },
+        { "kind": "electric-pole", "x": 5.6, "z": 42, "wire": "cross-east-south" },
+        { "kind": "electric-pole", "x": 5.6, "z": 54, "wire": "cross-east-south" },
+        { "kind": "electric-pole", "x": -5.6, "z": -54, "wire": "cross-west-north" },
+        { "kind": "electric-pole", "x": -5.6, "z": -42, "wire": "cross-west-north" },
+        { "kind": "electric-pole", "x": -5.6, "z": -18, "wire": "cross-west-north" },
+        { "kind": "electric-pole", "x": -5.6, "z": 18, "wire": "cross-west-south" },
+        { "kind": "electric-pole", "x": -5.6, "z": 30, "wire": "cross-west-south" },
+        { "kind": "electric-pole", "x": -5.6, "z": 42, "wire": "cross-west-south" },
+        { "kind": "electric-pole", "x": -5.6, "z": 54, "wire": "cross-west-south" },
+        { "kind": "speed-bump", "x": -10, "z": 0 },
+        { "kind": "speed-bump", "x": 10, "z": 0 },
+        { "kind": "speed-bump", "x": 0, "z": -10, "rotation": 90 },
+        { "kind": "speed-bump", "x": 0, "z": 10, "rotation": 90 },
+        { "kind": "generator-big", "x": 37.5, "z": -15, "rotation": 90 },
+        { "kind": "generator", "x": -28.8, "z": -14 },
+        { "kind": "generator", "x": 33.8, "z": -38, "rotation": 90 },
+        { "kind": "generator", "x": -28.9, "z": 20, "rotation": 90 },
+        { "kind": "generator", "x": -15, "z": -29 },
+        { "kind": "kiosk", "x": -8, "z": 8, "label": "Recharge Card • POS" },
+        { "kind": "container-shop", "x": 24, "z": 8, "label": "God's Time Provisions" },
+        { "kind": "bench", "x": 8, "z": -8 },
+        { "kind": "umbrella-striped", "x": 8, "z": -9.8 },
+        { "kind": "okada-parked", "x": 10.2, "z": -8.1 },
+        { "kind": "okada-parked", "x": 11.0, "z": -8.1 },
+        { "kind": "hawker-table", "x": 6.5, "z": 29 },
+        { "kind": "umbrella", "x": 6.5, "z": 29.6 },
+        { "kind": "bin", "x": 13.5, "z": 24 },
+        { "kind": "plastic-chair", "x": 18.6, "z": -12.2 },
+        { "kind": "planter", "x": 24, "z": -11 },
+        { "kind": "planter", "x": 32, "z": -11 },
+        { "kind": "hawker-table", "x": -14, "z": 15.5, "rotation": 90 },
+        { "kind": "hawker-table", "x": -19.75, "z": 12.6 },
+        { "kind": "plastic-chair", "x": -19, "z": 11.6 },
+        { "kind": "plastic-chair-blue", "x": -20.5, "z": 11.6 },
+        { "kind": "billboard", "x": -25, "z": -8.5, "label": "ChopRite Noodles: ready in 3 minutes" },
+        { "kind": "billboard", "x": 45, "z": 9, "label": "BrightLight Inverters: light even when NEPA takes it" },
+        { "kind": "fuel-canopy", "x": 38, "z": 19.5 },
+        { "kind": "signboard-yellow", "x": 45.5, "z": 17, "label": "Petrol • Diesel • Kerosene" },
+        { "kind": "signboard-yellow", "x": -26, "z": 12.5, "label": "Mama Put Buka: food is ready" },
+        { "kind": "signboard", "x": 10.5, "z": 35.5, "label": "Grace Chapel • Sunday Service 8am" },
+        { "kind": "billboard", "x": -48, "z": 27, "label": "Eko Breeze Table Water" },
+        { "kind": "palm", "x": -45, "z": -28 },
+        { "kind": "palm", "x": -22, "z": -45 },
+        { "kind": "palm", "x": 50, "z": 18 },
+        { "kind": "palm", "x": -52, "z": 14 },
+        { "kind": "palm", "x": 26, "z": 40 },
+        { "kind": "tree-large", "x": -24, "z": -24 },
+        { "kind": "tree-large", "x": 12, "z": -30 },
+        { "kind": "tree-large", "x": 50, "z": -22 },
+        { "kind": "tree-large", "x": -50, "z": -9 },
+        { "kind": "tree-small", "x": -35, "z": 25 },
+        { "kind": "tree-small", "x": 30, "z": 52 },
+        { "kind": "tree-small", "x": -10, "z": 48 }
+      ],
+      "npcs": [
+        { "id": "mama-put", "pose": "talk", "x": -15.2, "z": 15.5, "facing": 60, "look": { "body": "body-2", "skinTone": "tone-3", "hair": "low-cut", "hairColour": "black", "outfit": "apron-wrapper", "outfitColour": "white" } },
+        { "id": "okada-rider-1", "pose": "sit_talk", "x": 7.4, "z": -8.2, "look": { "body": "body-1", "skinTone": "tone-5", "hair": "low-cut", "hairColour": "black", "outfit": "rider-vest", "outfitColour": "black" } },
+        { "id": "okada-rider-2", "pose": "sit_talk", "x": 8.6, "z": -8.2, "look": { "body": "body-1", "skinTone": "tone-2", "hair": "bald", "hairColour": "black", "outfit": "office", "outfitColour": "orange" } },
+        { "id": "bus-stop-hawker", "pose": "idle", "x": 6.5, "z": 30.1, "look": { "body": "body-2", "skinTone": "tone-4", "hair": "low-cut", "hairColour": "dark-brown", "outfit": "blouse-wrapper", "outfitColour": "green" } },
+        { "id": "conductor", "pose": "call", "x": 5.8, "z": 27.2, "facing": 300, "says": "Oshodi! Obalende! Enter with your change!", "look": { "body": "body-1", "skinTone": "tone-6", "hair": "low-cut", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "white" } },
+        { "id": "gateman", "pose": "sit", "x": 18.6, "z": -12.2, "look": { "body": "body-1", "skinTone": "tone-7", "hair": "low-cut", "hairColour": "grey", "outfit": "security-uniform", "outfitColour": "black" } }
+      ]
+    },
+    { "id": "grace-chapel", "name": "Grace Chapel", "x": 16, "z": 44 },
+    {
+      "id": "yaba-motor-park",
+      "name": "Yaba Motor Park",
+      "x": -32, "z": 145,
+      "clear": { "halfWidth": 22, "halfDepth": 17 },
+      "interactables": [
+        { "id": "yaba-motor-park", "label": "Yaba Motor Park", "kind": "bus_stop", "position": { "x": 21, "z": -5 } }
+      ],
+      "buildings": [
+        { "id": "motor-park-shelter", "name": "Bus shelter", "x": 24, "z": -5, "halfWidth": 0.9, "halfDepth": 1.6, "height": 2.6, "colour": "#e0b42a", "model": "bus-shelter", "rotation": 90 }
+      ],
+      "props": [
+        { "kind": "danfo-parked", "x": -14, "z": 5 },
+        { "kind": "danfo-parked", "x": -10.8, "z": 5 },
+        { "kind": "danfo-parked", "x": -7.6, "z": 5 },
+        { "kind": "danfo-parked", "x": -4.4, "z": 5 },
+        { "kind": "danfo-parked", "x": -1.2, "z": 5 },
+        { "kind": "signboard-yellow", "x": -6, "z": -12, "label": "Yaba Motor Park • Oshodi • CMS • Obalende" },
+        { "kind": "hawker-table", "x": 8, "z": -8 },
+        { "kind": "umbrella", "x": 8, "z": -7.4 },
+        { "kind": "hawker-table", "x": 11, "z": -8 },
+        { "kind": "umbrella-striped", "x": 11, "z": -7.4 },
+        { "kind": "bin", "x": 14, "z": -12 },
+        { "kind": "bench", "x": 16, "z": 8 }
+      ],
+      "npcs": [
+        { "id": "motor-park-conductor", "pose": "call", "x": 4, "z": 1, "facing": 90, "says": "Ojuelegba! CMS! Enter, enter!", "look": { "body": "body-1", "skinTone": "tone-4", "hair": "fade", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "orange" } },
+        { "id": "motor-park-hawker", "pose": "idle", "x": 9.5, "z": -6.9, "look": { "body": "body-2", "skinTone": "tone-6", "hair": "cornrows", "hairColour": "black", "outfit": "blouse-wrapper", "outfitColour": "print-leaves" } }
+      ]
+    },
+    {
+      "id": "tejuosho-market",
+      "name": "Tejuosho Market",
+      "x": -105, "z": 150,
+      "clear": { "halfWidth": 29, "halfDepth": 22 },
+      "interactables": [
+        { "id": "tejuosho-buka", "label": "Iya Basira's Buka", "prompt": "Buy food at Iya Basira's", "kind": "food_vendor", "position": { "x": -10, "z": 4 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] }
+      ],
+      "buildings": [
+        { "id": "tejuosho-market-west", "name": "Tejuosho Market", "x": -15, "z": -15, "halfWidth": 8, "halfDepth": 6.1, "height": 5.45, "colour": "#d68f5d", "model": "market", "rotation": 180 },
+        { "id": "tejuosho-market-east", "name": "Tejuosho Market", "x": 5, "z": -15, "halfWidth": 8, "halfDepth": 6.1, "height": 5.45, "colour": "#c97f4d", "model": "market", "rotation": 180 },
+        { "id": "tejuosho-buka-shop", "name": "Iya Basira's Buka", "x": -10, "z": 10, "halfWidth": 6, "halfDepth": 4, "height": 3.4, "colour": "#e0c25a", "model": "buka", "rotation": 180 }
+      ],
+      "props": [
+        { "kind": "hawker-table", "x": -21, "z": -24 },
+        { "kind": "umbrella-striped", "x": -21, "z": -23.4 },
+        { "kind": "hawker-table", "x": -17, "z": -24 },
+        { "kind": "hawker-table", "x": -13, "z": -24 },
+        { "kind": "umbrella", "x": -13, "z": -23.4 },
+        { "kind": "signboard", "x": -5, "z": -25, "label": "Tejuosho Market" },
+        { "kind": "hawker-table", "x": 1, "z": -24 },
+        { "kind": "umbrella", "x": 1, "z": -23.4 },
+        { "kind": "hawker-table", "x": 5, "z": -24 },
+        { "kind": "hawker-table", "x": 9, "z": -24 },
+        { "kind": "umbrella-striped", "x": 9, "z": -23.4 },
+        { "kind": "keke-parked", "x": 19, "z": 0 },
+        { "kind": "keke-parked", "x": 20.6, "z": 0 },
+        { "kind": "keke-parked", "x": 22.2, "z": 0 },
+        { "kind": "signboard-yellow", "x": 20.6, "z": -4, "label": "Keke • Sabo • Ojuelegba" },
+        { "kind": "generator", "x": -18, "z": 10, "rotation": 90 }
+      ],
+      "npcs": [
+        { "id": "tejuosho-trader-1", "pose": "talk", "x": -17, "z": -22.9, "look": { "body": "body-2", "skinTone": "tone-5", "hair": "low-cut", "hairColour": "black", "outfit": "blouse-wrapper", "outfitColour": "print-suns" } },
+        { "id": "tejuosho-trader-2", "pose": "idle", "x": 5, "z": -22.9, "look": { "body": "body-1", "skinTone": "tone-3", "hair": "low-cut", "hairColour": "black", "outfit": "senator", "outfitColour": "blue" } },
+        { "id": "iya-basira", "pose": "talk", "x": -14, "z": 5, "facing": 300, "look": { "body": "body-2", "skinTone": "tone-7", "hair": "low-cut", "hairColour": "grey", "outfit": "apron-wrapper", "outfitColour": "print-dots" } }
+      ]
+    },
+    {
+      "id": "sabo-market",
+      "name": "Sabo Market",
+      "x": 183, "z": 28,
+      "clear": { "halfWidth": 26, "halfDepth": 20 },
+      "interactables": [
+        { "id": "sabo-bus-stop", "label": "Sabo Bus Stop", "kind": "bus_stop", "position": { "x": -25, "z": -22 } }
+      ],
+      "buildings": [
+        { "id": "sabo-market-hall", "name": "Sabo Market", "x": 0, "z": -8, "halfWidth": 8, "halfDepth": 6.1, "height": 5.45, "colour": "#d68f5d", "model": "market", "rotation": 180 },
+        { "id": "sabo-shops-west", "name": "Shops", "x": -18, "z": 6, "halfWidth": 5, "halfDepth": 4, "height": 3.6, "colour": "#e7b48f" },
+        { "id": "sabo-shops-east", "name": "Shops", "x": 18, "z": 6, "halfWidth": 5, "halfDepth": 4, "height": 3.6, "colour": "#a9c4d6" },
+        { "id": "sabo-bus-shelter", "name": "Bus shelter", "x": -25, "z": -18.6, "halfWidth": 1.6, "halfDepth": 0.9, "height": 2.6, "colour": "#e0b42a", "model": "bus-shelter", "rotation": 180 }
+      ],
+      "props": [
+        { "kind": "hawker-table", "x": -21, "z": -19.4 },
+        { "kind": "umbrella", "x": -21, "z": -18.8 },
+        { "kind": "hawker-table", "x": -18, "z": -19.4 },
+        { "kind": "hawker-table", "x": -14, "z": -19.4 },
+        { "kind": "umbrella-striped", "x": -14, "z": -18.8 },
+        { "kind": "hawker-table", "x": -10, "z": -19.4 },
+        { "kind": "signboard", "x": 0, "z": -19.6, "label": "Sabo Market" },
+        { "kind": "hawker-table", "x": 10, "z": -19.4 },
+        { "kind": "umbrella", "x": 10, "z": -18.8 },
+        { "kind": "hawker-table", "x": 14, "z": -19.4 },
+        { "kind": "hawker-table", "x": 18, "z": -19.4 },
+        { "kind": "umbrella-striped", "x": 18, "z": -18.8 },
+        { "kind": "hawker-table", "x": 22, "z": -19.4 },
+        { "kind": "generator-big", "x": 0, "z": 4 }
+      ],
+      "npcs": [
+        { "id": "sabo-trader-1", "pose": "talk", "x": -18, "z": -18.3, "look": { "body": "body-2", "skinTone": "tone-4", "hair": "cornrows", "hairColour": "black", "outfit": "blouse-wrapper", "outfitColour": "print-zigzag" } },
+        { "id": "sabo-trader-2", "pose": "idle", "x": 14, "z": -18.3, "look": { "body": "body-2", "skinTone": "tone-2", "hair": "low-cut", "hairColour": "dark-brown", "outfit": "ankara-dress", "outfitColour": "print-waves" } },
+        { "id": "sabo-trader-3", "pose": "fold_arms", "x": -6, "z": -16, "look": { "body": "body-1", "skinTone": "tone-6", "hair": "fade", "hairColour": "black", "outfit": "jersey-shorts", "outfitColour": "green" } }
+      ]
+    },
+    {
+      "id": "yaba-college-of-technology",
+      "name": "Yaba College of Technology",
+      "x": 75, "z": -180,
+      "clear": { "halfWidth": 65, "halfDepth": 53 },
+      "buildings": [
+        { "id": "yabatech-fence-west-north", "name": "Fence", "x": -63, "z": -29.1, "halfWidth": 0.2, "halfDepth": 23.1, "height": 2.2, "colour": "#d9d2c3" },
+        { "id": "yabatech-fence-west-south", "name": "Fence", "x": -63, "z": 29.1, "halfWidth": 0.2, "halfDepth": 23.1, "height": 2.2, "colour": "#d9d2c3" },
+        { "id": "yabatech-fence-north", "name": "Fence", "x": 0, "z": -52, "halfWidth": 62.8, "halfDepth": 0.2, "height": 2.2, "colour": "#d9d2c3" },
+        { "id": "yabatech-fence-south", "name": "Fence", "x": 0, "z": 52, "halfWidth": 62.8, "halfDepth": 0.2, "height": 2.2, "colour": "#d9d2c3" },
+        { "id": "yabatech-fence-east", "name": "Fence", "x": 63, "z": 0, "halfWidth": 0.2, "halfDepth": 52.2, "height": 2.2, "colour": "#d9d2c3" },
+        { "id": "yabatech-lecture-block-a", "name": "Lecture block", "x": -25, "z": -25, "halfWidth": 15, "halfDepth": 6, "height": 10, "colour": "#e8dcc0" },
+        { "id": "yabatech-lecture-block-b", "name": "Lecture block", "x": 25, "z": -25, "halfWidth": 13, "halfDepth": 6, "height": 8, "colour": "#d9cbb0" },
+        { "id": "yabatech-library", "name": "Library", "x": -15, "z": 30, "halfWidth": 12, "halfDepth": 7, "height": 12, "colour": "#e8dcc0" },
+        { "id": "yabatech-workshops", "name": "Workshops", "x": 35, "z": 30, "halfWidth": 10, "halfDepth": 6, "height": 7, "colour": "#cfc4a8" }
+      ],
+      "props": [
+        { "kind": "signboard", "x": -67, "z": 12, "label": "Yaba College of Technology" },
+        { "kind": "plastic-chair", "x": -61, "z": 4 },
+        { "kind": "tree-large", "x": -45, "z": -35 },
+        { "kind": "tree-large", "x": -45, "z": 35 },
+        { "kind": "tree-large", "x": 5, "z": 0 },
+        { "kind": "palm", "x": 50, "z": 0 },
+        { "kind": "palm", "x": -35, "z": 0 },
+        { "kind": "tree-small", "x": 15, "z": 40 },
+        { "kind": "tree-small", "x": 55, "z": -40 },
+        { "kind": "bench", "x": -20, "z": 8 }
+      ],
+      "npcs": [
+        { "id": "yabatech-gateman", "pose": "sit", "x": -61, "z": 4, "facing": 270, "look": { "body": "body-1", "skinTone": "tone-5", "hair": "bald", "hairColour": "grey", "outfit": "security-uniform", "outfitColour": "black" } },
+        { "id": "yabatech-student", "pose": "talk", "x": -30, "z": 8, "look": { "body": "body-2", "skinTone": "tone-3", "hair": "cornrows", "hairColour": "black", "outfit": "tshirt-jeans", "outfitColour": "purple" } }
+      ]
+    },
+    {
+      "id": "yabacon-hub",
+      "name": "Yabacon Hub",
+      "x": -15, "z": -90,
+      "clear": { "halfWidth": 10, "halfDepth": 12 },
+      "buildings": [
+        { "id": "yabacon-hub", "name": "Yabacon Hub", "x": 0, "z": 0, "halfWidth": 5.05, "halfDepth": 7.8, "height": 12.7, "colour": "#8fa3b8", "model": "office-block", "rotation": 90, "scale": 7.5 }
+      ],
+      "props": [
+        { "kind": "signboard", "x": 0, "z": 11, "label": "Yabacon Hub • Co-working • Fast WiFi" },
+        { "kind": "generator-big", "x": -8, "z": -4, "rotation": 90 }
+      ],
+      "npcs": [
+        { "id": "hub-founder", "pose": "talk", "x": 3, "z": 10, "look": { "body": "body-1", "skinTone": "tone-4", "hair": "fade", "hairColour": "black", "outfit": "tshirt-jeans", "outfitColour": "black" } }
+      ]
+    },
+    {
+      "id": "repair-row",
+      "name": "Phone & Laptop Repairs",
+      "x": 11, "z": -85,
+      "clear": { "halfWidth": 5, "halfDepth": 25 },
+      "props": [
+        { "kind": "kiosk", "x": -2, "z": 21, "label": "Phone Repairs • Screen Change" },
+        { "kind": "container-shop", "x": -1.5, "z": 15, "label": "Laptop Clinic • Windows Install" },
+        { "kind": "kiosk", "x": -2, "z": 9, "label": "Phone Accessories • Chargers" },
+        { "kind": "container-shop", "x": -1.5, "z": 3, "label": "Laptop & Phone Repairs" },
+        { "kind": "kiosk", "x": -2, "z": -3, "label": "Data Recovery • Flashing" },
+        { "kind": "container-shop", "x": -1.5, "z": -9, "label": "Printing • Photocopy • Typing" },
+        { "kind": "kiosk", "x": -2, "z": -15, "label": "Used Phones • Swap & Pay" },
+        { "kind": "kiosk", "x": -2, "z": -21, "label": "POS • Recharge Card" },
+        { "kind": "plastic-chair", "x": 3, "z": 0 },
+        { "kind": "plastic-chair-blue", "x": 3, "z": 12 }
+      ],
+      "npcs": [
+        { "id": "repair-man", "pose": "sit", "x": 3, "z": 0, "facing": 270, "look": { "body": "body-1", "skinTone": "tone-6", "hair": "low-cut", "hairColour": "black", "outfit": "jersey-shorts", "outfitColour": "red" } }
+      ]
+    },
+    {
+      "id": "sabo-plaza",
+      "name": "Sabo Plaza",
+      "x": 112, "z": -24,
+      "clear": { "halfWidth": 22, "halfDepth": 16 },
+      "buildings": [
+        { "id": "sabo-plaza", "name": "Sabo Plaza", "x": 0, "z": 2, "halfWidth": 18, "halfDepth": 9, "height": 11, "colour": "#cfd6de" }
+      ],
+      "props": [
+        { "kind": "billboard", "x": -8, "z": 15, "label": "Now Showing: Love in Lagos" },
+        { "kind": "signboard", "x": 10, "z": 15, "label": "Sabo Plaza • Cinema • Shops" },
+        { "kind": "planter", "x": -16, "z": 12 },
+        { "kind": "planter", "x": 16, "z": 12 }
+      ]
+    },
+    {
+      "id": "yaba-mosque",
+      "name": "Mosque",
+      "x": -40, "z": 205,
+      "clear": { "halfWidth": 16, "halfDepth": 18 },
+      "buildings": [
+        { "id": "yaba-mosque", "name": "Mosque", "x": 0, "z": 3, "halfWidth": 9, "halfDepth": 9, "height": 7, "colour": "#efeee6" },
+        { "id": "yaba-mosque-minaret", "name": "Minaret", "x": 12, "z": -4, "halfWidth": 1.2, "halfDepth": 1.2, "height": 16, "colour": "#3f7f5a" }
+      ],
+      "props": [
+        { "kind": "signboard", "x": 0, "z": 15, "label": "Masjid • Jumu'ah 1:30pm" }
+      ]
+    },
+    {
+      "id": "okada-park",
+      "name": "Okada Park",
+      "x": -102, "z": -112,
+      "clear": { "halfWidth": 12, "halfDepth": 5 },
+      "props": [
+        { "kind": "okada-parked", "x": -4, "z": 0 },
+        { "kind": "okada-parked", "x": -2.4, "z": 0 },
+        { "kind": "okada-parked", "x": -0.8, "z": 0 },
+        { "kind": "bench", "x": 6, "z": 0 },
+        { "kind": "umbrella-striped", "x": 6, "z": -1.8 }
+      ],
+      "npcs": [
+        { "id": "okada-park-rider-1", "pose": "sit_talk", "x": 5.4, "z": -0.2, "look": { "body": "body-1", "skinTone": "tone-7", "hair": "low-cut", "hairColour": "black", "outfit": "rider-vest", "outfitColour": "black" } },
+        { "id": "okada-park-rider-2", "pose": "sit_talk", "x": 6.6, "z": -0.2, "look": { "body": "body-1", "skinTone": "tone-3", "hair": "fade", "hairColour": "black", "outfit": "rider-vest", "outfitColour": "orange" } }
+      ]
+    },
+    {
+      "id": "murtala-fuel-station",
+      "x": -266, "z": -90,
+      "clear": { "halfWidth": 12, "halfDepth": 12 },
+      "interactables": [
+        { "id": "murtala-fuel-station", "label": "Fuel Station", "prompt": "Buy petrol for your gen", "kind": "fuel_station", "position": { "x": -1, "z": 4 }, "shopItemIds": ["generator-petrol"] }
+      ],
+      "buildings": [
+        { "id": "murtala-fuel-station-shop", "name": "Fuel station", "x": 4, "z": 0, "halfWidth": 2.6, "halfDepth": 5.05, "height": 4.42, "colour": "#c95f5f", "model": "fuel-station", "rotation": 270 }
+      ],
+      "props": [
+        { "kind": "fuel-canopy", "x": -4, "z": 0, "rotation": 90 },
+        { "kind": "signboard-yellow", "x": 6, "z": 9, "label": "Petrol • Diesel • Gas" }
+      ]
+    }
+  ],
+  "scatter": { "count": 140, "kinds": ["tree-large", "tree-small", "palm"] },
+  "traffic": {
+    "fleet": [
+      { "kind": "danfo", "classes": ["main"], "count": 12 },
+      { "kind": "taxi", "classes": ["main"], "count": 6 },
+      { "kind": "sedan", "classes": ["main", "inner"], "count": 10 },
+      { "kind": "suv", "classes": ["main", "inner"], "count": 4 },
+      { "kind": "hatchback", "classes": ["inner"], "count": 6 },
+      { "kind": "keke", "classes": ["inner"], "count": 10 },
+      { "kind": "okada", "classes": ["inner"], "count": 12 }
+    ],
+    "busStops": [
+      { "lane": "herbert-macaulay-way-north", "at": { "x": 2, "z": 25 }, "seconds": 5 },
+      { "lane": "herbert-macaulay-way-south", "at": { "x": -2, "z": 140 }, "seconds": 8 },
+      { "lane": "commercial-avenue-east", "at": { "x": 158, "z": 2 }, "seconds": 5 }
+    ],
+    "pedestrians": 30
+  }
+}

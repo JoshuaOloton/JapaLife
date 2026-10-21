@@ -41,6 +41,28 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **Rapier is not used for player movement.** Running a second physics engine on the client would disagree with the server's collision and cause snapping, and its WASM adds download and CPU cost on low-end phones. `@react-three/rapier` stays installed for later non-authoritative effects (props, ragdolls); it is not part of the walking path. Revisit if buildings stop being axis-aligned boxes.
 
 ## Content
+- **Yaba is generated (Slice 11h-2, 2026-10-22).** `pnpm city` (`apps/server/src/generateCity.ts`, logic in `apps/server/src/city/`) writes `content/cities/lagos.json` from `content/cities/plans/lagos/` (`city.json` plus `yaba.json`).
+  - What the plan holds:
+    - streets with a class (`main` 8 m, `inner` 6 m, `lane` 4 m and walk-only);
+    - which building types line each class, with market zones that change the mix;
+    - hand-placed landmarks, with positions relative to their anchor and a `clear` area kept free of generated things;
+    - the traffic fleet and bus stops.
+  - What the generator places:
+    - poles with wires between junctions;
+    - speed bumps on main roads;
+    - buildings facing every street;
+    - generators and trees in the gaps between buildings;
+    - scattered trees;
+    - two lanes on each main and inner street (on the right);
+    - walkways at the road edges.
+  - It is seeded, and a test fails if `lagos.json` differs from what the plan generates.
+  - The old 120 m Yaba is the `yaba-junction` landmark, unchanged except that the face-me-face-you house's footprint went from 5.05 to 5.0 m. It had reached 5 cm into Herbert Macaulay Way, which the new "building on a road" check caught.
+  - `checkLayout` now also refuses a building on a road and two buildings that overlap.
+- **Yaba's street plan is stylised, not surveyed (decided 2026-10-21).** It uses real street names on a straight grid, not OpenStreetMap data, whose ODbL licence would make us share our city data under the same licence.
+  - Positions are approximate. Murtala Muhammed Way is drawn at the west edge as the plan said; if it belongs east of Herbert Macaulay Way, move it in the plan.
+  - Ojuelegba Road and Iwaya Road were added as the two inner north–south streets. They are real Yaba-area roads, but placed loosely.
+  - Business names are generic (Yabacon Hub, Sabo Plaza). The mosque is a placeholder: a white box and a green minaret box, until a Blender model is made like 11f's buildings.
+  - Main roads stay 8 m with one lane each way, not the 4 lanes the 11h plan first said, so the old centre and its poles stay as they were.
 - **Phase 1 numbers are placeholders.** Everything in `content/economy/`, `content/events/` and `content/cities/lagos.json` is marked `"basis": "game-balance"` instead of a `source` URL: starting balance, rent, food prices, shift pay, event amounts and frequencies are tuning guesses, not researched Lagos prices. Retune them after play-testing. Real rules (Phase 2) must use `source` plus `asOf`.
 - **Copy (decided 2026-10-17): plain English with light Nigerian touches** ("chop", "wait small", "NEPA has taken light"); the flavour comes from specifics, not heavy Pidgin. A Pidgin version would be its own language file (`pcm.json`), not a mix. The client bundles `en.json` at build time (the welcome screen needs it before connecting), so changing copy needs a rebuild, not a code change. The browser imports it from `@japalife/shared/copy`, which has no zod, so the first download stays small; the schema runs at server boot and in `pnpm test`. Only English exists, and nothing picks a language yet.
 - **Action prompts:** the button at a place shows its `prompt` from the city file ("Buy food at Mama Put"), or its kind's template from `copy/en.json` ("Work a shift at {place}").
