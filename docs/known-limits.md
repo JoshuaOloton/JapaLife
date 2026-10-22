@@ -139,6 +139,7 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - **The pool:** 39 vehicles and 16 walkers serve the whole district, so a 1 km Yaba costs no more.
   - **Busy areas** (`traffic.busyAreas` in the city plan: the junction, the motor park and Tejuosho, Sabo) get the schedule's full share. Elsewhere it is `calmShare` (0.6, in `traffic/kinds.json`).
   - **Junctions:** still the overlap of every pair of roads (`roadOverlaps`), worked out once at load: 18 roads is 153 pairs. A road graph waits for 11i, which needs one for routes anyway.
+  - **vivo Y29 (2026-10-22, production build): 60 fps, low 58, worst 50 ms at 12 s, no hitch, dpr 1.50, 21 calls, 41.4k triangles, street 100%.** That is back in line with the pre-11h baseline, for a district 25 times the size.
   - **Cost:** concentrating everyone around the player made people the main triangle cost. Headless at the busy junction: 49 draw calls and 109k triangles with 16 walkers (58 and 135k with 30); 28–38 calls elsewhere. The phone reading decides whether the pool shrinks again.
   - **Fewer allocations:** `pointOnLane`, `projectOnLane` and `walkerPose` take an `out` object, so the per-frame loops allocate nothing.
 - **vivo Y29 after 11h-4 (2026-10-22, production build, `?fps`).**
