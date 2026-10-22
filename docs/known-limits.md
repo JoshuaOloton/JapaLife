@@ -129,6 +129,18 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - **Budgets fail loudly.** Each district's models (what `buildDistrictLayout` sends: placed models plus every hair part and garment piece) must stay within `DISTRICT_DOWNLOAD_BUDGET_BYTES` (6 MB), or the content check refuses to start the server. `public/assets/characters/` must stay within 1.5 MB, or `pnpm budget` fails. At 11g, Yaba's models were about 0.4 MB and the characters 0.67 MB. Ground, roads and prints are painted in code, so they cost nothing here.
   - **Shader warm-up.** `ShaderWarmUp` calls `renderer.compileAsync(scene, camera)` four times in the first 4.5 s, so every material (including buildings far out of view, and the street hidden behind a new player's creator, via the `warmUpWhileHidden` flag) compiles at load instead of when it first comes into view. A material that first appears later (a walker in a new outfit after warm-up) can still compile late; the `?fps` meter then shows "⚠ late shaders N". The warm-up also uploads every texture held in a material's slots (`renderer.initTexture`). Textures held only in shader uniforms (the people's region masks and prints) still upload on first draw: about 20 when a new player leaves the creator, 26 ms on desktop Chrome (2026-10-21), so check that frame on the phone. `shaderCache.test.ts` checks that building and body materials share one shader each.
   - **Adaptive quality and app switches.** `QualityGovernor` used to read the gap while the page was hidden as seconds of low fps and halve the street for good after any app switch of 5 s or more. It now pauses on `visibilitychange`, like the fps meter.
+- **Traffic and walkers live only near the player (Slice 11h-5, 2026-10-22).**
+  - **How it works.**
+    - Each lane and walkway gets a window: its stretch inside a box around the player (`TRAFFIC_REACH` 115 m ahead, 55 behind, 100 to the side; `WALKER_REACH` 55/50/50). The box moves when the player crosses a 16 m area cell (`setTrafficWindow`, `setWalkerWindow`).
+    - A vehicle past its lane's window parks. A parked one rejoins at the window start of whichever of its fleet's lanes crosses the window and is clear (`Vehicle.lanes`).
+    - A walker who walks out comes back at the edge of a walkway crossing it, walking inward.
+    - The windows are wider than what is drawn (`DRAW_REACH`, and 40 m for people), so nobody sees anyone join or leave.
+    - The first window spreads everyone through it, so the street is busy from the start.
+  - **The pool:** 39 vehicles and 16 walkers serve the whole district, so a 1 km Yaba costs no more.
+  - **Busy areas** (`traffic.busyAreas` in the city plan: the junction, the motor park and Tejuosho, Sabo) get the schedule's full share. Elsewhere it is `calmShare` (0.6, in `traffic/kinds.json`).
+  - **Junctions:** still the overlap of every pair of roads (`roadOverlaps`), worked out once at load: 18 roads is 153 pairs. A road graph waits for 11i, which needs one for routes anyway.
+  - **Cost:** concentrating everyone around the player made people the main triangle cost. Headless at the busy junction: 49 draw calls and 109k triangles with 16 walkers (58 and 135k with 30); 28–38 calls elsewhere. The phone reading decides whether the pool shrinks again.
+  - **Fewer allocations:** `pointOnLane`, `projectOnLane` and `walkerPose` take an `out` object, so the per-frame loops allocate nothing.
 - **vivo Y29 after 11h-4 (2026-10-22, production build, `?fps`).**
   - **First reading:** 44 fps, low 33, worst 110 ms.
   - **Diagnosis:** with the `?fps` switches (`diagnostics.ts`), the steady cost was the bones of 50 mounted people (20 NPCs, 30 walkers). three.js recomputes every object's matrices each frame, hidden or not.

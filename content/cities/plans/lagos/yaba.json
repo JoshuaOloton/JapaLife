@@ -435,19 +435,24 @@
   "scatter": { "count": 140, "kinds": ["tree-large", "tree-small", "palm"] },
   "traffic": {
     "fleet": [
-      { "kind": "danfo", "classes": ["main"], "count": 12 },
-      { "kind": "taxi", "classes": ["main"], "count": 6 },
-      { "kind": "sedan", "classes": ["main", "inner"], "count": 10 },
-      { "kind": "suv", "classes": ["main", "inner"], "count": 4 },
-      { "kind": "hatchback", "classes": ["inner"], "count": 6 },
-      { "kind": "keke", "classes": ["inner"], "count": 10 },
-      { "kind": "okada", "classes": ["inner"], "count": 12 }
+      { "kind": "danfo", "classes": ["main"], "count": 8 },
+      { "kind": "taxi", "classes": ["main"], "count": 4 },
+      { "kind": "sedan", "classes": ["main", "inner"], "count": 6 },
+      { "kind": "suv", "classes": ["main", "inner"], "count": 3 },
+      { "kind": "hatchback", "classes": ["inner"], "count": 4 },
+      { "kind": "keke", "classes": ["inner"], "count": 6 },
+      { "kind": "okada", "classes": ["inner"], "count": 8 }
+    ],
+    "busyAreas": [
+      { "x": 0, "z": 0, "halfWidth": 45, "halfDepth": 45 },
+      { "x": -70, "z": 148, "halfWidth": 72, "halfDepth": 32 },
+      { "x": 183, "z": 22, "halfWidth": 36, "halfDepth": 30 }
     ],
     "busStops": [
       { "lane": "herbert-macaulay-way-north", "at": { "x": 2, "z": 25 }, "seconds": 5 },
       { "lane": "herbert-macaulay-way-south", "at": { "x": -2, "z": 140 }, "seconds": 8 },
       { "lane": "commercial-avenue-east", "at": { "x": 158, "z": 2 }, "seconds": 5 }
     ],
-    "pedestrians": 30
+    "pedestrians": 16
   }
 }

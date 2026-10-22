@@ -536,6 +536,8 @@ export const trafficScheduleSchema = z.strictObject({
   /** When the street is "night quiet": from the evening hour to the morning hour. */
   quietFrom: z.number().min(0).max(24),
   quietUntil: z.number().min(0).max(24),
+  /** Share of the usual traffic and people on streets away from a district's busy areas (markets, motor parks). */
+  calmShare: z.number().min(0).max(1).default(1),
 });
 export type TrafficSchedule = z.infer<typeof trafficScheduleSchema>;
 
@@ -569,6 +571,10 @@ export const trafficSchema = z.strictObject({
     /** People walk a walkway to its end and back. */
     walkways: z.array(z.strictObject({ id: contentIdSchema, points: z.array(positionSchema).min(2) })),
   }),
+  /** Where the street is at its busiest (markets, motor parks); elsewhere it is calmer (`calmShare`). */
+  busyAreas: z
+    .array(z.strictObject({ x: z.number(), z: z.number(), halfWidth: z.number().positive(), halfDepth: z.number().positive() }))
+    .default([]),
 });
 export type Traffic = z.infer<typeof trafficSchema>;
 

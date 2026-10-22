@@ -194,6 +194,21 @@ The plan as written before building:
 
 ### 11h-5 Traffic and people at scale
 
+**As built (2026-10-22)**
+
+- **Windows, as planned:**
+  - traffic within 115 m ahead, 55 m behind and 100 m to the side;
+  - walkers within 55/50/50 m.
+- **Density is a share, not a count:**
+  - `busyAreas` rectangles in the plan get the full share;
+  - everywhere else gets `calmShare` (0.6);
+  - there is no per-chunk zone factor.
+- **Junctions stay `roadOverlaps`** (computed once, cheap at 18 roads). The road graph moves to 11i, which needs it for routes.
+- **Smaller pools:** 39 vehicles and 16 walkers (they were 62 and 30), since everyone now gathers near the player.
+- **Details:** [known-limits, Client](../known-limits.md#client-appsclientgame).
+
+**The plan as written before building:**
+
 - `trafficSim` and `walkers` simulate only within about 120 m of the player. Vehicles and walkers spawn at the edge of that window on the lanes and walkways that cross it, and despawn past it.
 - Junctions come from the generated road graph instead of `roadOverlaps` over every pair of roads.
 - Density is the schedule's share, times a zone factor (busier at the market and the motor park), times `quality.scale`.

@@ -120,6 +120,8 @@ export const districtPlanSchema = z
       /** Where danfos pause; the lane ids are `<street id>-<east|west|north|south>`. */
       busStops: z.array(z.strictObject({ lane: contentIdSchema, at: positionSchema, seconds: z.number().positive().max(30).default(5) })).default([]),
       pedestrians: z.int().nonnegative(),
+      /** The busiest stretches of street (markets, motor parks); the rest gets the calm share of traffic and people. */
+      busyAreas: z.array(z.strictObject({ x: z.number(), z: z.number(), ...areaSchema.shape })).default([]),
     }),
   })
   .superRefine((plan, context) => {

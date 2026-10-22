@@ -12653,7 +12653,7 @@
               "herbert-macaulay-way-south",
               "herbert-macaulay-way-north"
             ],
-            "count": 12
+            "count": 8
           },
           {
             "kind": "taxi",
@@ -12665,7 +12665,7 @@
               "herbert-macaulay-way-south",
               "herbert-macaulay-way-north"
             ],
-            "count": 6
+            "count": 4
           },
           {
             "kind": "sedan",
@@ -12689,7 +12689,7 @@
               "iwaya-road-south",
               "iwaya-road-north"
             ],
-            "count": 10
+            "count": 6
           },
           {
             "kind": "suv",
@@ -12713,7 +12713,7 @@
               "iwaya-road-south",
               "iwaya-road-north"
             ],
-            "count": 4
+            "count": 3
           },
           {
             "kind": "hatchback",
@@ -12731,7 +12731,7 @@
               "iwaya-road-south",
               "iwaya-road-north"
             ],
-            "count": 6
+            "count": 4
           },
           {
             "kind": "keke",
@@ -12749,7 +12749,7 @@
               "iwaya-road-south",
               "iwaya-road-north"
             ],
-            "count": 10
+            "count": 6
           },
           {
             "kind": "okada",
@@ -12767,7 +12767,7 @@
               "iwaya-road-south",
               "iwaya-road-north"
             ],
-            "count": 12
+            "count": 8
           }
         ],
         "busStops": [
@@ -12775,8 +12775,13 @@
           { "lane": "herbert-macaulay-way-south", "at": { "x": -2, "z": 140 }, "seconds": 8 },
           { "lane": "commercial-avenue-east", "at": { "x": 158, "z": 2 }, "seconds": 5 }
         ],
+        "busyAreas": [
+          { "x": 0, "z": 0, "halfWidth": 45, "halfDepth": 45 },
+          { "x": -70, "z": 148, "halfWidth": 72, "halfDepth": 32 },
+          { "x": 183, "z": 22, "halfWidth": 36, "halfDepth": 30 }
+        ],
         "pedestrians": {
-          "count": 30,
+          "count": 16,
           "walkways": [
             { "id": "hughes-avenue-north-edge", "points": [{ "x": -299.5, "z": -242.6 }, { "x": 299.5, "z": -242.6 }] },
             { "id": "hughes-avenue-south-edge", "points": [{ "x": 299.5, "z": -237.4 }, { "x": -299.5, "z": -237.4 }] },

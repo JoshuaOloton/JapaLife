@@ -479,6 +479,7 @@ function trafficFor(plan: DistrictPlan, frames: readonly Frame[]): Traffic {
       count: group.count,
     })),
     busStops: plan.traffic.busStops,
+    busyAreas: plan.traffic.busyAreas,
     pedestrians: { count: plan.traffic.pedestrians, walkways },
   };
 }

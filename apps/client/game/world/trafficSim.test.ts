@@ -6,11 +6,14 @@ import {
   type Vehicle,
   activeShare,
   buildLane,
+  clipLaneToBox,
   createJunctions,
+  inWindow,
   laneThroughBox,
   pointOnLane,
   projectOnLane,
   roadOverlaps,
+  setTrafficWindow,
   stepTraffic,
 } from "./trafficSim";
 
@@ -44,6 +47,51 @@ function world(lanes: Lane[], vehicles: Vehicle[], junctions = 0): TrafficWorld 
 function run(w: TrafficWorld, seconds: number, player = FAR_AWAY, share = ALL_OUT): void {
   for (let t = 0; t < seconds; t += 0.05) stepTraffic(w, 0.05, player, share);
 }
+
+describe("the simulation window", () => {
+  const box = { x: 0, z: 0, halfWidth: 100, halfDepth: 100 };
+
+  it("clips a lane to the stretch of it inside the box, or empties it", () => {
+    const lane = buildLane("east", [{ x: -300, z: 2 }, { x: 300, z: 2 }]);
+    clipLaneToBox(lane, box);
+    expect(lane.windowFrom).toBeCloseTo(200, 6);
+    expect(lane.windowTo).toBeCloseTo(400, 6);
+    const far = buildLane("far", [{ x: -300, z: 250 }, { x: 300, z: 250 }]);
+    clipLaneToBox(far, box);
+    expect(inWindow(far)).toBe(false);
+  });
+
+  it("keeps the traffic inside the window, wherever it starts, and spreads it through it at first", () => {
+    const lane = buildLane("east", [{ x: -300, z: 2 }, { x: 300, z: 2 }]);
+    const cars = [0, 100, 300, 500, 590].map((s) => vehicle(lane, s, { lanes: [lane] }));
+    const w = world([lane], cars);
+    setTrafficWindow(w, box, () => 0.5);
+    for (const car of cars) expect(car.s).toBeGreaterThanOrEqual(lane.windowFrom);
+    for (let t = 0; t < 60; t += 0.05) {
+      stepTraffic(w, 0.05, FAR_AWAY, ALL_OUT);
+      for (const car of cars) {
+        if (car.parked) continue;
+        expect(car.s).toBeGreaterThanOrEqual(lane.windowFrom - 0.01);
+        expect(car.s - car.halfLength).toBeLessThanOrEqual(lane.windowTo + 1);
+      }
+    }
+    // Round and round the window: never more than a few parked at once.
+    expect(cars.filter((car) => !car.parked).length).toBeGreaterThan(2);
+  });
+
+  it("brings a parked vehicle back on another of its lanes when its own misses the window", () => {
+    const east = buildLane("east", [{ x: -300, z: 2 }, { x: 300, z: 2 }]);
+    const farEast = buildLane("far-east", [{ x: -300, z: 250 }, { x: 300, z: 250 }]);
+    const car = vehicle(farEast, 10, { lanes: [farEast, east] });
+    const w = world([east, farEast], [car]);
+    setTrafficWindow(w, box, () => 0.5);
+    run(w, 1);
+    expect(car.lane).toBe(east);
+    expect(car.parked).toBe(false);
+    expect(w.byLane?.get(east)).toContain(car);
+    expect(w.byLane?.get(farEast)).not.toContain(car);
+  });
+});
 
 describe("lanes", () => {
   const lane = buildLane("east", [{ x: -50, z: 2 }, { x: 50, z: 2 }]);
@@ -174,6 +222,7 @@ describe("activeShare", () => {
     rushHours: [{ from: 7, to: 9 }, { from: 17, to: 20 }],
     quietFrom: 22,
     quietUntil: 5,
+    calmShare: 1,
   };
 
   it("is quiet late at night, busy by day, and brings every danfo out at rush hour", () => {

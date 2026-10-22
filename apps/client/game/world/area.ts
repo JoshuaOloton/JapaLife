@@ -33,6 +33,23 @@ export const DRAW_REACH: Reach = { ahead: 90, behind: 30, side: 75 };
 export const MODEL_REACH: Reach = { ahead: 60, behind: 30, side: 50 };
 /** Painted shop names and adverts: unreadable further off, and each one is a draw call. */
 export const LABEL_REACH: Reach = { ahead: 40, behind: 20, side: 30 };
+/**
+ * Where traffic is simulated: wider than `DRAW_REACH`, so vehicles join and
+ * leave at its edges where nobody can see. Past it there is no traffic at
+ * all, however big the district.
+ */
+export const TRAFFIC_REACH: Reach = { ahead: 115, behind: 55, side: 100 };
+/** Where walkers are simulated: past the 40 m they are drawn to every way, so they join and leave unseen. */
+export const WALKER_REACH: Reach = { ahead: 55, behind: 50, side: 50 };
+
+/**
+ * How much of the usual traffic and people is out where `point` is: all of it
+ * in a busy area (a market, a motor park), `calmShare` of it elsewhere.
+ */
+export function busyShare(busyAreas: readonly Box[], calmShare: number, point: Point): number {
+  const busy = busyAreas.some((area) => Math.abs(point.x - area.x) <= area.halfWidth && Math.abs(point.z - area.z) <= area.halfDepth);
+  return busy ? 1 : calmShare;
+}
 
 /** The centre of the area cell the player stands in; the drawn things change only when this does. */
 export function areaCell(point: Point): Point {
