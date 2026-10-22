@@ -37,6 +37,7 @@ import { PlacePanel } from "./PlacePanel";
 import { ShaderWarmUp, WARM_UP_WHILE_HIDDEN } from "./ShaderWarmUp";
 import { Player, type PlayerActivity } from "./Player";
 import { RouteFollower, planRoute } from "./route";
+import { RouteStore, useRoute } from "./routeStore";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
 import { FOG_FAR, Lighting } from "./world/Lighting";
@@ -60,8 +61,9 @@ export default function Game() {
   const activity = useRef<PlayerActivity>({ working: false, gestureAt: Number.NEGATIVE_INFINITY });
   const showFps = useFpsMeterEnabled();
   const diagnostics = useDiagnostics();
-  // The way picked on the map: drawn on the minimap, the map and the street.
-  const [route, setRoute] = useState<Route | null>(null);
+  // The way picked on the map: drawn on the minimap, the map and the street. A store, not state here,
+  // so picking a route never re-renders the 3D scene.
+  const routes = useMemo(() => new RouteStore(), []);
   const fpsOutput = useRef<HTMLParagraphElement>(null);
   const street = useRef<StreetState>(initialStreet());
   // Halves the traffic and people for good if the frame rate stays low (adaptive quality).
@@ -128,7 +130,7 @@ export default function Game() {
                   district={district}
                   header={connection.header}
                   hide={diagnostics.hide}
-                  route={route}
+                  routes={routes}
                   street={street}
                   predicted={predicted}
                   quality={quality}
@@ -166,8 +168,7 @@ export default function Game() {
         district={connection.district}
         header={connection.header}
         input={input}
-        route={route}
-        onRoute={setRoute}
+        routes={routes}
         predicted={predicted}
         activity={activity}
         street={street}
@@ -223,8 +224,7 @@ function Overlay({
   district,
   header,
   input,
-  route,
-  onRoute,
+  routes,
   predicted,
   activity,
   street,
@@ -238,8 +238,8 @@ function Overlay({
   header: DistrictHeader;
   /** Walks a route by itself ("walk there"). */
   input: MoveInput;
-  route: Route | null;
-  onRoute: (route: Route | null) => void;
+  /** The route picked on the map. */
+  routes: RouteStore;
   predicted: { current: Point };
   activity: { current: PlayerActivity };
   street: { current: StreetState };
@@ -316,6 +316,8 @@ function Overlay({
 
   // The map: painted once from the header; tap a spot for the way there by road, then "walk there".
   const mapBase = useMemo(() => paintMapBase(header), [header]);
+  const route = useRoute(routes);
+  const onRoute = useCallback((picked: Route | null) => routes.set(picked), [routes]);
   const [mapOpen, setMapOpen] = useState(false);
   const [walking, setWalking] = useState(false);
   const [mapStatus, setMapStatus] = useState<string | null>(null);

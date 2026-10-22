@@ -175,6 +175,7 @@ What the code built so far requires of new code. Each rule links to its full ent
 - A painted label (billboard, signboard, shop name) is readable only on a prop facing +z: the camera always looks north.
 - Draw only what is near: a new kind of world object goes into a `ChunkIndex` and one instanced mesh sized for the whole district, refilled from the drawn area (`world/area.ts`), never one mesh per object or per chunk.
 - Downloads have budgets that fail loudly: each district's models ≤ 6 MB (`DISTRICT_DOWNLOAD_BUDGET_BYTES`, content check at server start), characters ≤ 1.5 MB (`pnpm budget`), the whole client ≤ 15 MB. A "⚠ late shaders" or "⚠ calls peak" on the `?fps` meter is a bug.
+- Anything that first appears mid-game must share its material setup with something drawn from the start, or be drawn from the start out of sight (as `RouteRibbon` does): a warmed but never-drawn shader still finishes compiling on its first draw.
 - Never change anything during play that changes a material's shader (`transparent`, `side`, defines): a mid-game shader compile freezes the phone. Change a uniform instead (the building fade is a dither for this reason).
 - Animation clips keep only bone rotations (plus the pelvis offset): bone scaling (`BODY_SHAPE`) and each body's own pelvis height depend on it, so the pipeline must never add scale or position tracks back.
 - Clothes are painted per body region, and every outfit must cover `torso` and `hips`, or the underwear on the base texture shows.
