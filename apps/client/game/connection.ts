@@ -22,7 +22,7 @@ import {
   districtHeaderSchema,
   withinRing,
 } from "@japalife/shared";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 /** The part of the server's synced state the client reads. Mirrors `DistrictState` on the server. */
 export interface DistrictStateView {
@@ -34,7 +34,8 @@ export type DistrictRoom = Room<unknown, DistrictStateView>;
 
 export type Connection =
   | { status: "connecting" }
-  | { status: "failed"; message: string }
+  /** `retry` joins again from scratch; it is there when trying again can help (not for an outdated client). */
+  | { status: "failed"; message: string; retry?: () => void }
   | {
       status: "connected";
       room: DistrictRoom;
@@ -43,7 +44,15 @@ export type Connection =
       district: DistrictLayout;
       chunks: ChunkStore;
       messages: MessageBuffer;
+      /** True while the network is down and the room is reconnecting by itself. */
+      dropped: boolean;
     };
+
+/**
+ * How many times to try reconnecting a dropped room (backing off to every 5 s):
+ * about five minutes, matching how long the server keeps the player's place.
+ */
+const RECONNECT_TRIES = 60;
 
 export type ServerEvent =
   | { type: "stats"; stats: StatsMessage; receivedAt: number }
@@ -215,9 +224,30 @@ function randomDevPlayerId(): string {
   return `dev-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** Joins the district room and waits for its layout. Leaves when the component unmounts. */
+/**
+ * Joins the district room and waits for its layout. Leaves when the component
+ * unmounts. A dropped connection (a phone's screen going off, a network blip)
+ * reconnects by itself while the server keeps the player's place; if that
+ * fails, the game joins afresh when the page is next in view, or on "Try again".
+ */
 export function useDistrictConnection(): Connection {
   const [connection, setConnection] = useState<Connection>({ status: "connecting" });
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => {
+    setConnection({ status: "connecting" });
+    setAttempt((count) => count + 1);
+  }, []);
+
+  // Back from another app or a screen that went off, after the connection gave up: try again by itself.
+  const canRetry = connection.status === "failed" && connection.retry !== undefined;
+  useEffect(() => {
+    if (!canRetry) return;
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") retry();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [canRetry, retry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -231,6 +261,12 @@ export function useDistrictConnection(): Connection {
           void room.leave();
           return;
         }
+        room.reconnection.maxRetries = RECONNECT_TRIES;
+        const setDropped = (dropped: boolean): void => {
+          if (!cancelled) setConnection((current) => (current.status === "connected" ? { ...current, dropped } : current));
+        };
+        room.onDrop(() => setDropped(true));
+        room.onReconnect(() => setDropped(false));
         const messages = new MessageBuffer(room as DistrictRoom);
         const chunks = new ChunkStore(room as DistrictRoom);
         room.onMessage(SERVER_MESSAGES.district, (payload: unknown) => {
@@ -245,23 +281,25 @@ export function useDistrictConnection(): Connection {
                   district: headerLayout(parsed.data),
                   chunks,
                   messages,
+                  dropped: false,
                 }
               : { status: "failed", message: COPY.app.badDistrict },
           );
         });
+        // Only once reconnecting has given up (or the server ended the session).
         room.onLeave(() => {
-          if (!cancelled) setConnection({ status: "failed", message: COPY.app.connectionLost });
+          if (!cancelled) setConnection({ status: "failed", message: COPY.app.connectionLost, retry });
         });
       })
       .catch(() => {
-        if (!cancelled) setConnection({ status: "failed", message: COPY.app.serverUnreachable });
+        if (!cancelled) setConnection({ status: "failed", message: COPY.app.serverUnreachable, retry });
       });
 
     return () => {
       cancelled = true;
       void joined?.leave();
     };
-  }, []);
+  }, [attempt, retry]);
 
   return connection;
 }

@@ -53,6 +53,8 @@ export const copySchema = z.strictObject({
     connecting: text(),
     serverUnreachable: text(),
     connectionLost: text(),
+    reconnecting: text(),
+    tryAgain: text(),
     badDistrict: text(),
   }),
   welcome: z.strictObject({

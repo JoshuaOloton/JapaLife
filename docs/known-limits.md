@@ -19,6 +19,19 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **No loans.** Player wallets cannot go negative, so credit, overdrafts, student loans and mortgages need their own liability model, not a negative wallet.
 
 ## Server and protocol
+- **Dropped connections reconnect by themselves (2026-10-22).**
+  - **Why:** standing still on the vivo Y29 lost the connection for good. The likely cause is the screen timing out, at which point Android suspends the page's network. The server removed the player the moment the socket dropped, so the client had nothing to come back to.
+  - **Server** (`DistrictRoom`):
+    - `onDrop` keeps the place for 5 minutes (`allowReconnection`), stops the player walking and stops toasts (the inbox keeps them).
+    - `onReconnect` restores the `StateView`, re-subscribes notices, runs the catch-up and sends fresh stats.
+    - A fresh join by the same player while dropped (a reload) gives up the kept place instead of being refused "already connected".
+  - **Client** (`useDistrictConnection`):
+    - Shows "Reconnecting..." while the SDK retries (60 tries, backing off to every 5 s, about five minutes).
+    - If it gives up, it joins afresh when the page is next visible, or on "Try again".
+  - **Not done:**
+    - Keeping the screen awake while playing. The Screen Wake Lock API needs HTTPS, and phones load the game over plain http on the LAN, so it waits for HTTPS (like web push).
+    - Messages sent while dropped (a toast, an `interaction` reply) are lost. The inbox and the fresh stats on reconnect cover what matters.
+  - Tested in `DistrictRoom.test.ts` by dropping a socket on the server with close code 4010.
 - **Every intent goes through `parseIntent`** in `DistrictRoom`'s single `onMessage("*")` handler, then through a per-player `KeyedMutex` so one player's intents run in order. Never add a message handler that skips either. The mutex is in-process: with several server instances it needs a database or Redis lock (Phase 5).
 - **No auth (dev identity stub).** A client names itself with the `playerId` join option, accepted only when `NODE_ENV` is not `production`; in production nobody can join. Anyone can pose as anyone in dev. Auth, the 18+ gate and data-protection decisions need your approval before they are built.
 - **Game state is in Postgres, not the room.** `PlayerState` (meters, rent due date, event check time), `Shift` and `EventFiring` hold everything that must survive a restart; rooms only hold positions. Hunger and energy are computed from a stored value plus elapsed real time.

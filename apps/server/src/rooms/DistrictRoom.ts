@@ -1,4 +1,4 @@
-import { type Client, Room, ServerError } from "@colyseus/core";
+import { type Client, type Deferred, Room, ServerError } from "@colyseus/core";
 import { StateView } from "@colyseus/schema";
 import {
   type Appearance,
@@ -38,6 +38,13 @@ const INTENT_BUCKET_REFILL_PER_SECOND = 4;
 const MAX_STEP_SECONDS = 0.25;
 
 /**
+ * How long a dropped player's place is kept for them to come back to: a phone
+ * whose screen went off, a train into a tunnel, a network blip. Their state is
+ * in Postgres either way; this keeps their spot, view and session.
+ */
+const RECONNECT_SECONDS = 300;
+
+/**
  * DEV IDENTITY STUB. There is no sign-in yet (auth needs the owner's approval),
  * so a client names itself with `playerId`. This is only accepted outside
  * production; in production nobody can join until real auth replaces it.
@@ -57,6 +64,8 @@ interface LivePlayer {
   unsubscribeNotices: () => void;
   /** Which chunks of the district this player has been sent. */
   chunks: ChunkStream;
+  /** While the connection is dropped: the place kept for them, which a fresh join can give up. */
+  dropped: Deferred<Client> | null;
 }
 
 /**
@@ -90,7 +99,10 @@ export function createDistrictRoom(game: GameSystems) {
       if (!parsed.success) throw new ServerError(400, "invalid join options");
       const { playerId } = parsed.data;
       for (const other of this.live.values()) {
-        if (other.playerId === playerId) throw new ServerError(409, "already connected");
+        if (other.playerId !== playerId) continue;
+        // A dropped player who reloads gets in at once: the place kept for the old connection is given up.
+        if (other.dropped) other.dropped.reject(new Error("joined again"));
+        else throw new ServerError(409, "already connected");
       }
       return { playerId };
     }
@@ -107,6 +119,7 @@ export function createDistrictRoom(game: GameSystems) {
         bucket: new TokenBucket(INTENT_BUCKET_CAPACITY, INTENT_BUCKET_REFILL_PER_SECOND, Date.now()),
         unsubscribeNotices: () => {},
         chunks: new ChunkStream(this.district.chunks),
+        dropped: null,
       };
 
       // Catch up on whatever happened while the player was away, then show the HUD.
@@ -143,6 +156,33 @@ export function createDistrictRoom(game: GameSystems) {
       client.send(SERVER_MESSAGES.appearance, message);
       const synced = this.state.players.get(client.sessionId);
       if (synced) synced.appearance = appearance ? encodeAppearance(appearance) : "";
+    }
+
+    /** The connection dropped without the player leaving: keep their place for `RECONNECT_SECONDS`. */
+    override onDrop(client: Client): void {
+      const live = this.live.get(client.sessionId);
+      if (!live) return;
+      // Stand still while away, and stop pushing toasts at a closed connection (the inbox keeps them).
+      live.dx = 0;
+      live.dz = 0;
+      live.unsubscribeNotices();
+      live.dropped = this.allowReconnection(client, RECONNECT_SECONDS);
+      // Not coming back in time (or replaced by a fresh join) ends in `onLeave`; nothing to handle here.
+      live.dropped.catch(() => undefined);
+    }
+
+    /** Back on the same session: their view, toasts, anything missed meanwhile, and a fresh HUD. */
+    override async onReconnect(client: Client): Promise<void> {
+      const live = this.live.get(client.sessionId);
+      const position = this.state.players.get(client.sessionId);
+      if (!live || !position) return;
+      live.dropped = null;
+      client.view ??= new StateView();
+      if (!client.view.has(position)) client.view.add(position);
+      this.updateViews();
+      live.unsubscribeNotices = game.notices.subscribe(live.playerId, (notice) => client.send(SERVER_MESSAGES.notice, notice));
+      await game.mutex.run(live.playerId, () => this.catchUp(live.playerId));
+      await this.sendStats(client, live);
     }
 
     override onLeave(client: Client): void {

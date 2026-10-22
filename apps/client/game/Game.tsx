@@ -79,6 +79,23 @@ export default function Game() {
         <p role="status" style={{ margin: 16, font: "600 16px system-ui, sans-serif", color: "#1d2b36" }}>
           {connection.status === "connecting" ? COPY.app.connecting : connection.message}
         </p>
+        {connection.status === "failed" && connection.retry && (
+          <button
+            type="button"
+            onClick={connection.retry}
+            style={{
+              margin: "0 16px",
+              padding: "12px 20px",
+              font: "600 16px system-ui, sans-serif",
+              color: "#ffffff",
+              background: "#2f7a55",
+              border: "none",
+              borderRadius: 10,
+            }}
+          >
+            {COPY.app.tryAgain}
+          </button>
+        )}
       </div>
     );
   }
@@ -129,6 +146,11 @@ export default function Game() {
       {closeUp && <TurnArea turn={turn} />}
       {/* Going into or out of the bedroom cuts the scene; a quick fade from black hides the cut. */}
       <div key={closeUp ? "indoors" : "street"} className={styles.sceneFade} />
+      {connection.dropped && (
+        <p role="status" className={styles.reconnecting}>
+          {COPY.app.reconnecting}
+        </p>
+      )}
       <Overlay
         room={connection.room}
         messages={connection.messages}

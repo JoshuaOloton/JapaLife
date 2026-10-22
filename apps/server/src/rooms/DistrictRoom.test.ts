@@ -317,6 +317,47 @@ describe("movement", () => {
     expect(first.chunks.every((chunk) => withinRing(chunk, first.centre, CHUNK_SEND_RING))).toBe(true);
   });
 
+  it("keeps a dropped player's place, and they come back into the same session by themselves", async () => {
+    const s = await join("dropper");
+    s.room.reconnection.minUptime = 0; // the SDK normally waits 5 s of uptime before it will reconnect
+    let reconnected = false;
+    s.room.onReconnect(() => (reconnected = true));
+    await until(() => s.stats.length > 0, "the first stats");
+    const statsBefore = s.stats.length;
+    const sessionId = s.room.sessionId;
+
+    // The server drops the connection the way a dead network does (not a leave).
+    const room = matchMaker.getLocalRoomById(s.room.roomId) as unknown as {
+      clients: { getById(id: string): { leave(code: number): void } | undefined };
+      live: Map<string, unknown>;
+    };
+    room.clients.getById(sessionId)?.leave(4010);
+
+    await until(() => reconnected, "the reconnection", 8000);
+    expect(s.room.sessionId).toBe(sessionId);
+    expect(room.live.has(sessionId)).toBe(true);
+    await until(() => s.stats.length > statsBefore, "a fresh HUD after coming back");
+    expect(s.room.state.players.get(sessionId)).toBeDefined();
+  });
+
+  it("lets a dropped player who reloads straight back in, giving up the place kept for them", async () => {
+    const s = await join("reloader");
+    s.room.reconnection.enabled = false; // this tab never comes back; a new one joins instead
+    await until(() => s.stats.length > 0, "the first stats");
+    const room = matchMaker.getLocalRoomById(s.room.roomId) as unknown as {
+      clients: { getById(id: string): { leave(code: number): void } | undefined };
+      live: Map<string, unknown>;
+    };
+    const oldSession = s.room.sessionId;
+    room.clients.getById(oldSession)?.leave(4010);
+    open.splice(open.indexOf(s.room), 1); // already gone; leaving it again would wait forever
+    await sleep(200);
+
+    const again = await join("reloader"); // refused with "already connected" before
+    await until(() => again.stats.length > 0, "the new session's stats");
+    await until(() => !room.live.has(oldSession), "the old session's place given up");
+  });
+
   it("syncs only the players near each other (area of interest)", async () => {
     const a = await join("aoi-near");
     const b = await join("aoi-far");
@@ -328,7 +369,8 @@ describe("movement", () => {
     far.z = -250;
     await until(() => a.room.state.players.get(b.room.sessionId) === undefined, "the far player leaving the view");
     expect(a.room.state.players.get(a.room.sessionId)).toBeDefined(); // you always see yourself
-    expect(b.room.state.players.get(a.room.sessionId)).toBeUndefined();
+    // Both views change on the same tick, but each client's update arrives on its own.
+    await until(() => b.room.state.players.get(a.room.sessionId) === undefined, "the near player leaving the far one's view");
     far.x = 1;
     far.z = 1;
     await until(() => a.room.state.players.get(b.room.sessionId) !== undefined, "the player coming back into view");

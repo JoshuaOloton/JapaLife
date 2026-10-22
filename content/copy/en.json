@@ -6,7 +6,9 @@
     "loading": "Loading Lagos...",
     "connecting": "Connecting...",
     "serverUnreachable": "We couldn't reach the JapaLife server. Check your data and try again.",
-    "connectionLost": "Connection lost. Refresh to get back in.",
+    "connectionLost": "Connection lost. Check your data, then try again.",
+    "reconnecting": "Network dropped. Reconnecting...",
+    "tryAgain": "Try again",
     "badDistrict": "This version of the game is out of date. Refresh the page."
   },
   "welcome": {

@@ -158,6 +158,7 @@ What the code built so far requires of new code. Each rule links to its full ent
 - Every intent goes through `parseIntent` in `DistrictRoom`'s single `onMessage("*")` handler and then the per-player `KeyedMutex`. Never add a handler that skips either.
 - Every notice to a player goes through `InboxService.deliver`, never `client.send` or `NoticeBus.publish`, or an offline player never sees it.
 - Buildings and props reach the client in `chunks` messages (`ChunkStream`), never in the `district` header; nothing may reach more than 64 m (`CHUNK_METRES`) from its centre. The header holds only what is small or needed from the start (places, roads, lanes, catalogs, NPCs).
+- A dropped connection keeps the player's place for 5 minutes (`onDrop`/`onReconnect` in `DistrictRoom`); anything set up per client in `onJoin` (view, notice subscription) must be restored in `onReconnect` too.
 - Other players are synced through each client's `StateView` (within `PLAYER_VIEW_METRES`); never sync game state outside the filtered `players` map.
 - Logging goes through `logError`, never `console.error(error)` (Prisma errors can echo player ids and amounts).
 - Game state lives in Postgres, not the room. Every change to a meter goes through `PlayerService.applyChange` or `saveNeeds` ([details](docs/known-limits.md#content)).
