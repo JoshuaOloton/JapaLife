@@ -10,6 +10,7 @@ import {
   districtObstacles,
   encodeAppearance,
   moveWithCollisions,
+  obstacleGrid,
 } from "@japalife/shared";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
@@ -115,7 +116,8 @@ export function Player({
   const lookCode = encodeAppearance(shown);
   const look = useMemo(
     () => resolveLook(decodeAppearance(lookCode) ?? district.characters.defaults, district.characters, district.models),
-    [lookCode, district],
+    // Not the whole district: it changes as chunks arrive, and the character must not rebuild then.
+    [lookCode, district.characters, district.models],
   );
   const heading = useRef(Math.PI); // facing north, away from the camera
   const sender = useMemo(() => new MoveSender(room), [room]);
@@ -124,7 +126,8 @@ export function Player({
   const lookAt = useMemo(() => new Vector3(), []);
   const motion = useRef<CharacterMotion>({ speed: 0, working: false, gestureAt: Number.NEGATIVE_INFINITY });
   // The same walls, props and people the server stops the player at, so the prediction agrees with it.
-  const obstacles = useMemo(() => districtObstacles(district), [district]);
+  // Rebuilt as chunks arrive; the chunks next to the player's are always loaded, so no wall it could touch is missing.
+  const obstacles = useMemo(() => obstacleGrid(districtObstacles(district)), [district]);
 
   useEffect(() => {
     const record = (): void => {
@@ -150,7 +153,7 @@ export function Player({
   // The server spawns every joining player here; start the prediction at the same spot.
   useLayoutEffect(() => {
     predicted.current = { ...district.spawn };
-  }, [district, predicted]);
+  }, [district.spawn, predicted]);
 
   // Put the camera in place before the first frame, so the scene does not swoop in.
   useEffect(() => {
@@ -180,7 +183,7 @@ export function Player({
         server: truth,
         moving,
         deltaSeconds: dt,
-        boxes: obstacles,
+        obstacles,
         bounds: district,
       });
     }

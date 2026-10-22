@@ -1,7 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { PLAYER_RADIUS, districtObstacles, isBlocked } from "@japalife/shared";
+import { PLAYER_RADIUS, districtObstacles, isBlocked, obstacleGrid } from "@japalife/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DistrictMap } from "../game/district";
 import { ContentError, DEFAULT_CONTENT_DIR, loadContent } from "./loadContent";
@@ -14,7 +14,7 @@ describe("loadContent (real content/)", () => {
     const content = loadContent();
     const districts = content.cities["lagos"]?.districts ?? [];
     expect(districts.map((d) => d.id)).toEqual(["yaba"]);
-    expect(districts[0]?.interactables.map((i) => i.kind).sort()).toEqual(
+    expect([...new Set(districts[0]?.interactables.map((i) => i.kind))].sort()).toEqual(
       ["bus_stop", "food_vendor", "fuel_station", "home", "job_site"].sort(),
     );
     // Every location has sign text, and the district has buildings and roads to draw.
@@ -163,9 +163,16 @@ describe("loadContent (broken content)", () => {
 
   it("rejects a building that sticks out of the district", () => {
     edit("cities/lagos.json", (j) => {
-      j["districts"][0].buildings[0].x = 58;
+      j["districts"][0].buildings[0].x = j["districts"][0].halfWidth - 2;
     });
     expect(problemsOf().join("\n")).toContain("sticks out of the walkable area");
+  });
+
+  it("rejects a building reaching further than a chunk from its centre (it would stream in one chunk)", () => {
+    edit("cities/lagos.json", (j) => {
+      j["districts"][0].buildings.push({ id: "long-wall", name: "Wall", x: 0, z: -290, halfWidth: 70, halfDepth: 0.5, height: 2, colour: "#ffffff" });
+    });
+    expect(problemsOf().join("\n")).toContain('building "long-wall" reaches more than 64 m from its centre');
   });
 
   it("rejects a building whose model is not in the catalog", () => {
@@ -219,8 +226,8 @@ describe("loadContent (broken content)", () => {
     });
 
     it("rejects a prop that sticks out of the district", () => {
-      addProp({ kind: "container-shop", x: 58.5, z: 20 });
-      expect(problemsOf().join("\n")).toContain('"container-shop" at 58.5, 20) sticks out of the walkable area');
+      addProp({ kind: "container-shop", x: 298.5, z: 20 }); // Yaba's edge is at 300
+      expect(problemsOf().join("\n")).toContain('"container-shop" at 298.5, 20) sticks out of the walkable area');
     });
 
     it("rejects an unknown prop kind", () => {
@@ -271,13 +278,13 @@ describe("loadContent (broken content)", () => {
       const westFace = -8 - 1 - PLAYER_RADIUS;
       expect(end.x).toBeLessThanOrEqual(westFace);
       expect(end.x).toBeGreaterThan(westFace - 0.2);
-      expect(isBlocked(end, districtObstacles(yaba.layout))).toBe(false);
+      expect(isBlocked(end, obstacleGrid(districtObstacles(yaba.layout)))).toBe(false);
     });
 
     it("lets the player walk under the fuel canopy's roof and stops them only at its pump island", () => {
       const content = loadContent();
       const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content);
-      const obstacles = districtObstacles(yaba.layout);
+      const obstacles = obstacleGrid(districtObstacles(yaba.layout));
       // The canopy at (38, 19.5) roofs 9 x 6 m; its island is 6 x 1.4 m.
       expect(isBlocked({ x: 38, z: 21.5 }, obstacles)).toBe(false);
       expect(isBlocked({ x: 34, z: 19.5 }, obstacles)).toBe(false);
@@ -319,14 +326,14 @@ describe("loadContent (broken content)", () => {
 
     it("rejects a fleet of an unknown kind or on an unknown lane, and a bus stop off its lane", () => {
       edit("cities/lagos.json", (j) => {
-        traffic(j).fleet.push({ kind: "molue", lanes: ["main-east"], count: 1 });
+        traffic(j).fleet.push({ kind: "molue", lanes: ["commercial-avenue-east"], count: 1 });
         traffic(j).fleet.push({ kind: "keke", lanes: ["flyover"], count: 1 });
-        traffic(j).busStops.push({ lane: "main-east", at: { x: 10, z: -2 } });
+        traffic(j).busStops.push({ lane: "commercial-avenue-east", at: { x: 10, z: -2 } });
       });
       const problems = problemsOf().join("\n");
       expect(problems).toContain('unknown vehicle kind "molue"');
       expect(problems).toContain('uses unknown lane "flyover"');
-      expect(problems).toContain('bus stop at 10, -2 is not on lane "main-east"');
+      expect(problems).toContain('bus stop at 10, -2 is not on lane "commercial-avenue-east"');
     });
 
     it("rejects a vehicle model not in the catalog", () => {
@@ -385,7 +392,6 @@ describe("loadContent (broken content)", () => {
       const yaba = new DistrictMap(content.cities["lagos"]!.districts[0]!, content);
       expect(Object.keys(yaba.layout.models)).toContain("test-office");
       expect(Object.keys(yaba.layout.models)).not.toContain("unused");
-      expect(Object.keys(yaba.layout.models)).not.toContain("office-block"); // replaced by the test model
       // Characters can wear anything in the catalog, so its hair and garment models always go.
       expect(Object.keys(yaba.layout.models)).toEqual(expect.arrayContaining(["hair-cap-female", "dress-skirt-female"]));
     });

@@ -19,6 +19,19 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **No loans.** Player wallets cannot go negative, so credit, overdrafts, student loans and mortgages need their own liability model, not a negative wallet.
 
 ## Server and protocol
+- **Dropped connections reconnect by themselves (2026-10-22).**
+  - **Why:** standing still on the vivo Y29 lost the connection for good. The likely cause is the screen timing out, at which point Android suspends the page's network. The server removed the player the moment the socket dropped, so the client had nothing to come back to.
+  - **Server** (`DistrictRoom`):
+    - `onDrop` keeps the place for 5 minutes (`allowReconnection`), stops the player walking and stops toasts (the inbox keeps them).
+    - `onReconnect` restores the `StateView`, re-subscribes notices, runs the catch-up and sends fresh stats.
+    - A fresh join by the same player while dropped (a reload) gives up the kept place instead of being refused "already connected".
+  - **Client** (`useDistrictConnection`):
+    - Shows "Reconnecting..." while the SDK retries (60 tries, backing off to every 5 s, about five minutes).
+    - If it gives up, it joins afresh when the page is next visible, or on "Try again".
+  - **Not done:**
+    - Keeping the screen awake while playing. The Screen Wake Lock API needs HTTPS, and phones load the game over plain http on the LAN, so it waits for HTTPS (like web push).
+    - Messages sent while dropped (a toast, an `interaction` reply) are lost. The inbox and the fresh stats on reconnect cover what matters.
+  - Tested in `DistrictRoom.test.ts` by dropping a socket on the server with close code 4010.
 - **Every intent goes through `parseIntent`** in `DistrictRoom`'s single `onMessage("*")` handler, then through a per-player `KeyedMutex` so one player's intents run in order. Never add a message handler that skips either. The mutex is in-process: with several server instances it needs a database or Redis lock (Phase 5).
 - **No auth (dev identity stub).** A client names itself with the `playerId` join option, accepted only when `NODE_ENV` is not `production`; in production nobody can join. Anyone can pose as anyone in dev. Auth, the 18+ gate and data-protection decisions need your approval before they are built.
 - **Game state is in Postgres, not the room.** `PlayerState` (meters, rent due date, event check time), `Shift` and `EventFiring` hold everything that must survive a restart; rooms only hold positions. Hunger and energy are computed from a stored value plus elapsed real time.
@@ -33,9 +46,36 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
 - **Capacity queue is a stub.** `CapacityQueue` (`apps/server/src/game/capacityQueue.ts`) holds a line with positions and is tested, but is not connected to matchmaking. Colyseus already refuses joins beyond `MAX_PLAYERS_PER_ROOM`, so nothing over capacity is accepted.
 - **One district.** `DistrictRoom` always hosts `yaba`.
 - **Collision is one shared function (decided 2026-10-15).** `moveWithCollisions` in `packages/shared/src/collision.ts` stops the player at building footprints and the district edge. The server runs it as the authority; the client runs the same code to predict its own walking, so they agree and there is no rubber-banding. Buildings are defined once in `content/cities/<city>.json` (`buildings`, `roads`); the client draws them from those numbers and receives them in the `district` message on join. `loadContent` refuses to start if a spawn or location is inside a building, a building sticks out of the district, or any location cannot be reached on foot from the spawn point (`checkLayout.ts`). **Since Slice 11c the walls are `districtObstacles(layout)`**: buildings, the blocking part of each prop, and a 0.6 m box per standing NPC. The server (`DistrictMap`), the client's prediction (`Player.tsx`) and `checkLayout` all use it; never pass `district.buildings` as the boxes, or the client and server disagree at the first generator. `checkLayout` also refuses a blocking prop or NPC on a road, a prop of an unknown kind, and a `wire` with one pole.
+- **Collision checks go through a spatial grid (Slice 11h-1, 2026-10-22).**
+  - `isBlocked`, `moveWithCollisions` and `reachableTargets` take `Obstacles`, a `SpatialGrid` of 8 m cells (`packages/shared/src/spatialGrid.ts`), built once with `obstacleGrid(districtObstacles(layout))`. They no longer accept a box list, so the type system stops anything from scanning every obstacle on each step, which would not scale to Big Yaba.
+  - The grid answers exactly as testing every box would, including at a wall's face (a hair of slack only adds candidates); `spatialGrid.test.ts` checks this on random layouts.
+  - `reachableTargets` (server start) also keeps to typed arrays and looks only at the cells near each target. On a 600 m stand-in city it takes about 40 ms against about 2 s before, and about 115 ms at 1 km.
+  - Not on the grid, on purpose: the nearest-place checks (`DistrictMap.nearest`, the client's `nearestPlace`) and `checkLayout`'s road checks. They loop over places and roads, which number tens even at 600 m, not thousands. Revisit if a district gets hundreds of places.
 - **Rapier is not used for player movement.** Running a second physics engine on the client would disagree with the server's collision and cause snapping, and its WASM adds download and CPU cost on low-end phones. `@react-three/rapier` stays installed for later non-authoritative effects (props, ragdolls); it is not part of the walking path. Revisit if buildings stop being axis-aligned boxes.
 
 ## Content
+- **Yaba is generated (Slice 11h-2, 2026-10-22).** `pnpm city` (`apps/server/src/generateCity.ts`, logic in `apps/server/src/city/`) writes `content/cities/lagos.json` from `content/cities/plans/lagos/` (`city.json` plus `yaba.json`).
+  - What the plan holds:
+    - streets with a class (`main` 8 m, `inner` 6 m, `lane` 4 m and walk-only);
+    - which building types line each class, with market zones that change the mix;
+    - hand-placed landmarks, with positions relative to their anchor and a `clear` area kept free of generated things;
+    - the traffic fleet and bus stops.
+  - What the generator places:
+    - poles with wires between junctions;
+    - speed bumps on main roads;
+    - buildings facing every street;
+    - generators and trees in the gaps between buildings;
+    - scattered trees;
+    - two lanes on each main and inner street (on the right);
+    - walkways at the road edges.
+  - It is seeded, and a test fails if `lagos.json` differs from what the plan generates.
+  - The old 120 m Yaba is the `yaba-junction` landmark, unchanged except that the face-me-face-you house's footprint went from 5.05 to 5.0 m. It had reached 5 cm into Herbert Macaulay Way, which the new "building on a road" check caught.
+  - `checkLayout` now also refuses a building on a road and two buildings that overlap.
+- **Yaba's street plan is stylised, not surveyed (decided 2026-10-21).** It uses real street names on a straight grid, not OpenStreetMap data, whose ODbL licence would make us share our city data under the same licence.
+  - Positions are approximate. Murtala Muhammed Way is drawn at the west edge as the plan said; if it belongs east of Herbert Macaulay Way, move it in the plan.
+  - Ojuelegba Road and Iwaya Road were added as the two inner north–south streets. They are real Yaba-area roads, but placed loosely.
+  - Business names are generic (Yabacon Hub, Sabo Plaza). The mosque is a placeholder: a white box and a green minaret box, until a Blender model is made like 11f's buildings.
+  - Main roads stay 8 m with one lane each way, not the 4 lanes the 11h plan first said, so the old centre and its poles stay as they were.
 - **Phase 1 numbers are placeholders.** Everything in `content/economy/`, `content/events/` and `content/cities/lagos.json` is marked `"basis": "game-balance"` instead of a `source` URL: starting balance, rent, food prices, shift pay, event amounts and frequencies are tuning guesses, not researched Lagos prices. Retune them after play-testing. Real rules (Phase 2) must use `source` plus `asOf`.
 - **Copy (decided 2026-10-17): plain English with light Nigerian touches** ("chop", "wait small", "NEPA has taken light"); the flavour comes from specifics, not heavy Pidgin. A Pidgin version would be its own language file (`pcm.json`), not a mix. The client bundles `en.json` at build time (the welcome screen needs it before connecting), so changing copy needs a rebuild, not a code change. The browser imports it from `@japalife/shared/copy`, which has no zod, so the first download stays small; the schema runs at server boot and in `pnpm test`. Only English exists, and nothing picks a language yet.
 - **Action prompts:** the button at a place shows its `prompt` from the city file ("Buy food at Mama Put"), or its kind's template from `copy/en.json` ("Work a shift at {place}").
@@ -89,6 +129,82 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - **Budgets fail loudly.** Each district's models (what `buildDistrictLayout` sends: placed models plus every hair part and garment piece) must stay within `DISTRICT_DOWNLOAD_BUDGET_BYTES` (6 MB), or the content check refuses to start the server. `public/assets/characters/` must stay within 1.5 MB, or `pnpm budget` fails. At 11g, Yaba's models were about 0.4 MB and the characters 0.67 MB. Ground, roads and prints are painted in code, so they cost nothing here.
   - **Shader warm-up.** `ShaderWarmUp` calls `renderer.compileAsync(scene, camera)` four times in the first 4.5 s, so every material (including buildings far out of view, and the street hidden behind a new player's creator, via the `warmUpWhileHidden` flag) compiles at load instead of when it first comes into view. A material that first appears later (a walker in a new outfit after warm-up) can still compile late; the `?fps` meter then shows "⚠ late shaders N". The warm-up also uploads every texture held in a material's slots (`renderer.initTexture`). Textures held only in shader uniforms (the people's region masks and prints) still upload on first draw: about 20 when a new player leaves the creator, 26 ms on desktop Chrome (2026-10-21), so check that frame on the phone. `shaderCache.test.ts` checks that building and body materials share one shader each.
   - **Adaptive quality and app switches.** `QualityGovernor` used to read the gap while the page was hidden as seconds of low fps and halve the street for good after any app switch of 5 s or more. It now pauses on `visibilitychange`, like the fps meter.
+- **Traffic and walkers live only near the player (Slice 11h-5, 2026-10-22).**
+  - **How it works.**
+    - Each lane and walkway gets a window: its stretch inside a box around the player (`TRAFFIC_REACH` 115 m ahead, 55 behind, 100 to the side; `WALKER_REACH` 55/50/50). The box moves when the player crosses a 16 m area cell (`setTrafficWindow`, `setWalkerWindow`).
+    - A vehicle past its lane's window parks. A parked one rejoins at the window start of whichever of its fleet's lanes crosses the window and is clear (`Vehicle.lanes`).
+    - A walker who walks out comes back at the edge of a walkway crossing it, walking inward.
+    - The windows are wider than what is drawn (`DRAW_REACH`, and 40 m for people), so nobody sees anyone join or leave.
+    - The first window spreads everyone through it, so the street is busy from the start.
+  - **The pool:** 39 vehicles and 16 walkers serve the whole district, so a 1 km Yaba costs no more.
+  - **Busy areas** (`traffic.busyAreas` in the city plan: the junction, the motor park and Tejuosho, Sabo) get the schedule's full share. Elsewhere it is `calmShare` (0.6, in `traffic/kinds.json`).
+  - **Junctions:** still the overlap of every pair of roads (`roadOverlaps`), worked out once at load: 18 roads is 153 pairs. A road graph waits for 11i, which needs one for routes anyway.
+  - **vivo Y29 (2026-10-22, production build): 60 fps, low 58, worst 50 ms at 12 s, no hitch, dpr 1.50, 21 calls, 41.4k triangles, street 100%.** That is back in line with the pre-11h baseline, for a district 25 times the size.
+  - **Cost:** concentrating everyone around the player made people the main triangle cost. Headless at the busy junction: 49 draw calls and 109k triangles with 16 walkers (58 and 135k with 30); 28–38 calls elsewhere. The phone reading decides whether the pool shrinks again.
+  - **Fewer allocations:** `pointOnLane`, `projectOnLane` and `walkerPose` take an `out` object, so the per-frame loops allocate nothing.
+- **vivo Y29 after 11h-4 (2026-10-22, production build, `?fps`).**
+  - **First reading:** 44 fps, low 33, worst 110 ms.
+  - **Diagnosis:** with the `?fps` switches (`diagnostics.ts`), the steady cost was the bones of 50 mounted people (20 NPCs, 30 walkers). three.js recomputes every object's matrices each frame, hidden or not.
+    - `skipWhileHidden` now makes a hidden person skip their whole subtree.
+    - Rule: anything mounted but usually hidden that has many children gets `skipWhileHidden`.
+  - **After the fix, all at 60 fps:**
+    - standing: low 43, one 219 ms hitch at 31 s, 42 calls, 45k triangles;
+    - running north 30 s across chunk edges: low 58, worst 53 ms, no hitch, 26 calls (so streaming is fine on the phone);
+    - `dpr=1`: low 57, worst 35 ms, the same as dpr 1.5 (so the GPU is not short of fill rate).
+  - **The remaining standing hitch** had no shader or texture work, which suggests a garbage-collection pause. The traffic stopped allocating every frame (reused math objects in `placeVehicle`, lane lists made once and sorted in place); the phone reading after that is still to take.
+  - **Meter:** it now shows when the worst frame happened and how many frames took over 100 ms (`worst 219 ms at 31s · 1 hitch`).
+- **Chunk streaming and area of interest (Slice 11h-4, 2026-10-22).**
+  - **What a client is sent.**
+    - On join: the `district` header (`districtHeader` in `packages/shared/src/chunks.ts`). It holds the places, roads, road furniture (speed bumps, which the traffic needs from the start), traffic lanes, catalogs, NPCs, every building model with its count, and an outline map of every building for 11i.
+    - Then the 5×5 chunks of 64 m around the player.
+  - **While walking:**
+    - When the server's position enters another chunk, `ChunkStream` sends only the chunks the player lacks.
+    - Client (`ChunkStore`) and server both forget chunks more than 3 from the latest centre, by the same rule. Stepping back one chunk re-sends nothing; two re-sends the dropped edge.
+  - **Sizes (JSON):**
+    - the join is 114 KB (a 42 KB header plus 72 KB of chunks), down from 253 KB;
+    - each chunk crossing is about 11 KB.
+  - **The client:**
+    - It rebuilds its loaded layout (`useLoadedDistrict`) and collision grid as chunks arrive.
+    - Every building model kind and prop kind is mounted and warmed from the header, so a chunk arriving never downloads a model or compiles a shader.
+    - Mesh capacities grow in doubling steps and never shrink (`roomFor`).
+    - The traffic and walkers run on the header alone, so they never restart.
+  - **NPCs stay in the header, not in chunks.**
+    - When they streamed in, the first NPC of a new look (the YabaTech student's cornrows) compiled a shader mid-walk, and every NPC's character was rebuilt on each batch.
+    - The client now caches each NPC's resolved look by id, and palms and billboards take their randomness from where they stand and what they say, not their place in a list.
+    - Fine at a few dozen NPCs; a district with hundreds needs a warm-up for every character variant before NPCs can stream.
+  - **Content check:** nothing may reach more than 64 m from its centre. Anything that touches the player's position then belongs to a chunk next to theirs, always loaded, so client collision never misses a wall.
+  - **Players:** synced per client through Colyseus `StateView` (`players: t.map(PlayerPosition).view()`). Each client sees itself and the players within 80 m (`updateViews` every tick). Tested by moving a player 350 m away on the server.
+  - **Measured.** Headless software GL, same route as 11h-3's measurement.
+    - Draw calls and triangles are unchanged (22–41 calls, 43–70k triangles).
+    - The worst frame is 112 ms against 67 ms in 11h-3.
+    - A page-side timeline showed no shader compiles and no texture uploads in it, and only one JavaScript task over 50 ms after load (58 ms, at the first chunk batch). The rest is GPU-side buffer refills, which software GL exaggerates.
+    - The vivo Y29's worst-frame reading decides whether chunk arrival needs smoothing (for example, per-chunk caches of slabs, fronds and labels instead of re-deriving from the whole loaded layout).
+- **Only the area around the player is drawn (Slice 11h-3, 2026-10-22; `world/area.ts`).**
+  - **How it works.**
+    - At load, everything is bucketed into 64 m chunks (`ChunkIndex`, over the shared `SpatialGrid`).
+    - When the player crosses into another 16 m area cell, the world refills its instanced meshes with the things nearby. That covers the plain-box mesh, the windows, one mesh per building model, one per prop model, the palm fronds and the vehicles.
+    - Each kind stays one draw call, sized once for every copy in the district (`capacity`), so a refill only rewrites numbers and never builds a mesh or compiles a shader.
+    - We chose this over one mesh per chunk, which would multiply draw calls by the number of chunks on screen.
+  - **What is drawn where.**
+    - The drawn area reaches 90 m ahead (north), 30 m behind and 75 m to each side. A portrait phone's camera sees almost to the horizon ahead and little behind.
+    - Model buildings are full models within 60 m ahead and 50 m to the side, and plain boxes beyond (LOD).
+    - Painted labels are drawn within 40 m. Their canvases are cached, so walking back never repaints them.
+    - NPCs are hidden past 90 m.
+    - The roads are one merged mesh, and the ground repeats a seamless 180 m tile (painted blobs wrap round its edges).
+  - **Haze:** the fog now runs from 35 to 100 m from the camera (it was 50–140), and the camera's far plane is 105 m.
+  - **Building models are instanced per kind.**
+    - Their occlusion fade and window light became per-copy instance attributes (`instanceFade`, `instanceLit` in `addBuildingEffects`) instead of per-building uniforms. Every model building now shares its kind's materials (no more `withOwnMaterials`).
+    - Only buildings within 35 m are tested for hiding the player.
+    - A kind with nothing near is warmed up while hidden (`WARM_UP_WHILE_HIDDEN` on each instanced mesh), so the first one to come near compiles nothing.
+  - **Traffic:** the simulation still runs every vehicle in the district (11h-5 changes that), but only those in the drawn area take an instance slot.
+  - **Measured.** Headless Chrome with software WebGL (SwiftShader) on a Mac, production build, a 430×860 portrait window. The same 70 m walk north from spawn, then east:
+
+    | Build | fps | Draw calls | Triangles | Street |
+    |---|---|---|---|---|
+    | 11h-2 (600 m, everything drawn) | 8–9 | 52–81 (⚠ peak warning) | 219–253k | adaptive quality cut it to 50% |
+    | 11h-3 | 49–59 | 21–40 | 43–70k | 100% |
+
+    - Software fps only compares builds on the same machine; the vivo Y29 reading is still to take.
 - **Standing NPCs (Slice 11c)** are city-file entries (`npcs`: look, pose, spot, facing, optional `says` bubble) drawn with the player's `Character` holding one looping clip (`pose`). They block the player (decided 2026-10-19) but are not synced: they never move. Since 11d their `look` is an appearance from the character catalog, and they may wear non-starter clothes (a gateman's uniform). Beyond 30 m from the player their animation stops (frozen in pose), and a bubble shows within 10 m. The five pose clips doubled `animations.glb` (168 KB to 325 KB raw, 0.15 MB gzipped). Each NPC is 4 draw calls; six of them is most of 11c's draw-call cost, so 11e's pedestrians need the same 30 m cut-off or a cheaper body.
 - **Traffic and pedestrians (Slice 11e) are client-only and cosmetic.** Each phone runs its own little simulation (`world/trafficSim.ts`, `world/walkers.ts`), so two players will not see the same danfo until Phase 5 decides whether to sync it.
   - Vehicles drive lanes from the city file (right-hand traffic), ease over speed bumps, queue, take turns at the junction (one direction of travel at a time, with a 3 s fairness rule), stop for the player in their path, and danfos pause at the bus stop.

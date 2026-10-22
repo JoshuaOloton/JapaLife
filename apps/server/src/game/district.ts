@@ -1,28 +1,39 @@
 import {
-  type Box,
+  type ChunkContent,
   type DistrictConfig,
+  type DistrictHeader,
   type DistrictLayout,
   type Interactable,
   type LayoutCatalogs,
+  type Obstacles,
   type Point,
   buildDistrictLayout,
+  districtHeader,
   districtObstacles,
   moveWithCollisions,
+  obstacleGrid,
+  splitIntoChunks,
 } from "@japalife/shared";
 
 /** A district's walkable area and the things in it, with the geometry checks the server needs. */
 export class DistrictMap {
-  /** What the client gets on join: the config and what it uses from the content catalogs. */
+  /** The whole district: the config and what it uses from the content catalogs. */
   readonly layout: DistrictLayout;
+  /** What the client gets on join: the layout less what travels in chunks. */
+  readonly header: DistrictHeader;
+  /** The buildings, props and NPCs by chunk, sent to each player as they walk (`ChunkStream`). */
+  readonly chunks: ReadonlyMap<string, ChunkContent>;
   /** Everything that stops a player: the same list the client predicts with. */
-  private readonly obstacles: Box[];
+  private readonly obstacles: Obstacles;
 
   constructor(
     readonly config: DistrictConfig,
     catalogs: LayoutCatalogs,
   ) {
     this.layout = buildDistrictLayout(config, catalogs);
-    this.obstacles = districtObstacles(this.layout);
+    this.header = districtHeader(this.layout);
+    this.chunks = splitIntoChunks(this.layout);
+    this.obstacles = obstacleGrid(districtObstacles(this.layout));
   }
 
   get id(): string {

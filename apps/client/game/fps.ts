@@ -7,6 +7,10 @@ export interface FpsReading {
   worstFrameMs: number | null;
   /** What the GPU had to set up for that frame: new shaders compiled, new textures uploaded. */
   worstFrameWork?: GpuWork | null;
+  /** When the worst frame happened, in whole seconds since the game appeared: early means loading. */
+  worstFrameAtSeconds?: number | null;
+  /** Frames longer than `HITCH_MS` since warm-up: one is a one-off, several means something recurring. */
+  hitches?: number;
   /**
    * Shaders compiled after warm-up. Should stay 0: a compile mid-game can
    * freeze a phone for seconds (11f-4), so every shader must be ready at load.
@@ -29,6 +33,8 @@ export interface FrameStats extends GpuWork {
 
 /** Most draw calls per frame a mid-range phone handles at 60 fps (Slice 11 budget). */
 export const DRAW_CALL_BUDGET = 80;
+/** A frame this long is a hitch anyone notices. */
+export const HITCH_MS = 100;
 
 /**
  * Counts frames for the fps meter. The first seconds (loading, shader
@@ -43,6 +49,8 @@ export class FpsCounter {
   private lowestFps: number | null = null;
   private worstFrameMs: number | null = null;
   private worstFrameWork: GpuWork | null = null;
+  private worstFrameAtSeconds: number | null = null;
+  private hitches = 0;
   private lastWork: GpuWork | null = null;
   private shadersAtWarmUp: number | null = null;
   private lateShaders = 0;
@@ -67,8 +75,10 @@ export class FpsCounter {
       this.peakCalls = Math.max(this.peakCalls, work.calls ?? 0);
     }
 
+    if (this.lastFrame !== null && warmedUp && now - this.lastFrame > HITCH_MS) this.hitches++;
     if (this.lastFrame !== null && warmedUp && now - this.lastFrame > (this.worstFrameMs ?? 0)) {
       this.worstFrameMs = now - this.lastFrame;
+      this.worstFrameAtSeconds = Math.round((now - (this.firstFrame ?? now)) / 1000);
       this.worstFrameWork =
         work && this.lastWork
           ? { shaders: work.shaders - this.lastWork.shaders, textures: work.textures - this.lastWork.textures }
@@ -94,6 +104,8 @@ export class FpsCounter {
       lowestFps: this.lowestFps,
       worstFrameMs: this.worstFrameMs,
       worstFrameWork: this.worstFrameWork,
+      worstFrameAtSeconds: this.worstFrameAtSeconds,
+      hitches: this.hitches,
       lateShaders: this.lateShaders,
       peakCalls: this.peakCalls,
     };
@@ -123,7 +135,9 @@ export function formatFpsReading(reading: FpsReading, pixelRatio: number, load?:
   const worst = reading.worstFrameMs === null ? "-" : Math.round(reading.worstFrameMs);
   const work = reading.worstFrameWork;
   const cause = work && (work.shaders > 0 || work.textures > 0) ? ` (+${work.shaders} shaders, +${work.textures} textures)` : "";
-  const frame = `${Math.round(reading.fps)} fps · low ${low} · worst ${worst} ms${cause} · dpr ${pixelRatio.toFixed(2)}`;
+  const when = reading.worstFrameAtSeconds == null ? "" : ` at ${reading.worstFrameAtSeconds}s`;
+  const hitches = reading.hitches ? ` · ${reading.hitches} hitch${reading.hitches === 1 ? "" : "es"}` : "";
+  const frame = `${Math.round(reading.fps)} fps · low ${low} · worst ${worst} ms${when}${cause}${hitches} · dpr ${pixelRatio.toFixed(2)}`;
   const drawn = load ? `${frame} · ${load.calls} calls · ${(load.triangles / 1000).toFixed(1)}k tris` : frame;
   const street = load?.street === undefined ? drawn : `${drawn} · street ${Math.round(load.street * 100)}%`;
   // Broken performance rules, loudly, so they are noticed before a phone is.

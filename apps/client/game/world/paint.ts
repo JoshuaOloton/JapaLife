@@ -1,3 +1,4 @@
+import { seededRandom } from "@japalife/shared";
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
 
 /**
@@ -18,22 +19,14 @@ const ROAD_EDGE = "#8a7b63";
 const GRASS = ["#5f7336", "#6c7d3e", "#55682f"];
 const ASPHALT = "#3f3f43";
 
-/** Small, seeded random numbers (mulberry32), so the painting is the same every time. */
-export function seededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 0x1_0000_0000;
-  };
-}
+/** Metres of ground one painted tile covers: about a third of a metre a pixel, as Yaba had at 120 m. */
+export const GROUND_TILE_METRES = 180;
 
 /**
- * Packed sandy earth over the whole ground, with worn patches of grass. One
- * 512-pixel texture for the district (about 0.35 m a pixel at Yaba's size):
- * the grain comes from specks, the patches from soft blobs.
+ * Packed sandy earth with worn patches of grass, as a 512-pixel tile that
+ * repeats over the whole district (`GROUND_TILE_METRES` each): the grain comes
+ * from soft specks, the patches from soft blobs. Every blob that crosses an
+ * edge is painted again on the opposite edge, so the tiles meet without a seam.
  */
 export function paintGround(size = 512): CanvasTexture {
   const canvas = document.createElement("canvas");
@@ -44,6 +37,21 @@ export function paintGround(size = 512): CanvasTexture {
   if (context) {
     context.fillStyle = SAND;
     context.fillRect(0, 0, size, size);
+    /** A soft round blob, wrapped round the tile's edges. */
+    const blob = (x: number, y: number, r: number, inner: string, outer: string): void => {
+      for (const dx of [-size, 0, size]) {
+        for (const dy of [-size, 0, size]) {
+          const cx = x + dx;
+          const cy = y + dy;
+          if (cx + r < 0 || cy + r < 0 || cx - r > size || cy - r > size) continue;
+          const gradient = context.createRadialGradient(cx, cy, 0, cx, cy, r);
+          gradient.addColorStop(0, inner);
+          gradient.addColorStop(1, outer);
+          context.fillStyle = gradient;
+          context.fillRect(cx - r, cy - r, r * 2, r * 2);
+        }
+      }
+    };
 
     for (let index = 0; index < 22; index++) {
       const x = random() * size;
@@ -54,11 +62,7 @@ export function paintGround(size = 512): CanvasTexture {
         const tx = x + (random() - 0.5) * radius * 1.6;
         const ty = y + (random() - 0.5) * radius * 1.6;
         const r = radius * (0.25 + random() * 0.45);
-        const blob = context.createRadialGradient(tx, ty, 0, tx, ty, r);
-        blob.addColorStop(0, `${colour}cc`);
-        blob.addColorStop(1, `${colour}00`);
-        context.fillStyle = blob;
-        context.fillRect(tx - r, ty - r, r * 2, r * 2);
+        blob(tx, ty, r, `${colour}cc`, `${colour}00`);
       }
     }
 
@@ -69,14 +73,10 @@ export function paintGround(size = 512): CanvasTexture {
       const y = random() * size;
       const r = 2 + random() * 7;
       const colour = SAND_MOTTLE[Math.floor(random() * SAND_MOTTLE.length)] ?? SAND;
-      const blob = context.createRadialGradient(x, y, 0, x, y, r);
-      blob.addColorStop(0, `${colour}55`);
-      blob.addColorStop(1, `${colour}00`);
-      context.fillStyle = blob;
-      context.fillRect(x - r, y - r, r * 2, r * 2);
+      blob(x, y, r, `${colour}55`, `${colour}00`);
     }
   }
-  return toTexture(canvas, false);
+  return toTexture(canvas, true);
 }
 
 /**

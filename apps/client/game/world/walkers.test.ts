@@ -1,6 +1,6 @@
 import { characterCatalogSchema } from "@japalife/shared";
 import { describe, expect, it } from "vitest";
-import { type Walker, randomStarterLook, stepWalker, walkerPose } from "./walkers";
+import { type Walker, randomStarterLook, setWalkerWindow, stepWalker, walkerPose } from "./walkers";
 import { QualityGovernor } from "./quality";
 import { buildLane } from "./trafficSim";
 
@@ -20,6 +20,30 @@ function walker(s: number, extra: Partial<Walker> = {}): Walker {
     ...extra,
   };
 }
+
+describe("the walkers' simulation window", () => {
+  it("brings a walker who walks out of it back in at the edge of a walkway crossing it, walking inward", () => {
+    const near = buildLane("near", [{ x: -300, z: 3.6 }, { x: 300, z: 3.6 }]);
+    const far = buildLane("far", [{ x: -300, z: 250 }, { x: 300, z: 250 }]);
+    const w = walker(100, { path: far, paths: [far, near], nextPath: 0 });
+    setWalkerWindow([w], { x: 0, z: 0, halfWidth: 50, halfDepth: 50 }, () => 0.5, false);
+    stepWalker(w, 0.1, FAR_AWAY, 1);
+    expect(w.path).toBe(near);
+    // Coming in from one end of the window, walking toward the other.
+    const enteredAtStart = w.direction === 1;
+    expect(Math.abs(w.s - (enteredAtStart ? near.windowFrom : near.windowTo))).toBeLessThan(1);
+  });
+
+  it("spreads the walkers through the window at first", () => {
+    const near = buildLane("near", [{ x: -300, z: 3.6 }, { x: 300, z: 3.6 }]);
+    const people = [0, 1, 2].map((id) => walker(5, { id, path: near, paths: [near] }));
+    setWalkerWindow(people, { x: 0, z: 0, halfWidth: 50, halfDepth: 50 }, () => 0.5, true);
+    for (const person of people) {
+      expect(person.s).toBeGreaterThanOrEqual(near.windowFrom);
+      expect(person.s).toBeLessThanOrEqual(near.windowTo);
+    }
+  });
+});
 
 describe("walkers", () => {
   it("walk to the end of their walkway and turn back", () => {

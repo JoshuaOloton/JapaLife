@@ -1,14 +1,18 @@
 import {
   type Bounds,
   type Box,
+  CHUNK_METRES,
   type DistrictLayout,
   NPC_HALF_SIZE,
+  type Obstacles,
   PLAYER_RADIUS,
   type Point,
+  SpatialGrid,
   type Traffic,
   distanceBetween,
   districtObstacles,
   isBlocked,
+  obstacleGrid,
   propBlockSize,
   reachableTargets,
   turnHalfSize,
@@ -27,6 +31,12 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
   const bounds = { halfWidth: layout.halfWidth, halfDepth: layout.halfDepth };
   const sticksOut = (box: Box): boolean =>
     Math.abs(box.x) + box.halfWidth > bounds.halfWidth || Math.abs(box.z) + box.halfDepth > bounds.halfDepth;
+  /**
+   * Streaming sends things by the chunk their centre is in, and the chunks
+   * next to the player's are always loaded, so nothing may reach further than
+   * a chunk from its centre, or the client could miss a wall the player touches.
+   */
+  const tooBigForChunks = (box: Box): boolean => box.halfWidth > CHUNK_METRES || box.halfDepth > CHUNK_METRES;
   const onRoad = (box: Box): boolean =>
     roads.some(
       (road) =>
@@ -35,12 +45,27 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
     );
 
   const seen = new Set<string>();
+  const buildingGrid = new SpatialGrid(buildings);
   for (const building of buildings) {
     if (seen.has(building.id)) problems.push(`${where}: duplicate building id "${building.id}"`);
     seen.add(building.id);
     if (sticksOut(building)) {
       problems.push(`${where}: building "${building.id}" sticks out of the walkable area`);
     }
+    if (onRoad(building)) problems.push(`${where}: building "${building.id}" stands on a road`);
+    if (tooBigForChunks(building)) {
+      problems.push(`${where}: building "${building.id}" reaches more than ${CHUNK_METRES} m from its centre (split it: it travels in one chunk)`);
+    }
+    const clash = buildingGrid
+      .near(building.x, building.z, building.halfWidth, building.halfDepth)
+      .find(
+        (other) =>
+          other !== building &&
+          building.id < other.id && // report each pair once
+          Math.abs(building.x - other.x) < building.halfWidth + other.halfWidth &&
+          Math.abs(building.z - other.z) < building.halfDepth + other.halfDepth,
+      );
+    if (clash) problems.push(`${where}: buildings "${building.id}" and "${clash.id}" overlap`);
   }
 
   const wires = new Map<string, number>();
@@ -62,6 +87,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
     const box = { x: prop.x, z: prop.z, ...turnHalfSize(size, prop.rotation) };
     if (sticksOut(box)) problems.push(`${where}: ${what} sticks out of the walkable area`);
     if (onRoad(box)) problems.push(`${where}: ${what} blocks a road`);
+    if (tooBigForChunks(box)) problems.push(`${where}: ${what} reaches more than ${CHUNK_METRES} m from its centre`);
   });
   for (const [wire, poles] of wires) {
     if (poles < 2) problems.push(`${where}: wire "${wire}" has only one pole, so there is nothing to string it to`);
@@ -76,7 +102,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
     if (onRoad(box)) problems.push(`${where}: NPC "${npc.id}" stands in a road`);
   }
 
-  const obstacles = districtObstacles(layout);
+  const obstacles = obstacleGrid(districtObstacles(layout));
   if (layout.traffic) problems.push(...checkTraffic(where, layout.traffic, roads, bounds, obstacles));
 
   if (isBlocked(spawn, obstacles)) {
@@ -120,7 +146,7 @@ const BUS_STOP_REACH = 0.5;
  * people never walk through a wall, a generator or Mama Put, and every fleet
  * and bus stop names a real lane.
  */
-function checkTraffic(where: string, traffic: Traffic, roads: readonly Box[], bounds: Bounds, obstacles: readonly Box[]): string[] {
+function checkTraffic(where: string, traffic: Traffic, roads: readonly Box[], bounds: Bounds, obstacles: Obstacles): string[] {
   const problems: string[] = [];
   const inside = (point: Point, margin = 0): boolean =>
     Math.abs(point.x) <= bounds.halfWidth - margin && Math.abs(point.z) <= bounds.halfDepth - margin;

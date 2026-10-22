@@ -1,5 +1,6 @@
 export * from "./appearance";
 export * from "./bodyRegions";
+export * from "./chunks";
 export * from "./collision";
 export * from "./constants";
 export * from "./content";
@@ -10,3 +11,5 @@ export * from "./events";
 export * from "./format";
 export * from "./intents";
 export * from "./messages";
+export * from "./random";
+export * from "./spatialGrid";

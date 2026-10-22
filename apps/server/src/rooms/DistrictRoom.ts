@@ -1,4 +1,5 @@
-import { type Client, Room, ServerError } from "@colyseus/core";
+import { type Client, type Deferred, Room, ServerError } from "@colyseus/core";
+import { StateView } from "@colyseus/schema";
 import {
   type Appearance,
   type AppearanceMessage,
@@ -7,6 +8,7 @@ import {
   type Interactable,
   MAX_PLAYERS_PER_ROOM,
   PLAYER_SPEED_UNITS_PER_SECOND,
+  PLAYER_VIEW_METRES,
   POSITION_UPDATE_HZ,
   type RejectReason,
   SERVER_MESSAGES,
@@ -15,6 +17,7 @@ import {
 } from "@japalife/shared";
 import { z } from "zod";
 import type { GameSystems } from "../game";
+import { ChunkStream } from "../game/chunkStream";
 import type { DistrictMap } from "../game/district";
 import { logError } from "../log";
 import { describeOffer } from "../game/offers";
@@ -35,6 +38,13 @@ const INTENT_BUCKET_REFILL_PER_SECOND = 4;
 const MAX_STEP_SECONDS = 0.25;
 
 /**
+ * How long a dropped player's place is kept for them to come back to: a phone
+ * whose screen went off, a train into a tunnel, a network blip. Their state is
+ * in Postgres either way; this keeps their spot, view and session.
+ */
+const RECONNECT_SECONDS = 300;
+
+/**
  * DEV IDENTITY STUB. There is no sign-in yet (auth needs the owner's approval),
  * so a client names itself with `playerId`. This is only accepted outside
  * production; in production nobody can join until real auth replaces it.
@@ -52,6 +62,10 @@ interface LivePlayer {
   lastMoveSeq: number;
   bucket: TokenBucket;
   unsubscribeNotices: () => void;
+  /** Which chunks of the district this player has been sent. */
+  chunks: ChunkStream;
+  /** While the connection is dropped: the place kept for them, which a fresh join can give up. */
+  dropped: Deferred<Client> | null;
 }
 
 /**
@@ -85,7 +99,10 @@ export function createDistrictRoom(game: GameSystems) {
       if (!parsed.success) throw new ServerError(400, "invalid join options");
       const { playerId } = parsed.data;
       for (const other of this.live.values()) {
-        if (other.playerId === playerId) throw new ServerError(409, "already connected");
+        if (other.playerId !== playerId) continue;
+        // A dropped player who reloads gets in at once: the place kept for the old connection is given up.
+        if (other.dropped) other.dropped.reject(new Error("joined again"));
+        else throw new ServerError(409, "already connected");
       }
       return { playerId };
     }
@@ -101,6 +118,8 @@ export function createDistrictRoom(game: GameSystems) {
         lastMoveSeq: -1,
         bucket: new TokenBucket(INTENT_BUCKET_CAPACITY, INTENT_BUCKET_REFILL_PER_SECOND, Date.now()),
         unsubscribeNotices: () => {},
+        chunks: new ChunkStream(this.district.chunks),
+        dropped: null,
       };
 
       // Catch up on whatever happened while the player was away, then show the HUD.
@@ -118,8 +137,14 @@ export function createDistrictRoom(game: GameSystems) {
       position.x = live.x;
       position.z = live.z;
       this.state.players.set(client.sessionId, position);
-      // The layout the client draws and predicts its walking from: one source of truth.
-      client.send(SERVER_MESSAGES.district, this.district.layout);
+      // Each client sees itself, and others only within range (`updateViews`).
+      client.view = new StateView();
+      client.view.add(position);
+      this.updateViews();
+      // The layout the client draws and predicts its walking from (one source of truth): the
+      // header now, then the chunks around the player, more as they walk.
+      client.send(SERVER_MESSAGES.district, this.district.header);
+      this.sendChunks(client, live);
       // Null opens the character creator.
       this.showAppearance(client, appearance);
       await this.sendStats(client, live);
@@ -133,10 +158,68 @@ export function createDistrictRoom(game: GameSystems) {
       if (synced) synced.appearance = appearance ? encodeAppearance(appearance) : "";
     }
 
+    /** The connection dropped without the player leaving: keep their place for `RECONNECT_SECONDS`. */
+    override onDrop(client: Client): void {
+      const live = this.live.get(client.sessionId);
+      if (!live) return;
+      // Stand still while away, and stop pushing toasts at a closed connection (the inbox keeps them).
+      live.dx = 0;
+      live.dz = 0;
+      live.unsubscribeNotices();
+      live.dropped = this.allowReconnection(client, RECONNECT_SECONDS);
+      // Not coming back in time (or replaced by a fresh join) ends in `onLeave`; nothing to handle here.
+      live.dropped.catch(() => undefined);
+    }
+
+    /** Back on the same session: their view, toasts, anything missed meanwhile, and a fresh HUD. */
+    override async onReconnect(client: Client): Promise<void> {
+      const live = this.live.get(client.sessionId);
+      const position = this.state.players.get(client.sessionId);
+      if (!live || !position) return;
+      live.dropped = null;
+      client.view ??= new StateView();
+      if (!client.view.has(position)) client.view.add(position);
+      this.updateViews();
+      live.unsubscribeNotices = game.notices.subscribe(live.playerId, (notice) => client.send(SERVER_MESSAGES.notice, notice));
+      await game.mutex.run(live.playerId, () => this.catchUp(live.playerId));
+      await this.sendStats(client, live);
+    }
+
     override onLeave(client: Client): void {
       this.live.get(client.sessionId)?.unsubscribeNotices();
       this.live.delete(client.sessionId);
+      const position = this.state.players.get(client.sessionId);
+      if (position) {
+        for (const other of this.clients) if (other.view?.has(position)) other.view.remove(position);
+      }
       this.state.players.delete(client.sessionId);
+    }
+
+    /** Sends the player the chunks around them they do not have yet, if they walked into another chunk. */
+    private sendChunks(client: Client, live: LivePlayer): void {
+      const message = live.chunks.update(live);
+      if (message) client.send(SERVER_MESSAGES.chunks, message);
+    }
+
+    /**
+     * Area of interest for players: each client's view holds the players within
+     * `PLAYER_VIEW_METRES` of it. At most 50 x 50 distance checks a tick, and the
+     * view only changes when someone crosses the line.
+     */
+    private updateViews(): void {
+      for (const client of this.clients) {
+        const me = this.live.get(client.sessionId);
+        const view = client.view;
+        if (!me || !view) continue;
+        for (const [sessionId, other] of this.live) {
+          if (sessionId === client.sessionId) continue;
+          const position = this.state.players.get(sessionId);
+          if (!position) continue;
+          const near = Math.hypot(other.x - me.x, other.z - me.z) <= PLAYER_VIEW_METRES;
+          if (near && !view.has(position)) view.add(position);
+          else if (!near && view.has(position)) view.remove(position);
+        }
+      }
     }
 
     // ---- intents ---------------------------------------------------------------
@@ -285,7 +368,10 @@ export function createDistrictRoom(game: GameSystems) {
           synced.x = next.x;
           synced.z = next.z;
         }
+        const client = this.clients.getById(sessionId);
+        if (client) this.sendChunks(client, live);
       }
+      this.updateViews();
     }
 
     private checkEventsForEveryone(): void {

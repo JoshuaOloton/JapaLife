@@ -1,5 +1,11 @@
-import { type Box, type DistrictLayout, PLAYER_RADIUS, type Point, type TrafficSchedule } from "@japalife/shared";
-import { seededRandom } from "./paint";
+import {
+  type Box,
+  type DistrictLayout,
+  PLAYER_RADIUS,
+  type Point,
+  type TrafficSchedule,
+  seededRandom,
+} from "@japalife/shared";
 
 /**
  * The street traffic, as a tiny simulation the client runs on its own (it is
@@ -58,6 +64,14 @@ export interface Lane {
   stops: { at: number; seconds: number }[];
   /** Junctions this lane crosses: the stretch of the lane inside each. */
   junctions: { index: number; enter: number; exit: number }[];
+  /**
+   * The stretch of the lane inside the simulation window around the player
+   * (`setTrafficWindow`): vehicles join at `windowFrom` and park once past
+   * `windowTo`. The whole lane until a window is set; empty (from > to) when
+   * the lane misses the window.
+   */
+  windowFrom: number;
+  windowTo: number;
 }
 
 export function buildLane(id: string, points: readonly Point[]): Lane {
@@ -76,32 +90,108 @@ export function buildLane(id: string, points: readonly Point[]): Lane {
     alongZ += Math.abs(to.z - from.z);
     start += length;
   }
-  return { id, segments, length: start, axis: alongX >= alongZ ? "x" : "z", bumps: [], stops: [], junctions: [] };
-}
-
-/** Where on the lane a distance falls, and which way the lane runs there (as a turn about y, like the player's). */
-export function pointOnLane(lane: Lane, s: number): { x: number; z: number; heading: number } {
-  const segment = lane.segments.find((candidate) => s <= candidate.start + candidate.length) ?? lane.segments.at(-1);
-  if (!segment) return { x: 0, z: 0, heading: 0 };
-  const along = s - segment.start;
   return {
-    x: segment.from.x + segment.dx * along,
-    z: segment.from.z + segment.dz * along,
-    heading: Math.atan2(segment.dx, segment.dz),
+    id,
+    segments,
+    length: start,
+    axis: alongX >= alongZ ? "x" : "z",
+    bumps: [],
+    stops: [],
+    junctions: [],
+    windowFrom: 0,
+    windowTo: start,
   };
 }
 
-/** The point's distance along the lane (at the nearest point) and how far it is from the lane. */
-export function projectOnLane(lane: Lane, point: Point): { s: number; lateral: number } {
-  let best = { s: 0, lateral: Number.POSITIVE_INFINITY };
+/** A place on a lane and the way it runs there. */
+export interface LanePoint {
+  x: number;
+  z: number;
+  heading: number;
+}
+
+/**
+ * Where on the lane a distance falls, and which way the lane runs there (as a
+ * turn about y, like the player's). Pass `out` from a per-frame loop to reuse
+ * one object instead of making a new one each call (garbage-collection pauses
+ * are hitches on a phone).
+ */
+export function pointOnLane(lane: Lane, s: number, out: LanePoint = { x: 0, z: 0, heading: 0 }): LanePoint {
+  let segment = lane.segments[lane.segments.length - 1];
+  for (const candidate of lane.segments) {
+    if (s <= candidate.start + candidate.length) {
+      segment = candidate;
+      break;
+    }
+  }
+  if (!segment) {
+    out.x = 0;
+    out.z = 0;
+    out.heading = 0;
+    return out;
+  }
+  const along = s - segment.start;
+  out.x = segment.from.x + segment.dx * along;
+  out.z = segment.from.z + segment.dz * along;
+  out.heading = Math.atan2(segment.dx, segment.dz);
+  return out;
+}
+
+/** The point's distance along the lane (at the nearest point) and how far it is from the lane. `out` as for `pointOnLane`. */
+export function projectOnLane(
+  lane: Lane,
+  point: Point,
+  out: { s: number; lateral: number } = { s: 0, lateral: 0 },
+): { s: number; lateral: number } {
+  out.s = 0;
+  out.lateral = Number.POSITIVE_INFINITY;
   for (const segment of lane.segments) {
     const rx = point.x - segment.from.x;
     const rz = point.z - segment.from.z;
     const along = Math.min(segment.length, Math.max(0, rx * segment.dx + rz * segment.dz));
     const lateral = Math.hypot(rx - segment.dx * along, rz - segment.dz * along);
-    if (lateral < best.lateral) best = { s: segment.start + along, lateral };
+    if (lateral < out.lateral) {
+      out.s = segment.start + along;
+      out.lateral = lateral;
+    }
   }
-  return best;
+  return out;
+}
+
+/**
+ * Sets the lane's window to the stretch of it inside `box` (the slab method on
+ * each segment), or empties it if the lane misses the box.
+ */
+export function clipLaneToBox(lane: Lane, box: Box): void {
+  let from = Number.POSITIVE_INFINITY;
+  let to = Number.NEGATIVE_INFINITY;
+  for (const segment of lane.segments) {
+    let enter = 0;
+    let leave = segment.length;
+    for (const [start, step, low, high] of [
+      [segment.from.x, segment.dx, box.x - box.halfWidth, box.x + box.halfWidth],
+      [segment.from.z, segment.dz, box.z - box.halfDepth, box.z + box.halfDepth],
+    ] as const) {
+      if (Math.abs(step) < 1e-9) {
+        if (start < low || start > high) leave = -1;
+        continue;
+      }
+      const a = (low - start) / step;
+      const b = (high - start) / step;
+      enter = Math.max(enter, Math.min(a, b));
+      leave = Math.min(leave, Math.max(a, b));
+    }
+    if (enter > leave) continue;
+    from = Math.min(from, segment.start + enter);
+    to = Math.max(to, segment.start + leave);
+  }
+  lane.windowFrom = from;
+  lane.windowTo = to;
+}
+
+/** Whether a lane crosses the simulation window at all. */
+export function inWindow(lane: Lane): boolean {
+  return lane.windowFrom <= lane.windowTo;
 }
 
 /** The stretch of a lane inside a box (sampled every 0.25 m), or undefined if the lane misses it. */
@@ -122,6 +212,10 @@ export interface Vehicle {
   id: number;
   kind: string;
   lane: Lane;
+  /** The lanes it may drive (its fleet's): it rejoins on whichever crosses the window. Just `lane` if left out. */
+  lanes?: Lane[];
+  /** Which of `lanes` to try first next time it rejoins, so vehicles spread over the lanes. */
+  nextLane?: number;
   /** Distance of its centre along the lane, metres. */
   s: number;
   speed: number;
@@ -133,6 +227,8 @@ export interface Vehicle {
   hash: number;
   /** Off the road, out of sight, waiting to come back on. */
   parked: boolean;
+  /** Simulation time it last parked: it waits at least one step before coming back. */
+  parkedAt?: number;
   /** Simulation time it may set off from a bus stop. */
   pausedUntil: number;
   /** Bus stops (distances) served on this run, so it stops once each. */
@@ -153,6 +249,52 @@ export interface TrafficWorld {
   junctions: JunctionState[];
   /** Simulation seconds. */
   time: number;
+  /** Each lane's vehicles, made on the first step, and kept up to date as vehicles rejoin on other lanes. */
+  byLane?: Map<Lane, Vehicle[]>;
+  /** True once a simulation window has been set (the first one scatters the traffic through it). */
+  windowed?: boolean;
+}
+
+/**
+ * Simulates only the traffic in `box` around the player (`TRAFFIC_REACH`):
+ * each lane's window becomes its stretch inside the box. Vehicles past their
+ * lane's window park, and parked ones rejoin at the start of a lane crossing
+ * it, so the same few dozen vehicles serve the player wherever they are. The
+ * first call spreads the vehicles through the window, so the street is busy
+ * from the start. Call it when the player crosses into another area cell.
+ */
+export function setTrafficWindow(world: TrafficWorld, box: Box, random: () => number): void {
+  for (const lane of world.lanes) clipLaneToBox(lane, box);
+  if (world.windowed) return;
+  world.windowed = true;
+  const lanes = lanesByVehicle(world);
+  for (const lane of world.lanes) lanes.set(lane, []);
+  world.vehicles.forEach((vehicle, index) => {
+    const open = (vehicle.lanes ?? [vehicle.lane]).filter(inWindow);
+    const lane = open[index % Math.max(1, open.length)];
+    if (!lane) {
+      vehicle.parked = true;
+      lanes.get(vehicle.lane)?.push(vehicle);
+      return;
+    }
+    vehicle.lane = lane;
+    lanes.get(lane)?.push(vehicle);
+  });
+  // Spread each lane's vehicles out along its window, in a random order.
+  for (const [lane, onLane] of lanes) {
+    if (!inWindow(lane)) continue;
+    const moving = onLane.filter((vehicle) => !vehicle.parked).sort(() => random() - 0.5);
+    moving.forEach((vehicle, index) => {
+      vehicle.s = lane.windowFrom + ((index + 0.3 + random() * 0.4) / moving.length) * (lane.windowTo - lane.windowFrom);
+      vehicle.speed = vehicle.cruise;
+    });
+  }
+}
+
+/** Each lane's vehicles, made once (`byLane`). */
+function lanesByVehicle(world: TrafficWorld): Map<Lane, Vehicle[]> {
+  world.byLane ??= new Map(world.lanes.map((lane) => [lane, world.vehicles.filter((vehicle) => vehicle.lane === lane)]));
+  return world.byLane;
 }
 
 export function createJunctions(count: number): JunctionState[] {
@@ -197,6 +339,7 @@ export function createTraffic(layout: Pick<DistrictLayout, "traffic" | "roads" |
     const kind = layout.vehicles.kinds[group.kind];
     if (!kind) continue;
     const size = vehicleSize(kind.look, layout.models);
+    const groupLanes = lanes.filter((candidate) => group.lanes.includes(candidate.id));
     for (let index = 0; index < group.count; index++) {
       const lane = lanes.find((candidate) => candidate.id === group.lanes[index % group.lanes.length]);
       if (!lane) continue;
@@ -204,6 +347,8 @@ export function createTraffic(layout: Pick<DistrictLayout, "traffic" | "roads" |
         id: vehicles.length,
         kind: group.kind,
         lane,
+        lanes: groupLanes,
+        nextLane: index % Math.max(1, groupLanes.length),
         s: 0,
         speed: 0,
         cruise: kind.speed * (0.9 + random() * 0.2),
@@ -260,32 +405,68 @@ export function roadOverlaps(roads: readonly Box[]): Box[] {
  */
 export function stepTraffic(world: TrafficWorld, dt: number, player: Point, share: (kind: string) => number): void {
   world.time += dt;
+  // Each lane's list is made once and only re-sorted in place, never rebuilt: new arrays every
+  // frame feed the garbage collector, whose pauses show as hitches on a phone.
+  const byLane = lanesByVehicle(world);
   for (const lane of world.lanes) {
+    const onLane = byLane.get(lane);
+    if (!onLane) continue;
     // Leaders first, so each follower sees where the vehicle ahead has got to.
-    const onLane = world.vehicles.filter((vehicle) => vehicle.lane === lane).sort((a, b) => b.s - a.s);
+    onLane.sort(leaderFirst);
     let leader: Vehicle | undefined;
     for (const vehicle of onLane) {
-      if (vehicle.parked) {
-        tryToUnpark(vehicle, onLane, share(vehicle.kind));
-        continue;
-      }
+      if (vehicle.parked) continue;
       stepVehicle(world, vehicle, leader, dt, player);
       if (!vehicle.parked) leader = vehicle;
     }
   }
+  // After the moves, so a vehicle that parked this frame comes back on the next at the earliest.
+  for (const vehicle of world.vehicles) {
+    if (vehicle.parked) tryToRejoin(world, vehicle, byLane, share(vehicle.kind));
+  }
 }
 
-function tryToUnpark(vehicle: Vehicle, onLane: readonly Vehicle[], share: number): void {
-  if (vehicle.hash >= share) return;
-  const startClear = onLane.every(
-    (other) => other === vehicle || other.parked || other.s - other.halfLength > 2 * vehicle.halfLength + QUEUE_GAP,
-  );
-  if (!startClear) return;
-  vehicle.parked = false;
-  vehicle.s = 0;
-  vehicle.speed = vehicle.cruise * 0.6;
-  vehicle.served.clear();
+const leaderFirst = (a: Vehicle, b: Vehicle): number => b.s - a.s;
+
+/**
+ * A parked vehicle comes back on, when the hour's share wants it out, at the
+ * start of the window on one of its lanes whose start is clear.
+ */
+function tryToRejoin(world: TrafficWorld, vehicle: Vehicle, byLane: Map<Lane, Vehicle[]>, share: number): void {
+  if (vehicle.hash >= share || vehicle.parkedAt === world.time) return;
+  const lanes = vehicle.lanes ?? [vehicle.lane];
+  const first = vehicle.nextLane ?? 0;
+  for (let tried = 0; tried < lanes.length; tried++) {
+    const lane = lanes[(first + tried) % lanes.length] as Lane;
+    if (!inWindow(lane)) continue;
+    const entry = lane.windowFrom;
+    const onLane = byLane.get(lane) ?? [];
+    const startClear = onLane.every(
+      (other) =>
+        other === vehicle ||
+        other.parked ||
+        other.s - other.halfLength - entry > 2 * vehicle.halfLength + QUEUE_GAP ||
+        other.s + other.halfLength < entry - vehicle.halfLength,
+    );
+    if (!startClear) continue;
+    if (lane !== vehicle.lane) {
+      const old = byLane.get(vehicle.lane);
+      old?.splice(old.indexOf(vehicle), 1);
+      onLane.push(vehicle);
+      byLane.set(lane, onLane);
+      vehicle.lane = lane;
+    }
+    vehicle.nextLane = (first + tried + 1) % lanes.length;
+    vehicle.parked = false;
+    vehicle.s = entry;
+    vehicle.speed = vehicle.cruise * 0.6;
+    vehicle.served.clear();
+    return;
+  }
 }
+
+/** Reused by `stepVehicle` every frame, rather than a new object per vehicle. */
+const SEEN = { s: 0, lateral: 0 };
 
 export function stepVehicle(
   world: TrafficWorld,
@@ -301,7 +482,7 @@ export function stepVehicle(
   if (leader) limit = Math.min(limit, leader.s - leader.halfLength - QUEUE_GAP - vehicle.halfLength);
 
   // The player standing in its path: stop short of them.
-  const seen = projectOnLane(lane, player);
+  const seen = projectOnLane(lane, player, SEEN);
   const ahead = seen.s - front;
   if (seen.lateral < vehicle.halfWidth + PLAYER_RADIUS + PLAYER_SIDE_ROOM && ahead > -vehicle.halfLength && ahead < PLAYER_LOOKAHEAD) {
     limit = Math.min(limit, seen.s - PLAYER_RADIUS - PLAYER_ROOM - vehicle.halfLength);
@@ -364,13 +545,14 @@ export function stepVehicle(
     vehicle.s = next;
   }
 
-  // Off the end of the lane (past the district edge): round again, or park if fewer are out now.
-  if (vehicle.s - vehicle.halfLength > lane.length) {
+  // Out of the simulation window (or off the end of the lane): park, out of sight, until it can rejoin.
+  if (vehicle.s - vehicle.halfLength > lane.windowTo || vehicle.s + vehicle.halfLength < lane.windowFrom - vehicle.halfLength) {
     for (const junction of world.junctions) {
       if (junction.inside.delete(vehicle.id) && junction.inside.size === 0) junction.axis = null;
     }
-    // Parked: it comes back at the start of the lane once the schedule wants it out and the start is clear.
+    // Parked: it comes back at the start of a window once the schedule wants it out and the start is clear.
     vehicle.parked = true;
+    vehicle.parkedAt = world.time;
     vehicle.speed = 0;
   }
 }

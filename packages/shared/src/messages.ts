@@ -168,11 +168,14 @@ export const SERVER_MESSAGES = {
   interaction: "interaction",
   inbox: "inbox",
   /**
-   * Sent once on join. The payload is a `DistrictLayout`: the district's
-   * buildings, roads, signs and walkable area, plus the models it uses. The
-   * client draws the world and predicts its own walking from it, so the layout
-   * is defined only on the server.
+   * Sent once on join. The payload is a `DistrictHeader`: the district's
+   * roads, places, walkable area and traffic lanes, plus the models it uses.
+   * Its buildings, props and NPCs follow in `chunks`. The client draws the
+   * world and predicts its own walking from these, so the layout is defined
+   * only on the server.
    */
   district: "district",
+  /** A `ChunksMessage`: the chunks near the player not sent yet, on join and whenever they walk into another chunk. */
+  chunks: "chunks",
   appearance: "appearance",
 } as const;

@@ -1,6 +1,12 @@
-import type { BuiltPropShape, DistrictLayout, Prop, PropKind, QuarterTurn } from "@japalife/shared";
+import {
+  type BuiltPropShape,
+  type DistrictLayout,
+  type Prop,
+  type PropKind,
+  type QuarterTurn,
+  seededRandom,
+} from "@japalife/shared";
 import type { Slab } from "./Boxes";
-import { seededRandom } from "./paint";
 
 /**
  * Street props built in code: generators, kiosks, container shops, electric
@@ -266,12 +272,16 @@ export interface Frond {
   length: number;
 }
 
-/** The fronds of every palm, for one instanced draw call. Seeded, so every visit grows the same palms. */
+/**
+ * The fronds of every palm, for one instanced draw call. Each palm is seeded
+ * from where it stands, so it grows the same fronds on every visit, whatever
+ * other palms are loaded with it (chunks come and go as the player walks).
+ */
 export function palmFronds(layout: Pick<DistrictLayout, "props" | "propKinds">): Frond[] {
-  const random = seededRandom(0xa1a);
   return layout.props.flatMap((prop) => {
     const look = builtLook(layout, prop);
     if (look?.built !== "palm") return [];
+    const random = seededRandom(0xa1a ^ Math.imul(Math.round(prop.x * 10), 73856093) ^ Math.imul(Math.round(prop.z * 10), 19349663));
     const crown = palmCrownLocal(look.height);
     const [dx, dz] = turnPoint(crown.dx, crown.dz, prop.rotation);
     const start = random() * Math.PI * 2;
@@ -345,9 +355,11 @@ const ADVERT_COLOURS = ["#c0392b", "#1f6fb2", "#2f7a55", "#d9822b"] as const;
 
 /** Where each labelled prop's painted face goes: on its front (+z before rotation). */
 export function propLabels(layout: Pick<DistrictLayout, "props" | "propKinds">): PropLabel[] {
-  return layout.props.flatMap((prop, index) => {
+  return layout.props.flatMap((prop) => {
     const look = builtLook(layout, prop);
     if (!look || !prop.label) return [];
+    // From the advert itself, not its place in the list: the list changes as chunks come and go.
+    const advert = [...prop.label].reduce((sum, letter) => sum + letter.charCodeAt(0), 0);
     const { halfWidth: w, halfDepth: d, height: h } = look;
     const face = (front: number, y: number, width: number, height: number, style: Pick<PropLabel, "background" | "ink" | "lines">): PropLabel[] => {
       const [dx, dz] = turnPoint(0, front, prop.rotation);
@@ -356,7 +368,7 @@ export function propLabels(layout: Pick<DistrictLayout, "props" | "propKinds">):
     switch (look.built) {
       case "billboard":
         return face(d * 0.5 + 0.01, h * 0.81, w * 2 - 0.3, h * 0.38 - 0.3, {
-          background: ADVERT_COLOURS[index % ADVERT_COLOURS.length] ?? ADVERT_COLOURS[0],
+          background: ADVERT_COLOURS[advert % ADVERT_COLOURS.length] ?? ADVERT_COLOURS[0],
           ink: "#ffffff",
           lines: 2,
         });

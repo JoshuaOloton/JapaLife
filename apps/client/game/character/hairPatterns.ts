@@ -1,5 +1,4 @@
-import type { HairPattern } from "@japalife/shared";
-import { seededRandom } from "../world/paint";
+import { type HairPattern, seededRandom } from "@japalife/shared";
 
 /**
  * Close-to-the-head hairstyles, painted in code onto the scalp cap: nothing

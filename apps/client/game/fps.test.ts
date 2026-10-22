@@ -33,6 +33,10 @@ describe("FpsCounter", () => {
     const readings = run(counter, 1170, 3000, 20);
     expect(readings.at(-1)?.worstFrameMs).toBe(150);
     expect(readings.at(-1)?.lowestFps).toBeLessThan(50);
+    // When it happened, and how many hitches there were: one here.
+    expect(readings.at(-1)?.worstFrameAtSeconds).toBe(1);
+    expect(readings.at(-1)?.hitches).toBe(1);
+    expect(formatFpsReading(readings.at(-1)!, 1.5)).toMatch(/worst 150 ms at 1s · 1 hitch · dpr/);
   });
 
   it("counts shaders compiled after warm-up, and the busiest frame's draw calls", () => {

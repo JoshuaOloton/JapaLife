@@ -1,18 +1,31 @@
 "use client";
 
-import type { DistrictLayout, Interactable, Point, Road } from "@japalife/shared";
-import { useLayoutEffect, useMemo, useRef } from "react";
-import { type InstancedMesh, Object3D } from "three";
+import {
+  type Building,
+  type DistrictHeader,
+  type DistrictLayout,
+  type Interactable,
+  type Point,
+  type Road,
+  seededRandom,
+} from "@japalife/shared";
+import { useFrame } from "@react-three/fiber";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { BufferAttribute, BufferGeometry, type InstancedMesh, Object3D } from "three";
+import { headerLayout } from "./connection";
+import type { DiagnosticLayer } from "./diagnostics";
+import { ChunkIndex, DRAW_REACH, areaBox, areaCell, splitByDetail, useCapacity } from "./world/area";
 import { Boxes, type Slab } from "./world/Boxes";
-import { ModelBuildings, Windows, plainBuildingSlabs } from "./world/Buildings";
+import { ModelBuildings, Windows, plainBuildingSlabs, windowCount } from "./world/Buildings";
 import { layOutGutters } from "./world/gutters";
 import { Npcs } from "./world/Npcs";
 import { Pedestrians } from "./world/Pedestrians";
 import type { QualityGovernor } from "./world/quality";
 import { Traffic } from "./world/Traffic";
-import { paintGround, paintRoad, paintSign, seededRandom } from "./world/paint";
+import { GROUND_TILE_METRES, paintGround, paintRoad, paintSign } from "./world/paint";
 import { Props } from "./world/Props";
 import { propSlabs } from "./world/propShapes";
+import { roadHeight, roadSurface } from "./world/roads";
 import type { StreetState } from "./world/street";
 
 /**
@@ -21,17 +34,18 @@ import type { StreetState } from "./world/street";
  * place the player can use.
  *
  * Draw calls are what weak phones choke on, so every plain box (walls, roofs,
- * gutters, the district edge) goes into ONE instanced draw call, and every
- * window into another.
+ * gutters, the district edge) goes into ONE instanced draw call, every window
+ * into another, every road into one mesh. And only the part of the district
+ * around the player is drawn (`world/area.ts`): the instanced meshes are
+ * refilled from the chunks nearby each time the player crosses into another
+ * area cell.
  */
 
 const EDGE_WALL_COLOUR = "#9b9488";
 const EDGE_WALL_HEIGHT = 1.2;
 const EDGE_WALL_THICKNESS = 0.6;
-/** Roads sit a hair above the ground so the two never flicker (z-fighting); each road a hair above the last. */
-const ROAD_HEIGHT = 0.02;
-const ROAD_STACK = 0.004;
-const POTHOLE_HEIGHT = 0.04;
+/** A pothole lies this far above its own road, so it never flickers into it. */
+const POTHOLE_ABOVE_ROAD = 0.012;
 const POTHOLES_PER_100_METRES = 6;
 const SIGN_HEIGHT = 3.4;
 
@@ -49,11 +63,18 @@ const SIGN_COLOURS: Record<Interactable["kind"], string> = {
 
 export function World({
   district,
+  header,
+  hide = NOTHING_HIDDEN,
   street,
   predicted,
   quality,
 }: {
+  /** Layers left out to find what costs frame time (`diagnostics.ts`, developer-only). */
+  hide?: ReadonlySet<DiagnosticLayer>;
+  /** The district as far as the loaded chunks go. */
   district: DistrictLayout;
+  /** What came on join: what the whole district uses, for things that must not restart as chunks change. */
+  header: DistrictHeader;
   street: { current: StreetState };
   /** Where the player is, so far-away NPCs can stop animating and traffic can stop for them. */
   predicted: { current: Point };
@@ -62,49 +83,56 @@ export function World({
 }) {
   const groundWidth = district.halfWidth * 2 + 60;
   const groundDepth = district.halfDepth * 2 + 60;
-  const ground = useMemo(() => paintGround(), []);
+  const ground = useMemo(() => {
+    const tile = paintGround();
+    tile.repeat.set(groundWidth / GROUND_TILE_METRES, groundDepth / GROUND_TILE_METRES);
+    return tile;
+  }, [groundWidth, groundDepth]);
   useLayoutEffect(() => () => ground.dispose(), [ground]);
 
-  const plainBuildings = useMemo(
-    () => district.buildings.filter((building) => !building.model || !district.models[building.model]),
-    [district],
-  );
-
-  const slabs = useMemo<Slab[]>(() => {
-    const t = EDGE_WALL_THICKNESS / 2;
-    const { halfWidth: w, halfDepth: d } = district;
-    const wall = (x: number, z: number, halfWidth: number, halfDepth: number): Slab => ({
-      x, z, halfWidth, halfDepth, height: EDGE_WALL_HEIGHT, colour: EDGE_WALL_COLOUR,
-    });
-    return [
-      // A low wall just outside the walkable area, so the edge the server enforces is visible.
-      wall(0, -d - t, w + 2 * t, t),
-      wall(0, d + t, w + 2 * t, t),
-      wall(-w - t, 0, t, d),
-      wall(w + t, 0, t, d),
-      ...plainBuildingSlabs(plainBuildings),
-      ...gutterSlabs(district.roads, district),
-      ...propSlabs(district),
-    ];
-  }, [district, plainBuildings]);
+  // The loaded chunks' things, bucketed; the drawn part is refilled from them as the player walks.
+  const index = useMemo(() => worldIndex(district, hide.has("props")), [district, hide]);
+  const slabCapacity = useCapacity(index.slabCount);
+  const windowCapacity = useCapacity(index.windowCount);
+  // The traffic and walkers run on the header alone, so they never restart as chunks come and go.
+  const wholeDistrict = useMemo(() => headerLayout(header), [header]);
+  const [centre, setCentre] = useState(() => areaCell(district.spawn));
+  const near = useMemo(() => {
+    const drawArea = areaBox(centre, DRAW_REACH);
+    const noBuildings = hide.has("buildings");
+    const plain = noBuildings ? [] : index.plainBuildings.within(drawArea);
+    const { models, boxes } = noBuildings ? { models: [], boxes: [] } : splitByDetail(index.modelBuildings, centre);
+    return {
+      plain,
+      models,
+      slabs: [...index.slabs.within(drawArea), ...plainBuildingSlabs(plain), ...plainBuildingSlabs(boxes)],
+    };
+  }, [index, centre, hide]);
 
   return (
     <group>
+      <AreaWatcher predicted={predicted} onMove={setCentre} />
       <mesh rotation-x={-Math.PI / 2}>
         <planeGeometry args={[groundWidth, groundDepth]} />
         <meshLambertMaterial map={ground} />
       </mesh>
-      {district.roads.map((road, index) => (
-        <RoadStrip key={index} road={road} height={ROAD_HEIGHT + index * ROAD_STACK} />
-      ))}
+      <Roads roads={district.roads} />
       <Potholes roads={district.roads} />
-      <Boxes slabs={slabs} />
-      <Windows buildings={plainBuildings} street={street} />
-      <ModelBuildings buildings={district.buildings} models={district.models} street={street} predicted={predicted} />
-      <Props layout={district} />
-      <Npcs layout={district} predicted={predicted} />
-      <Traffic layout={district} predicted={predicted} street={street} quality={quality} />
-      <Pedestrians layout={district} predicted={predicted} street={street} quality={quality} />
+      <Boxes slabs={near.slabs} capacity={slabCapacity} />
+      <Windows buildings={near.plain} capacity={windowCapacity} street={street} />
+      <ModelBuildings
+        kinds={header.buildingModels}
+        near={near.models}
+        models={district.models}
+        street={street}
+        predicted={predicted}
+      />
+      {!hide.has("props") && <Props layout={district} centre={centre} />}
+      {!hide.has("npcs") && <Npcs layout={district} predicted={predicted} />}
+      {!hide.has("traffic") && <Traffic layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />}
+      {!hide.has("people") && (
+        <Pedestrians layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />
+      )}
       {district.interactables.map((place) => (
         <Sign key={place.id} place={place} radius={district.interactRadius} />
       ))}
@@ -112,28 +140,67 @@ export function World({
   );
 }
 
-/**
- * A tarred road. The painted strip runs across the road's width and repeats
- * along its length, so a road along x is the same strip turned a quarter.
- */
-function RoadStrip({ road, height }: { road: Road; height: number }) {
-  const alongX = road.halfWidth >= road.halfDepth;
-  const across = (alongX ? road.halfDepth : road.halfWidth) * 2;
-  const length = (alongX ? road.halfWidth : road.halfDepth) * 2;
-  const texture = useMemo(() => {
-    const painted = paintRoad();
-    painted.repeat.set(1, length / across);
-    return painted;
-  }, [across, length]);
-  useLayoutEffect(() => () => texture.dispose(), [texture]);
+const NOTHING_HIDDEN: ReadonlySet<DiagnosticLayer> = new Set();
 
+/** Tells the world when the player crosses into another area cell, so it refills what is drawn (a few times a minute, not every frame). */
+function AreaWatcher({ predicted, onMove }: { predicted: { current: Point }; onMove: (centre: Point) => void }) {
+  const shown = useRef<Point | null>(null);
+  useFrame(() => {
+    const cell = areaCell(predicted.current);
+    if (shown.current && shown.current.x === cell.x && shown.current.z === cell.z) return;
+    shown.current = cell;
+    onMove(cell);
+  });
+  return null;
+}
+
+/** The loaded district's things bucketed into chunks, and how many there are (to size the instanced meshes). */
+function worldIndex(district: DistrictLayout, withoutProps = false) {
+  const t = EDGE_WALL_THICKNESS / 2;
+  const { halfWidth: w, halfDepth: d } = district;
+  const wall = (x: number, z: number, halfWidth: number, halfDepth: number): Slab => ({
+    x, z, halfWidth, halfDepth, height: EDGE_WALL_HEIGHT, colour: EDGE_WALL_COLOUR,
+  });
+  const slabs = [
+    // A low wall just outside the walkable area, so the edge the server enforces is visible.
+    wall(0, -d - t, w + 2 * t, t),
+    wall(0, d + t, w + 2 * t, t),
+    wall(-w - t, 0, t, d),
+    wall(w + t, 0, t, d),
+    ...gutterSlabs(district.roads, district),
+    ...(withoutProps ? [] : propSlabs(district)),
+  ];
+  const hasModel = (building: Building): boolean => Boolean(building.model && district.models[building.model]);
+  const plain = district.buildings.filter((building) => !hasModel(building));
+  const models = district.buildings.filter(hasModel);
+  return {
+    slabs: new ChunkIndex(slabs),
+    plainBuildings: new ChunkIndex(plain),
+    modelBuildings: new ChunkIndex(models),
+    // Every plain building, plus every model building drawn as its box when far off: walls and roof each.
+    slabCount: slabs.length + 2 * district.buildings.length,
+    windowCount: windowCount(plain),
+  };
+}
+
+/** Every road in one draw call (`roads.ts`). */
+function Roads({ roads }: { roads: readonly Road[] }) {
+  const geometry = useMemo(() => {
+    const { positions, uvs, indices } = roadSurface(roads);
+    const surface = new BufferGeometry();
+    surface.setAttribute("position", new BufferAttribute(positions, 3));
+    surface.setAttribute("uv", new BufferAttribute(uvs, 2));
+    surface.setIndex(new BufferAttribute(indices, 1));
+    surface.computeVertexNormals();
+    return surface;
+  }, [roads]);
+  useLayoutEffect(() => () => geometry.dispose(), [geometry]);
+  const texture = useMemo(paintRoad, []);
+  useLayoutEffect(() => () => texture.dispose(), [texture]);
   return (
-    <group position={[road.x, height, road.z]} rotation-y={alongX ? Math.PI / 2 : 0}>
-      <mesh rotation-x={-Math.PI / 2}>
-        <planeGeometry args={[across, length]} />
-        <meshLambertMaterial map={texture} />
-      </mesh>
-    </group>
+    <mesh geometry={geometry}>
+      <meshLambertMaterial map={texture} />
+    </mesh>
   );
 }
 
@@ -141,7 +208,7 @@ function RoadStrip({ road, height }: { road: Road; height: number }) {
 function Potholes({ roads }: { roads: readonly Road[] }) {
   const holes = useMemo(() => {
     const random = seededRandom(0x9071);
-    return roads.flatMap((road) => {
+    return roads.flatMap((road, roadIndex) => {
       const alongX = road.halfWidth >= road.halfDepth;
       const length = (alongX ? road.halfWidth : road.halfDepth) * 2;
       const across = (alongX ? road.halfDepth : road.halfWidth) * 2;
@@ -152,6 +219,7 @@ function Potholes({ roads }: { roads: readonly Road[] }) {
         return {
           x: road.x + (alongX ? u : v),
           z: road.z + (alongX ? v : u),
+          y: roadHeight(roadIndex) + POTHOLE_ABOVE_ROAD,
           sizeX: 0.35 + random() * 0.55,
           sizeZ: 0.3 + random() * 0.4,
           turn: random() * Math.PI,
@@ -166,7 +234,7 @@ function Potholes({ roads }: { roads: readonly Road[] }) {
     if (!instanced) return;
     const placer = new Object3D();
     holes.forEach((hole, index) => {
-      placer.position.set(hole.x, POTHOLE_HEIGHT, hole.z);
+      placer.position.set(hole.x, hole.y, hole.z);
       placer.rotation.set(-Math.PI / 2, 0, hole.turn);
       placer.scale.set(hole.sizeX, hole.sizeZ, 1);
       placer.updateMatrix();

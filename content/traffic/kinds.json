@@ -8,7 +8,8 @@
       { "from": 17, "to": 20 }
     ],
     "quietFrom": 22,
-    "quietUntil": 5
+    "quietUntil": 5,
+    "calmShare": 0.6
   },
   "kinds": {
     "danfo": { "look": { "model": "danfo" }, "speed": 7, "stopsAtBusStops": true, "rushHourBoost": true },

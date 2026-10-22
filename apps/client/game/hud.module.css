@@ -201,6 +201,21 @@
   align-items: center;
 }
 
+/* Over the middle of the screen while a dropped connection comes back by itself. */
+.reconnecting {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(20, 28, 36, 0.88);
+  color: #ffffff;
+  font: 600 15px system-ui, sans-serif;
+  pointer-events: none;
+}
+
 .toast {
   max-width: 420px;
   width: 100%;

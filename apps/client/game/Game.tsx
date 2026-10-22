@@ -10,9 +10,16 @@ import {
   type Point,
 } from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CharacterCreator } from "./CharacterCreator";
-import { type DistrictRoom, type MessageBuffer, useDistrictConnection } from "./connection";
+import { describeDiagnostics, useDiagnostics } from "./diagnostics";
+import {
+  type Connection,
+  type DistrictRoom,
+  type MessageBuffer,
+  useDistrictConnection,
+  useLoadedDistrict,
+} from "./connection";
 import { placePrompt } from "./format";
 import { FpsProbe, QualityProbe, useFpsMeterEnabled } from "./FpsMeter";
 import { Hud, useTicker } from "./Hud";
@@ -26,7 +33,7 @@ import { ShaderWarmUp, WARM_UP_WHILE_HIDDEN } from "./ShaderWarmUp";
 import { Player, type PlayerActivity } from "./Player";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
-import { Lighting } from "./world/Lighting";
+import { FOG_FAR, Lighting } from "./world/Lighting";
 import { QualityGovernor } from "./world/quality";
 import { type StreetState, initialStreet } from "./world/street";
 
@@ -46,6 +53,7 @@ export default function Game() {
   const predicted = useRef<Point>({ x: 0, z: 0 });
   const activity = useRef<PlayerActivity>({ working: false, gestureAt: Number.NEGATIVE_INFINITY });
   const showFps = useFpsMeterEnabled();
+  const diagnostics = useDiagnostics();
   const fpsOutput = useRef<HTMLParagraphElement>(null);
   const street = useRef<StreetState>(initialStreet());
   // Halves the traffic and people for good if the frame rate stays low (adaptive quality).
@@ -71,6 +79,23 @@ export default function Game() {
         <p role="status" style={{ margin: 16, font: "600 16px system-ui, sans-serif", color: "#1d2b36" }}>
           {connection.status === "connecting" ? COPY.app.connecting : connection.message}
         </p>
+        {connection.status === "failed" && connection.retry && (
+          <button
+            type="button"
+            onClick={connection.retry}
+            style={{
+              margin: "0 16px",
+              padding: "12px 20px",
+              font: "600 16px system-ui, sans-serif",
+              color: "#ffffff",
+              background: "#2f7a55",
+              border: "none",
+              borderRadius: 10,
+            }}
+          >
+            {COPY.app.tryAgain}
+          </button>
+        )}
       </div>
     );
   }
@@ -79,35 +104,53 @@ export default function Game() {
     <div style={{ position: "fixed", inset: 0, background: SKY_COLOUR, touchAction: "none" }}>
       <Canvas
         // Phones report devicePixelRatio 2-3; drawing that many pixels melts weak GPUs.
-        dpr={[1, MAX_DEVICE_PIXEL_RATIO]}
+        dpr={diagnostics.dpr ? [diagnostics.dpr, diagnostics.dpr] : [1, MAX_DEVICE_PIXEL_RATIO]}
         // Antialiasing costs a lot on mobile GPUs and matters little at 1.5x.
         gl={{ antialias: false, powerPreference: "high-performance" }}
-        // The fog hides everything past 140 m, so nothing beyond it needs drawing.
-        camera={{ fov: 50, near: 0.5, far: 150 }}
+        // The haze hides everything past FOG_FAR, so nothing beyond it needs drawing.
+        camera={{ fov: 50, near: 0.5, far: FOG_FAR + 5 }}
       >
         <Lighting street={street} indoors={closeUp} />
-        {/* The creator takes place in a bedroom set, so the street is hidden (still simulated) meanwhile. */}
-        <group visible={!closeUp} userData={{ [WARM_UP_WHILE_HIDDEN]: true }}>
-          <World district={connection.district} street={street} predicted={predicted} quality={quality} />
-        </group>
-        <Player
-          room={connection.room}
-          district={connection.district}
-          input={input}
-          predicted={predicted}
-          activity={activity}
-          appearance={shownLook}
-          closeUp={closeUp}
-          turn={turn}
-        />
+        <Scene connection={connection}>
+          {(district) => (
+            <>
+              {/* The creator takes place in a bedroom set, so the street is hidden (still simulated) meanwhile. */}
+              <group visible={!closeUp} userData={{ [WARM_UP_WHILE_HIDDEN]: true }}>
+                <World
+                  district={district}
+                  header={connection.header}
+                  hide={diagnostics.hide}
+                  street={street}
+                  predicted={predicted}
+                  quality={quality}
+                />
+              </group>
+              <Player
+                room={connection.room}
+                district={district}
+                input={input}
+                predicted={predicted}
+                activity={activity}
+                appearance={shownLook}
+                closeUp={closeUp}
+                turn={turn}
+              />
+            </>
+          )}
+        </Scene>
         <QualityProbe quality={quality} />
         <ShaderWarmUp />
-        {showFps && <FpsProbe output={fpsOutput} quality={quality} />}
+        {showFps && <FpsProbe output={fpsOutput} quality={quality} switches={describeDiagnostics(diagnostics)} />}
       </Canvas>
       {touch && !closeUp && <Joystick input={input} />}
       {closeUp && <TurnArea turn={turn} />}
       {/* Going into or out of the bedroom cuts the scene; a quick fade from black hides the cut. */}
       <div key={closeUp ? "indoors" : "street"} className={styles.sceneFade} />
+      {connection.dropped && (
+        <p role="status" className={styles.reconnecting}>
+          {COPY.app.reconnecting}
+        </p>
+      )}
       <Overlay
         room={connection.room}
         messages={connection.messages}
@@ -120,6 +163,17 @@ export default function Game() {
       />
     </div>
   );
+}
+
+/** Hands its children the district as far as the loaded chunks go, re-rendering them as chunks arrive. */
+function Scene({
+  connection,
+  children,
+}: {
+  connection: Extract<Connection, { status: "connected" }>;
+  children: (district: DistrictLayout) => ReactNode;
+}) {
+  return children(useLoadedDistrict(connection.district, connection.chunks));
 }
 
 /** Radians your character turns per pixel dragged. */
