@@ -23,7 +23,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { ASSET_ROOT, withDecoders } from "../character/loaders";
 import { ModelBoundary } from "../ModelBoundary";
 import { WARM_UP_WHILE_HIDDEN } from "../ShaderWarmUp";
-import { ChunkIndex, DRAW_REACH, LABEL_REACH, areaBox, pointBox } from "./area";
+import { ChunkIndex, DRAW_REACH, LABEL_REACH, areaBox, pointBox, useCapacity } from "./area";
 import { paintSign } from "./paint";
 import { type Frond, type PropLabel, palmFronds, propLabels, wireSegments } from "./propShapes";
 
@@ -37,10 +37,10 @@ import { type Frond, type PropLabel, palmFronds, propLabels, wireSegments } from
 export function Props({ layout, centre }: { layout: DistrictLayout; centre: Point }) {
   const byModel = useMemo(() => modelPlacements(layout), [layout]);
   const fronds = useMemo(() => new ChunkIndex(palmFronds(layout).map(pointBox)), [layout]);
-  const { labels, textures } = useMemo(
-    () => ({ labels: new ChunkIndex(propLabels(layout).map(pointBox)), textures: new LabelTextures() }),
-    [layout],
-  );
+  const frondCapacity = useCapacity(fronds.all.length);
+  const labels = useMemo(() => new ChunkIndex(propLabels(layout).map(pointBox)), [layout]);
+  // Kept for the whole visit, not per set of chunks: a shop's sign is painted once.
+  const textures = useMemo(() => new LabelTextures(), []);
   useEffect(() => () => textures.dispose(), [textures]);
 
   const drawArea = useMemo(() => areaBox(centre, DRAW_REACH), [centre]);
@@ -61,13 +61,13 @@ export function Props({ layout, centre }: { layout: DistrictLayout; centre: Poin
               model={model}
               scale={scale}
               tint={tint}
-              capacity={index.all.length}
+              loaded={index.all.length}
               props={nearProps.get(kindId) ?? NO_PROPS}
             />
           </Suspense>
         </ModelBoundary>
       ))}
-      <PalmFronds fronds={nearFronds} capacity={fronds.all.length} />
+      <PalmFronds fronds={nearFronds} capacity={frondCapacity} />
       <Wires layout={layout} />
       {nearLabels.map((label) => (
         <LabelFace key={`${label.x},${label.z},${label.text}`} label={label} texture={textures.of(label)} />
@@ -85,17 +85,19 @@ interface ModelPlacements {
   index: ChunkIndex<Prop & Box>;
 }
 
+/**
+ * The loaded props by model kind. Every model kind the whole district uses is
+ * listed (the prop kinds come with the district header), even with none
+ * loaded yet, so each kind's model downloads and warms up from the start.
+ */
 function modelPlacements(layout: DistrictLayout): Map<string, ModelPlacements> {
   const byKind = new Map<string, { model: ModelInfo; scale: number; tint: string | undefined; props: (Prop & Box)[] }>();
-  for (const prop of layout.props) {
-    const look = layout.propKinds[prop.kind]?.look;
-    if (!look || !("model" in look)) continue;
-    const model = layout.models[look.model];
-    if (!model) continue;
-    const entry = byKind.get(prop.kind) ?? { model, scale: look.scale, tint: look.tint, props: [] };
-    entry.props.push(pointBox(prop));
-    byKind.set(prop.kind, entry);
+  for (const [kindId, kind] of Object.entries(layout.propKinds)) {
+    if (!("model" in kind.look)) continue;
+    const model = layout.models[kind.look.model];
+    if (model) byKind.set(kindId, { model, scale: kind.look.scale, tint: kind.look.tint, props: [] });
   }
+  for (const prop of layout.props) byKind.get(prop.kind)?.props.push(pointBox(prop));
   return new Map(
     [...byKind].map(([kindId, { props, ...look }]) => [kindId, { ...look, index: new ChunkIndex(props) }]),
   );
@@ -103,21 +105,23 @@ function modelPlacements(layout: DistrictLayout): Map<string, ModelPlacements> {
 
 /**
  * One model's placements near the player, as one instanced mesh per mesh in
- * the model (usually just one), with room for every placement in the district.
+ * the model (usually just one), with room for every loaded placement.
  */
 function InstancedModel({
   model,
   scale,
   tint,
-  capacity,
+  loaded,
   props,
 }: {
   model: ModelInfo;
   scale: number;
   tint: string | undefined;
-  capacity: number;
+  /** How many of this kind are loaded, to size the mesh. */
+  loaded: number;
   props: readonly Prop[];
 }) {
+  const capacity = useCapacity(loaded);
   const gl = useThree((three) => three.gl);
   const gltf = useLoader(GLTFLoader, `${ASSET_ROOT}/${model.file}`, withDecoders(gl));
 
@@ -251,15 +255,17 @@ const LABEL_PIXELS_PER_METRE = 80;
  * paint its sign again (painting a canvas takes a millisecond or two each).
  */
 class LabelTextures {
-  private readonly painted = new Map<PropLabel, CanvasTexture>();
+  /** By what the label says and where: the same sign arrives as a new object each time its chunk does. */
+  private readonly painted = new Map<string, CanvasTexture>();
 
   of(label: PropLabel): CanvasTexture {
-    let texture = this.painted.get(label);
+    const key = `${label.x},${label.z},${label.text}`;
+    let texture = this.painted.get(key);
     if (!texture) {
       const width = Math.min(512, Math.round(label.width * LABEL_PIXELS_PER_METRE));
       const height = Math.max(32, Math.round((width * label.height) / label.width));
       texture = paintSign(label.text, { background: label.background, text: label.ink, width, height, maxLines: label.lines });
-      this.painted.set(label, texture);
+      this.painted.set(key, texture);
     }
     return texture;
   }

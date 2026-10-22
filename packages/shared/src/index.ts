@@ -1,5 +1,6 @@
 export * from "./appearance";
 export * from "./bodyRegions";
+export * from "./chunks";
 export * from "./collision";
 export * from "./constants";
 export * from "./content";

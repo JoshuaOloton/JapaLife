@@ -1,4 +1,5 @@
 import { type Client, Room, ServerError } from "@colyseus/core";
+import { StateView } from "@colyseus/schema";
 import {
   type Appearance,
   type AppearanceMessage,
@@ -7,6 +8,7 @@ import {
   type Interactable,
   MAX_PLAYERS_PER_ROOM,
   PLAYER_SPEED_UNITS_PER_SECOND,
+  PLAYER_VIEW_METRES,
   POSITION_UPDATE_HZ,
   type RejectReason,
   SERVER_MESSAGES,
@@ -15,6 +17,7 @@ import {
 } from "@japalife/shared";
 import { z } from "zod";
 import type { GameSystems } from "../game";
+import { ChunkStream } from "../game/chunkStream";
 import type { DistrictMap } from "../game/district";
 import { logError } from "../log";
 import { describeOffer } from "../game/offers";
@@ -52,6 +55,8 @@ interface LivePlayer {
   lastMoveSeq: number;
   bucket: TokenBucket;
   unsubscribeNotices: () => void;
+  /** Which chunks of the district this player has been sent. */
+  chunks: ChunkStream;
 }
 
 /**
@@ -101,6 +106,7 @@ export function createDistrictRoom(game: GameSystems) {
         lastMoveSeq: -1,
         bucket: new TokenBucket(INTENT_BUCKET_CAPACITY, INTENT_BUCKET_REFILL_PER_SECOND, Date.now()),
         unsubscribeNotices: () => {},
+        chunks: new ChunkStream(this.district.chunks),
       };
 
       // Catch up on whatever happened while the player was away, then show the HUD.
@@ -118,8 +124,14 @@ export function createDistrictRoom(game: GameSystems) {
       position.x = live.x;
       position.z = live.z;
       this.state.players.set(client.sessionId, position);
-      // The layout the client draws and predicts its walking from: one source of truth.
-      client.send(SERVER_MESSAGES.district, this.district.layout);
+      // Each client sees itself, and others only within range (`updateViews`).
+      client.view = new StateView();
+      client.view.add(position);
+      this.updateViews();
+      // The layout the client draws and predicts its walking from (one source of truth): the
+      // header now, then the chunks around the player, more as they walk.
+      client.send(SERVER_MESSAGES.district, this.district.header);
+      this.sendChunks(client, live);
       // Null opens the character creator.
       this.showAppearance(client, appearance);
       await this.sendStats(client, live);
@@ -136,7 +148,38 @@ export function createDistrictRoom(game: GameSystems) {
     override onLeave(client: Client): void {
       this.live.get(client.sessionId)?.unsubscribeNotices();
       this.live.delete(client.sessionId);
+      const position = this.state.players.get(client.sessionId);
+      if (position) {
+        for (const other of this.clients) if (other.view?.has(position)) other.view.remove(position);
+      }
       this.state.players.delete(client.sessionId);
+    }
+
+    /** Sends the player the chunks around them they do not have yet, if they walked into another chunk. */
+    private sendChunks(client: Client, live: LivePlayer): void {
+      const message = live.chunks.update(live);
+      if (message) client.send(SERVER_MESSAGES.chunks, message);
+    }
+
+    /**
+     * Area of interest for players: each client's view holds the players within
+     * `PLAYER_VIEW_METRES` of it. At most 50 x 50 distance checks a tick, and the
+     * view only changes when someone crosses the line.
+     */
+    private updateViews(): void {
+      for (const client of this.clients) {
+        const me = this.live.get(client.sessionId);
+        const view = client.view;
+        if (!me || !view) continue;
+        for (const [sessionId, other] of this.live) {
+          if (sessionId === client.sessionId) continue;
+          const position = this.state.players.get(sessionId);
+          if (!position) continue;
+          const near = Math.hypot(other.x - me.x, other.z - me.z) <= PLAYER_VIEW_METRES;
+          if (near && !view.has(position)) view.add(position);
+          else if (!near && view.has(position)) view.remove(position);
+        }
+      }
     }
 
     // ---- intents ---------------------------------------------------------------
@@ -285,7 +328,10 @@ export function createDistrictRoom(game: GameSystems) {
           synced.x = next.x;
           synced.z = next.z;
         }
+        const client = this.clients.getById(sessionId);
+        if (client) this.sendChunks(client, live);
       }
+      this.updateViews();
     }
 
     private checkEventsForEveryone(): void {

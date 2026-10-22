@@ -1,13 +1,18 @@
 import { Client, type Room } from "@colyseus/sdk";
-import type { Server } from "@colyseus/core";
+import { type Server, matchMaker } from "@colyseus/core";
 import {
   type AppearanceMessage,
+  CHUNK_SEND_RING,
+  type ChunksMessage,
   DISTRICT_ROOM_NAME,
   PLAYER_RADIUS,
   encodeAppearance,
   PLAYER_SPEED_UNITS_PER_SECOND,
-  districtLayoutSchema,
-  type DistrictLayout,
+  chunkOf,
+  chunksMessageSchema,
+  districtHeaderSchema,
+  type DistrictHeader,
+  withinRing,
   type InboxMessage,
   type InteractionMessage,
   type NoticeMessage,
@@ -62,14 +67,16 @@ interface Session {
   stats: StatsMessage[];
   rejected: RejectedMessage[];
   notices: NoticeMessage[];
-  layouts: DistrictLayout[];
+  layouts: DistrictHeader[];
+  chunks: ChunksMessage[];
 }
 
 async function join(playerId: string): Promise<Session> {
   const room = await new Client(URL).joinOrCreate(DISTRICT_ROOM_NAME, { playerId });
   open.push(room);
-  const session: Session = { room, stats: [], rejected: [], notices: [], layouts: [] };
-  room.onMessage("district", (m: DistrictLayout) => session.layouts.push(m));
+  const session: Session = { room, stats: [], rejected: [], notices: [], layouts: [], chunks: [] };
+  room.onMessage("district", (m: DistrictHeader) => session.layouts.push(m));
+  room.onMessage("chunks", (m: ChunksMessage) => session.chunks.push(m));
   room.onMessage("appearance", () => {}); // tests that care add their own listener
   room.onMessage("stats", (m: StatsMessage) => session.stats.push(m));
   room.onMessage("rejected", (m: RejectedMessage) => session.rejected.push(m));
@@ -290,15 +297,41 @@ describe("movement", () => {
     expect(z).toBeGreaterThan(3); // it did walk up to the wall
   });
 
-  it("sends the district layout on join, so the client draws and predicts from one source", async () => {
+  it("sends the district header on join, then the chunks around the player, so the client draws and predicts from one source", async () => {
     const s = await join("layla");
-    await until(() => s.layouts.length > 0, "the district layout");
-    const layout = s.layouts[0]!;
-    expect(layout.id).toBe("yaba");
-    expect(layout.buildings.some((b) => b.id === "yaba-office-block")).toBe(true);
-    expect(layout.roads.length).toBeGreaterThan(0);
-    expect(layout.interactables.every((i) => i.label.length > 0)).toBe(true);
-    expect(districtLayoutSchema.safeParse(layout).success).toBe(true);
+    await until(() => s.layouts.length > 0 && s.chunks.length > 0, "the header and the first chunks");
+    const header = s.layouts[0]!;
+    expect(header.id).toBe("yaba");
+    expect(header.roads.length).toBeGreaterThan(0);
+    expect(header.interactables.every((i) => i.label.length > 0)).toBe(true);
+    expect(districtHeaderSchema.safeParse(header).success).toBe(true);
+    expect("buildings" in header).toBe(false); // they come in chunks
+
+    const first = s.chunks[0]!;
+    expect(chunksMessageSchema.safeParse(first).success).toBe(true);
+    expect(first.centre).toEqual(chunkOf(header.spawn));
+    const buildings = first.chunks.flatMap((chunk) => chunk.buildings.map((b) => b.id));
+    expect(buildings).toContain("yaba-office-block");
+    expect(buildings).toContain("test-wall");
+    // Only the square around the player, not the whole district.
+    expect(first.chunks.every((chunk) => withinRing(chunk, first.centre, CHUNK_SEND_RING))).toBe(true);
+  });
+
+  it("syncs only the players near each other (area of interest)", async () => {
+    const a = await join("aoi-near");
+    const b = await join("aoi-far");
+    await until(() => a.room.state.players.get(b.room.sessionId) !== undefined, "the other player, standing close by");
+    // Put b across the district, on the server (walking there would take over a minute).
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as unknown as { live: Map<string, { x: number; z: number }> };
+    const far = room.live.get(b.room.sessionId)!;
+    far.x = 250;
+    far.z = -250;
+    await until(() => a.room.state.players.get(b.room.sessionId) === undefined, "the far player leaving the view");
+    expect(a.room.state.players.get(a.room.sessionId)).toBeDefined(); // you always see yourself
+    expect(b.room.state.players.get(a.room.sessionId)).toBeUndefined();
+    far.x = 1;
+    far.z = 1;
+    await until(() => a.room.state.players.get(b.room.sessionId) !== undefined, "the player coming back into view");
   });
 
   it("says a new player has no character, then saves one and syncs its code", async () => {

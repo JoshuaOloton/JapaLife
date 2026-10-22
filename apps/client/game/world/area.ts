@@ -1,4 +1,5 @@
-import { type Box, type Point, SpatialGrid } from "@japalife/shared";
+import { type Box, CHUNK_METRES, type Point, SpatialGrid } from "@japalife/shared";
+import { useRef } from "react";
 
 /**
  * What is drawn: only the part of the district around the player. A district
@@ -13,8 +14,6 @@ import { type Box, type Point, SpatialGrid } from "@japalife/shared";
  * thick by the far edge, so nothing is seen popping in.
  */
 
-/** Side of the chunks the district is bucketed into, metres. 11h-4 streams the same chunks from the server. */
-export const CHUNK_METRES = 64;
 /** The drawn things are refilled when the player crosses into another cell this size. */
 export const AREA_CELL_METRES = 16;
 
@@ -74,6 +73,29 @@ export class ChunkIndex<T extends Box> {
 /** A point thing (a prop, a palm frond) as a box of no size, for the index. */
 export function pointBox<T extends Point>(thing: T): T & Box {
   return { ...thing, halfWidth: 0, halfDepth: 0 };
+}
+
+/** The smallest room an instanced mesh is made with. */
+const MIN_CAPACITY = 64;
+
+/**
+ * Room for `count` instances: the next power of two, but never less than
+ * `current`. Chunks come and go as the player walks, so the count goes up and
+ * down; growing in doubling steps and never shrinking rebuilds a mesh only a
+ * handful of times a visit.
+ */
+export function roomFor(count: number, current = 0): number {
+  if (current >= MIN_CAPACITY && count <= current) return current;
+  let room = MIN_CAPACITY;
+  while (room < count) room *= 2;
+  return Math.max(room, current);
+}
+
+/** `roomFor` remembered across renders: an instanced mesh's capacity that only ever grows. */
+export function useCapacity(count: number): number {
+  const capacity = useRef(0);
+  capacity.current = roomFor(count, capacity.current);
+  return capacity.current;
 }
 
 /** Model buildings near enough for their model, and the ones further off that are drawn as boxes. */

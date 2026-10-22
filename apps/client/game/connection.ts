@@ -3,9 +3,13 @@
 import { Client, type Room } from "@colyseus/sdk";
 import {
   type AppearanceMessage,
+  CHUNK_KEEP_RING,
   COPY,
+  type ChunkContent,
+  type ChunksMessage,
   DEFAULT_SERVER_PORT,
   DISTRICT_ROOM_NAME,
+  type DistrictHeader,
   type DistrictLayout,
   type InboxMessage,
   type InteractionMessage,
@@ -13,9 +17,12 @@ import {
   type RejectedMessage,
   SERVER_MESSAGES,
   type StatsMessage,
-  districtLayoutSchema,
+  chunkKey,
+  chunksMessageSchema,
+  districtHeaderSchema,
+  withinRing,
 } from "@japalife/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 /** The part of the server's synced state the client reads. Mirrors `DistrictState` on the server. */
 export interface DistrictStateView {
@@ -28,7 +35,15 @@ export type DistrictRoom = Room<unknown, DistrictStateView>;
 export type Connection =
   | { status: "connecting" }
   | { status: "failed"; message: string }
-  | { status: "connected"; room: DistrictRoom; district: DistrictLayout; messages: MessageBuffer };
+  | {
+      status: "connected";
+      room: DistrictRoom;
+      header: DistrictHeader;
+      /** The header as a layout, without chunks: stable for the whole visit (see `headerLayout`). */
+      district: DistrictLayout;
+      chunks: ChunkStore;
+      messages: MessageBuffer;
+    };
 
 export type ServerEvent =
   | { type: "stats"; stats: StatsMessage; receivedAt: number }
@@ -89,6 +104,77 @@ export class MessageBuffer {
   }
 }
 
+/**
+ * The district's chunks the client holds (area of interest): the server sends
+ * the chunks around the player as they walk, and this keeps the ones within
+ * `CHUNK_KEEP_RING` of the latest centre, the same rule the server uses to
+ * know what to send again. Listening starts at join, like `MessageBuffer`, so
+ * the first chunks (sent straight after the header) are never missed.
+ */
+export class ChunkStore {
+  private readonly loaded = new Map<string, ChunkContent>();
+  private readonly listeners = new Set<() => void>();
+  /** Changes whenever the loaded chunks do, for React's `useSyncExternalStore`. */
+  version = 0;
+
+  constructor(room: DistrictRoom) {
+    room.onMessage(SERVER_MESSAGES.chunks, (payload: unknown) => {
+      const parsed = chunksMessageSchema.safeParse(payload);
+      if (parsed.success) this.receive(parsed.data);
+    });
+  }
+
+  receive({ centre, chunks }: ChunksMessage): void {
+    for (const [key, chunk] of this.loaded) {
+      if (!withinRing(chunk, centre, CHUNK_KEEP_RING)) this.loaded.delete(key);
+    }
+    for (const chunk of chunks) this.loaded.set(chunkKey(chunk), chunk);
+    this.version++;
+    for (const listener of this.listeners) listener();
+  }
+
+  chunks(): ChunkContent[] {
+    return [...this.loaded.values()];
+  }
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+}
+
+/**
+ * The header as a layout with no buildings or props yet (the road furniture
+ * aside). The traffic runs on this, so it never restarts as chunks come and go.
+ */
+export function headerLayout(header: DistrictHeader): DistrictLayout {
+  const layout: DistrictLayout & Partial<Pick<DistrictHeader, "roadProps" | "buildingModels" | "mapBuildings">> = {
+    ...header,
+    buildings: [],
+    props: header.roadProps,
+  };
+  // Header-only fields, not part of a layout.
+  delete layout.roadProps;
+  delete layout.buildingModels;
+  delete layout.mapBuildings;
+  return layout;
+}
+
+/** The district as far as the client holds it, updated as chunks come and go. */
+export function useLoadedDistrict(base: DistrictLayout, store: ChunkStore): DistrictLayout {
+  const version = useSyncExternalStore(store.subscribe, () => store.version, () => store.version);
+  return useMemo(() => withChunks(base, store.chunks()), [base, store, version]);
+}
+
+/** The district as far as the client holds it: the header plus every loaded chunk's buildings and props. */
+export function withChunks(base: DistrictLayout, chunks: readonly ChunkContent[]): DistrictLayout {
+  return {
+    ...base,
+    buildings: chunks.flatMap((chunk) => chunk.buildings),
+    props: [...base.props, ...chunks.flatMap((chunk) => chunk.props)],
+  };
+}
+
 function serverUrl(): string {
   // Default to the page's own host so a phone on the LAN reaches the dev server too.
   return (
@@ -146,12 +232,20 @@ export function useDistrictConnection(): Connection {
           return;
         }
         const messages = new MessageBuffer(room as DistrictRoom);
+        const chunks = new ChunkStore(room as DistrictRoom);
         room.onMessage(SERVER_MESSAGES.district, (payload: unknown) => {
-          const parsed = districtLayoutSchema.safeParse(payload);
+          const parsed = districtHeaderSchema.safeParse(payload);
           if (cancelled) return;
           setConnection(
             parsed.success
-              ? { status: "connected", room: room as DistrictRoom, district: parsed.data, messages }
+              ? {
+                  status: "connected",
+                  room: room as DistrictRoom,
+                  header: parsed.data,
+                  district: headerLayout(parsed.data),
+                  chunks,
+                  messages,
+                }
               : { status: "failed", message: COPY.app.badDistrict },
           );
         });

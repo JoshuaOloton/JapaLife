@@ -10,9 +10,15 @@ import {
   type Point,
 } from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CharacterCreator } from "./CharacterCreator";
-import { type DistrictRoom, type MessageBuffer, useDistrictConnection } from "./connection";
+import {
+  type Connection,
+  type DistrictRoom,
+  type MessageBuffer,
+  useDistrictConnection,
+  useLoadedDistrict,
+} from "./connection";
 import { placePrompt } from "./format";
 import { FpsProbe, QualityProbe, useFpsMeterEnabled } from "./FpsMeter";
 import { Hud, useTicker } from "./Hud";
@@ -86,20 +92,32 @@ export default function Game() {
         camera={{ fov: 50, near: 0.5, far: FOG_FAR + 5 }}
       >
         <Lighting street={street} indoors={closeUp} />
-        {/* The creator takes place in a bedroom set, so the street is hidden (still simulated) meanwhile. */}
-        <group visible={!closeUp} userData={{ [WARM_UP_WHILE_HIDDEN]: true }}>
-          <World district={connection.district} street={street} predicted={predicted} quality={quality} />
-        </group>
-        <Player
-          room={connection.room}
-          district={connection.district}
-          input={input}
-          predicted={predicted}
-          activity={activity}
-          appearance={shownLook}
-          closeUp={closeUp}
-          turn={turn}
-        />
+        <Scene connection={connection}>
+          {(district) => (
+            <>
+              {/* The creator takes place in a bedroom set, so the street is hidden (still simulated) meanwhile. */}
+              <group visible={!closeUp} userData={{ [WARM_UP_WHILE_HIDDEN]: true }}>
+                <World
+                  district={district}
+                  header={connection.header}
+                  street={street}
+                  predicted={predicted}
+                  quality={quality}
+                />
+              </group>
+              <Player
+                room={connection.room}
+                district={district}
+                input={input}
+                predicted={predicted}
+                activity={activity}
+                appearance={shownLook}
+                closeUp={closeUp}
+                turn={turn}
+              />
+            </>
+          )}
+        </Scene>
         <QualityProbe quality={quality} />
         <ShaderWarmUp />
         {showFps && <FpsProbe output={fpsOutput} quality={quality} />}
@@ -120,6 +138,17 @@ export default function Game() {
       />
     </div>
   );
+}
+
+/** Hands its children the district as far as the loaded chunks go, re-rendering them as chunks arrive. */
+function Scene({
+  connection,
+  children,
+}: {
+  connection: Extract<Connection, { status: "connected" }>;
+  children: (district: DistrictLayout) => ReactNode;
+}) {
+  return children(useLoadedDistrict(connection.district, connection.chunks));
 }
 
 /** Radians your character turns per pixel dragged. */

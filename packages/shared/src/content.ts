@@ -630,6 +630,38 @@ export const districtLayoutSchema = districtSchema.extend({
 });
 export type DistrictLayout = z.infer<typeof districtLayoutSchema>;
 
+/**
+ * What the server sends on join: the layout without its buildings and props,
+ * which come in chunks as the player walks (`chunks.ts`). Everything here is
+ * small or needed from the start whatever the district's size: the places,
+ * roads, traffic lanes, catalogs, the outline map, and the NPCs (a few dozen,
+ * and each new kind of character compiles a shader, which must happen at load,
+ * not when one streams in mid-walk).
+ */
+export const districtHeaderSchema = districtLayoutSchema.omit({ buildings: true, props: true }).extend({
+  /** Props lying on roads (speed bumps): the traffic needs every one from the start. */
+  roadProps: z.array(propSchema),
+  /** Every building model the district uses, and how many buildings use it: loaded and warmed up before any chunk arrives. */
+  buildingModels: z.record(contentIdSchema, z.int().positive()),
+  /** Every building's footprint as x, z, halfWidth, halfDepth, one after another, to a tenth of a metre: for the 2D map. */
+  mapBuildings: z.array(z.number()),
+});
+export type DistrictHeader = z.infer<typeof districtHeaderSchema>;
+
+const chunkCoordSchema = z.strictObject({ cx: z.int(), cz: z.int() });
+
+/** Chunks of the district, sent as the player walks. `centre` is the player's chunk when sent: keep what is near it. */
+export const chunksMessageSchema = z.strictObject({
+  centre: chunkCoordSchema,
+  chunks: z.array(
+    chunkCoordSchema.extend({
+      buildings: z.array(buildingSchema),
+      props: z.array(propSchema),
+    }),
+  ),
+});
+export type ChunksMessage = z.infer<typeof chunksMessageSchema>;
+
 /** Everything a district's layout draws on, from `content/`. */
 export interface LayoutCatalogs {
   models: Readonly<Record<string, ModelInfo>>;

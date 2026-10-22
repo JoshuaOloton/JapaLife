@@ -171,6 +171,19 @@ The plan as written before building:
 
 ### 11h-4 Area-of-interest and chunk streaming
 
+**As built (2026-10-22)**
+
+- **Bigger first send:** 5×5 chunks on join, not 3×3. The client draws 90 m ahead, so one ring would not cover it.
+- **NPCs stay in the header.** Streaming them compiled character shaders mid-walk.
+- **The header also carries:**
+  - road furniture;
+  - building-model counts;
+  - the outline map for 11i (`mapBuildings`).
+- **Chunks carry buildings and props only.**
+- **Details:** [known-limits, Client](../known-limits.md#client-appsclientgame).
+
+**The plan as written before building:**
+
 - **On join** the server sends a slim `district` header:
   - bounds, spawn, places, streets, landmarks and the chunk grid;
   - the **map summary** as compact rounded numbers: road rectangles, building outlines, labels. 11i draws the map from it.

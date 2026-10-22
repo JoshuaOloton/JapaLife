@@ -2,6 +2,7 @@
 
 import {
   type Building,
+  type DistrictHeader,
   type DistrictLayout,
   type Interactable,
   type Point,
@@ -11,7 +12,8 @@ import {
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BufferAttribute, BufferGeometry, type InstancedMesh, Object3D } from "three";
-import { ChunkIndex, DRAW_REACH, areaBox, areaCell, splitByDetail } from "./world/area";
+import { headerLayout } from "./connection";
+import { ChunkIndex, DRAW_REACH, areaBox, areaCell, splitByDetail, useCapacity } from "./world/area";
 import { Boxes, type Slab } from "./world/Boxes";
 import { ModelBuildings, Windows, plainBuildingSlabs, windowCount } from "./world/Buildings";
 import { layOutGutters } from "./world/gutters";
@@ -60,11 +62,15 @@ const SIGN_COLOURS: Record<Interactable["kind"], string> = {
 
 export function World({
   district,
+  header,
   street,
   predicted,
   quality,
 }: {
+  /** The district as far as the loaded chunks go. */
   district: DistrictLayout;
+  /** What came on join: what the whole district uses, for things that must not restart as chunks change. */
+  header: DistrictHeader;
   street: { current: StreetState };
   /** Where the player is, so far-away NPCs can stop animating and traffic can stop for them. */
   predicted: { current: Point };
@@ -80,8 +86,12 @@ export function World({
   }, [groundWidth, groundDepth]);
   useLayoutEffect(() => () => ground.dispose(), [ground]);
 
-  // Everything is bucketed into chunks once; the drawn part is refilled from them as the player walks.
+  // The loaded chunks' things, bucketed; the drawn part is refilled from them as the player walks.
   const index = useMemo(() => worldIndex(district), [district]);
+  const slabCapacity = useCapacity(index.slabCount);
+  const windowCapacity = useCapacity(index.windowCount);
+  // The traffic and walkers run on the header alone, so they never restart as chunks come and go.
+  const wholeDistrict = useMemo(() => headerLayout(header), [header]);
   const [centre, setCentre] = useState(() => areaCell(district.spawn));
   const near = useMemo(() => {
     const drawArea = areaBox(centre, DRAW_REACH);
@@ -103,10 +113,10 @@ export function World({
       </mesh>
       <Roads roads={district.roads} />
       <Potholes roads={district.roads} />
-      <Boxes slabs={near.slabs} capacity={index.slabCapacity} />
-      <Windows buildings={near.plain} capacity={index.windowCapacity} street={street} />
+      <Boxes slabs={near.slabs} capacity={slabCapacity} />
+      <Windows buildings={near.plain} capacity={windowCapacity} street={street} />
       <ModelBuildings
-        buildings={index.modelBuildings.all}
+        kinds={header.buildingModels}
         near={near.models}
         models={district.models}
         street={street}
@@ -114,8 +124,8 @@ export function World({
       />
       <Props layout={district} centre={centre} />
       <Npcs layout={district} predicted={predicted} />
-      <Traffic layout={district} predicted={predicted} street={street} quality={quality} />
-      <Pedestrians layout={district} predicted={predicted} street={street} quality={quality} />
+      <Traffic layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />
+      <Pedestrians layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />
       {district.interactables.map((place) => (
         <Sign key={place.id} place={place} radius={district.interactRadius} />
       ))}
@@ -135,11 +145,7 @@ function AreaWatcher({ predicted, onMove }: { predicted: { current: Point }; onM
   return null;
 }
 
-/**
- * The district's things bucketed into chunks, and how many of each the
- * instanced meshes must have room for (all of them, so refilling never
- * rebuilds a mesh).
- */
+/** The loaded district's things bucketed into chunks, and how many there are (to size the instanced meshes). */
 function worldIndex(district: DistrictLayout) {
   const t = EDGE_WALL_THICKNESS / 2;
   const { halfWidth: w, halfDepth: d } = district;
@@ -163,8 +169,8 @@ function worldIndex(district: DistrictLayout) {
     plainBuildings: new ChunkIndex(plain),
     modelBuildings: new ChunkIndex(models),
     // Every plain building, plus every model building drawn as its box when far off: walls and roof each.
-    slabCapacity: slabs.length + 2 * district.buildings.length,
-    windowCapacity: windowCount(plain),
+    slabCount: slabs.length + 2 * district.buildings.length,
+    windowCount: windowCount(plain),
   };
 }
 

@@ -168,6 +168,13 @@ describe("loadContent (broken content)", () => {
     expect(problemsOf().join("\n")).toContain("sticks out of the walkable area");
   });
 
+  it("rejects a building reaching further than a chunk from its centre (it would stream in one chunk)", () => {
+    edit("cities/lagos.json", (j) => {
+      j["districts"][0].buildings.push({ id: "long-wall", name: "Wall", x: 0, z: -290, halfWidth: 70, halfDepth: 0.5, height: 2, colour: "#ffffff" });
+    });
+    expect(problemsOf().join("\n")).toContain('building "long-wall" reaches more than 64 m from its centre');
+  });
+
   it("rejects a building whose model is not in the catalog", () => {
     edit("cities/lagos.json", (j) => (j["districts"][0].buildings[0].model = "ghost-tower"));
     expect(problemsOf().join("\n")).toContain('unknown model "ghost-tower"');

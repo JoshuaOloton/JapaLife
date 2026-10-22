@@ -1,6 +1,7 @@
 import {
   type Bounds,
   type Box,
+  CHUNK_METRES,
   type DistrictLayout,
   NPC_HALF_SIZE,
   type Obstacles,
@@ -30,6 +31,12 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
   const bounds = { halfWidth: layout.halfWidth, halfDepth: layout.halfDepth };
   const sticksOut = (box: Box): boolean =>
     Math.abs(box.x) + box.halfWidth > bounds.halfWidth || Math.abs(box.z) + box.halfDepth > bounds.halfDepth;
+  /**
+   * Streaming sends things by the chunk their centre is in, and the chunks
+   * next to the player's are always loaded, so nothing may reach further than
+   * a chunk from its centre, or the client could miss a wall the player touches.
+   */
+  const tooBigForChunks = (box: Box): boolean => box.halfWidth > CHUNK_METRES || box.halfDepth > CHUNK_METRES;
   const onRoad = (box: Box): boolean =>
     roads.some(
       (road) =>
@@ -46,6 +53,9 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
       problems.push(`${where}: building "${building.id}" sticks out of the walkable area`);
     }
     if (onRoad(building)) problems.push(`${where}: building "${building.id}" stands on a road`);
+    if (tooBigForChunks(building)) {
+      problems.push(`${where}: building "${building.id}" reaches more than ${CHUNK_METRES} m from its centre (split it: it travels in one chunk)`);
+    }
     const clash = buildingGrid
       .near(building.x, building.z, building.halfWidth, building.halfDepth)
       .find(
@@ -77,6 +87,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
     const box = { x: prop.x, z: prop.z, ...turnHalfSize(size, prop.rotation) };
     if (sticksOut(box)) problems.push(`${where}: ${what} sticks out of the walkable area`);
     if (onRoad(box)) problems.push(`${where}: ${what} blocks a road`);
+    if (tooBigForChunks(box)) problems.push(`${where}: ${what} reaches more than ${CHUNK_METRES} m from its centre`);
   });
   for (const [wire, poles] of wires) {
     if (poles < 2) problems.push(`${where}: wire "${wire}" has only one pole, so there is nothing to string it to`);

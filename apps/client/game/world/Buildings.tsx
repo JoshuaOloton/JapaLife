@@ -102,14 +102,18 @@ const NOTHING: readonly Building[] = [];
  * `near` buildings of that kind. Each shows plain boxes while its model downloads.
  */
 export function ModelBuildings({
-  buildings,
+  kinds,
   near,
   models,
   street,
   predicted,
 }: {
-  /** Every model building in the district, to size each kind's mesh once. */
-  buildings: readonly Building[];
+  /**
+   * Every building model in the whole district, with how many buildings use it
+   * (from the district header): each kind's mesh exists, downloads and warms up
+   * from the start, sized once, before any chunk with that kind arrives.
+   */
+  kinds: Readonly<Record<string, number>>;
   /** The ones to draw as models now. */
   near: readonly Building[];
   models: Readonly<Record<string, ModelInfo>>;
@@ -117,11 +121,12 @@ export function ModelBuildings({
   /** Where the player is, so a building hiding them from the camera can turn see-through. */
   predicted: { current: Point };
 }) {
-  const kinds = useMemo(() => countByModel(buildings, models), [buildings, models]);
   const nearByKind = useMemo(() => groupByModel(near), [near]);
   return (
     <>
-      {[...kinds].map(([id, { model, count }]) => {
+      {Object.entries(kinds).map(([id, count]) => {
+        const model = models[id];
+        if (!model) return null;
         const shown = nearByKind.get(id) ?? NOTHING;
         const standIn = <StandIn buildings={shown} capacity={count} />;
         return (
@@ -139,21 +144,6 @@ export function ModelBuildings({
 function StandIn({ buildings, capacity }: { buildings: readonly Building[]; capacity: number }) {
   const slabs = useMemo(() => plainBuildingSlabs(buildings), [buildings]);
   return <Boxes slabs={slabs} capacity={capacity * 2} />;
-}
-
-function countByModel(
-  buildings: readonly Building[],
-  models: Readonly<Record<string, ModelInfo>>,
-): Map<string, { model: ModelInfo; count: number }> {
-  const kinds = new Map<string, { model: ModelInfo; count: number }>();
-  for (const building of buildings) {
-    const model = building.model ? models[building.model] : undefined;
-    if (!building.model || !model) continue;
-    const kind = kinds.get(building.model) ?? { model, count: 0 };
-    kind.count++;
-    kinds.set(building.model, kind);
-  }
-  return kinds;
 }
 
 function groupByModel(buildings: readonly Building[]): Map<string, Building[]> {

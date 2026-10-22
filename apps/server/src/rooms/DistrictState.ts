@@ -11,11 +11,16 @@ export const PlayerPosition = schema(
   "PlayerPosition",
 );
 
-/** Synced state for one district instance, keyed by session id. */
+/**
+ * Synced state for one district instance, keyed by session id. Players are
+ * filtered per client (`.view()`): each client gets only the players its
+ * `StateView` holds, themselves and anyone within `PLAYER_VIEW_METRES`
+ * (area of interest), so a full room costs no one 50 players' updates.
+ */
 export const DistrictState = schema(
   {
     districtId: t.string().default(""),
-    players: t.map(PlayerPosition),
+    players: t.map(PlayerPosition).view(),
   },
   "DistrictState",
 );

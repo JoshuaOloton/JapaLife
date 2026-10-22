@@ -116,6 +116,32 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - **Budgets fail loudly.** Each district's models (what `buildDistrictLayout` sends: placed models plus every hair part and garment piece) must stay within `DISTRICT_DOWNLOAD_BUDGET_BYTES` (6 MB), or the content check refuses to start the server. `public/assets/characters/` must stay within 1.5 MB, or `pnpm budget` fails. At 11g, Yaba's models were about 0.4 MB and the characters 0.67 MB. Ground, roads and prints are painted in code, so they cost nothing here.
   - **Shader warm-up.** `ShaderWarmUp` calls `renderer.compileAsync(scene, camera)` four times in the first 4.5 s, so every material (including buildings far out of view, and the street hidden behind a new player's creator, via the `warmUpWhileHidden` flag) compiles at load instead of when it first comes into view. A material that first appears later (a walker in a new outfit after warm-up) can still compile late; the `?fps` meter then shows "⚠ late shaders N". The warm-up also uploads every texture held in a material's slots (`renderer.initTexture`). Textures held only in shader uniforms (the people's region masks and prints) still upload on first draw: about 20 when a new player leaves the creator, 26 ms on desktop Chrome (2026-10-21), so check that frame on the phone. `shaderCache.test.ts` checks that building and body materials share one shader each.
   - **Adaptive quality and app switches.** `QualityGovernor` used to read the gap while the page was hidden as seconds of low fps and halve the street for good after any app switch of 5 s or more. It now pauses on `visibilitychange`, like the fps meter.
+- **Chunk streaming and area of interest (Slice 11h-4, 2026-10-22).**
+  - **What a client is sent.**
+    - On join: the `district` header (`districtHeader` in `packages/shared/src/chunks.ts`). It holds the places, roads, road furniture (speed bumps, which the traffic needs from the start), traffic lanes, catalogs, NPCs, every building model with its count, and an outline map of every building for 11i.
+    - Then the 5×5 chunks of 64 m around the player.
+  - **While walking:**
+    - When the server's position enters another chunk, `ChunkStream` sends only the chunks the player lacks.
+    - Client (`ChunkStore`) and server both forget chunks more than 3 from the latest centre, by the same rule. Stepping back one chunk re-sends nothing; two re-sends the dropped edge.
+  - **Sizes (JSON):**
+    - the join is 114 KB (a 42 KB header plus 72 KB of chunks), down from 253 KB;
+    - each chunk crossing is about 11 KB.
+  - **The client:**
+    - It rebuilds its loaded layout (`useLoadedDistrict`) and collision grid as chunks arrive.
+    - Every building model kind and prop kind is mounted and warmed from the header, so a chunk arriving never downloads a model or compiles a shader.
+    - Mesh capacities grow in doubling steps and never shrink (`roomFor`).
+    - The traffic and walkers run on the header alone, so they never restart.
+  - **NPCs stay in the header, not in chunks.**
+    - When they streamed in, the first NPC of a new look (the YabaTech student's cornrows) compiled a shader mid-walk, and every NPC's character was rebuilt on each batch.
+    - The client now caches each NPC's resolved look by id, and palms and billboards take their randomness from where they stand and what they say, not their place in a list.
+    - Fine at a few dozen NPCs; a district with hundreds needs a warm-up for every character variant before NPCs can stream.
+  - **Content check:** nothing may reach more than 64 m from its centre. Anything that touches the player's position then belongs to a chunk next to theirs, always loaded, so client collision never misses a wall.
+  - **Players:** synced per client through Colyseus `StateView` (`players: t.map(PlayerPosition).view()`). Each client sees itself and the players within 80 m (`updateViews` every tick). Tested by moving a player 350 m away on the server.
+  - **Measured.** Headless software GL, same route as 11h-3's measurement.
+    - Draw calls and triangles are unchanged (22–41 calls, 43–70k triangles).
+    - The worst frame is 112 ms against 67 ms in 11h-3.
+    - A page-side timeline showed no shader compiles and no texture uploads in it, and only one JavaScript task over 50 ms after load (58 ms, at the first chunk batch). The rest is GPU-side buffer refills, which software GL exaggerates.
+    - The vivo Y29's worst-frame reading decides whether chunk arrival needs smoothing (for example, per-chunk caches of slabs, fronds and labels instead of re-deriving from the whole loaded layout).
 - **Only the area around the player is drawn (Slice 11h-3, 2026-10-22; `world/area.ts`).**
   - **How it works.**
     - At load, everything is bucketed into 64 m chunks (`ChunkIndex`, over the shared `SpatialGrid`).
