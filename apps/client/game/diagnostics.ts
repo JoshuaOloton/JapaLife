@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /**
  * Developer switches for finding what costs frame time on a phone, read from
@@ -40,8 +40,15 @@ export function describeDiagnostics({ dpr, hide }: Diagnostics): string {
   return parts.length > 0 ? ` · ${parts.join(" ")}` : "";
 }
 
+/**
+ * Read on the first render, not in an effect: the 3D canvas takes its pixel
+ * ratio when it is created and ignores a later change (so `dpr=1` once did
+ * nothing). The game is only ever drawn in the browser (`GameLoader` loads it
+ * without server rendering), so `window` is there.
+ */
 export function useDiagnostics(): Diagnostics {
-  const [diagnostics, setDiagnostics] = useState<Diagnostics>(NONE);
-  useEffect(() => setDiagnostics(readDiagnostics(window.location.search)), []);
+  const [diagnostics] = useState<Diagnostics>(() =>
+    typeof window === "undefined" ? NONE : readDiagnostics(window.location.search),
+  );
   return diagnostics;
 }
