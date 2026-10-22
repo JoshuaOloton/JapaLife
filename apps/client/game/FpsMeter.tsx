@@ -17,7 +17,16 @@ export function useFpsMeterEnabled(): boolean {
  * DOM element once a second rather than through React state, so measuring the
  * frame rate does not cost a React render per frame.
  */
-export function FpsProbe({ output, quality }: { output: RefObject<HTMLElement | null>; quality: QualityGovernor }) {
+export function FpsProbe({
+  output,
+  quality,
+  switches = "",
+}: {
+  output: RefObject<HTMLElement | null>;
+  quality: QualityGovernor;
+  /** The diagnostic switches in use (`describeDiagnostics`), shown after the reading. */
+  switches?: string;
+}) {
   const counter = useMemo(() => new FpsCounter(), []);
   useEffect(() => {
     const onVisibility = (): void => {
@@ -35,7 +44,8 @@ export function FpsProbe({ output, quality }: { output: RefObject<HTMLElement | 
       calls,
     });
     if (reading && output.current) {
-      output.current.textContent = formatFpsReading(reading, gl.getPixelRatio(), { calls, triangles, street: quality.scale });
+      output.current.textContent =
+        formatFpsReading(reading, gl.getPixelRatio(), { calls, triangles, street: quality.scale }) + switches;
     }
   });
   return null;

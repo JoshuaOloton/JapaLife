@@ -10,6 +10,7 @@ import { Character } from "../character/Character";
 import { ModelBoundary } from "../ModelBoundary";
 import { WARM_UP_WHILE_HIDDEN } from "../ShaderWarmUp";
 import { paintSign } from "./paint";
+import { skipWhileHidden } from "./skipWhileHidden";
 
 /**
  * The people who stay in one spot: Mama Put, the okada riders, the gateman.
@@ -95,6 +96,7 @@ export function Npcs({
             key={npc.id}
             ref={(group) => {
               people.current[index] = group;
+              if (group) skipWhileHidden(group);
             }}
             position={[npc.x, 0, npc.z]}
             rotation-y={(npc.facing * Math.PI) / 180}

@@ -10,6 +10,7 @@ import { Character } from "../character/Character";
 import { ModelBoundary } from "../ModelBoundary";
 import { createWalkers, stepWalker, walkerPose } from "./walkers";
 import type { QualityGovernor } from "./quality";
+import { skipWhileHidden } from "./skipWhileHidden";
 import { localHour } from "./sky";
 import type { StreetState } from "./street";
 import { activeShare } from "./trafficSim";
@@ -83,6 +84,7 @@ export function Pedestrians({
             key={walker.id}
             ref={(group) => {
               groups.current[index] = group;
+              if (group) skipWhileHidden(group);
             }}
           >
             <ModelBoundary fallback={null}>

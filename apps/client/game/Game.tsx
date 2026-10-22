@@ -12,6 +12,7 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CharacterCreator } from "./CharacterCreator";
+import { describeDiagnostics, useDiagnostics } from "./diagnostics";
 import {
   type Connection,
   type DistrictRoom,
@@ -52,6 +53,7 @@ export default function Game() {
   const predicted = useRef<Point>({ x: 0, z: 0 });
   const activity = useRef<PlayerActivity>({ working: false, gestureAt: Number.NEGATIVE_INFINITY });
   const showFps = useFpsMeterEnabled();
+  const diagnostics = useDiagnostics();
   const fpsOutput = useRef<HTMLParagraphElement>(null);
   const street = useRef<StreetState>(initialStreet());
   // Halves the traffic and people for good if the frame rate stays low (adaptive quality).
@@ -85,7 +87,7 @@ export default function Game() {
     <div style={{ position: "fixed", inset: 0, background: SKY_COLOUR, touchAction: "none" }}>
       <Canvas
         // Phones report devicePixelRatio 2-3; drawing that many pixels melts weak GPUs.
-        dpr={[1, MAX_DEVICE_PIXEL_RATIO]}
+        dpr={diagnostics.dpr ? [diagnostics.dpr, diagnostics.dpr] : [1, MAX_DEVICE_PIXEL_RATIO]}
         // Antialiasing costs a lot on mobile GPUs and matters little at 1.5x.
         gl={{ antialias: false, powerPreference: "high-performance" }}
         // The haze hides everything past FOG_FAR, so nothing beyond it needs drawing.
@@ -100,6 +102,7 @@ export default function Game() {
                 <World
                   district={district}
                   header={connection.header}
+                  hide={diagnostics.hide}
                   street={street}
                   predicted={predicted}
                   quality={quality}
@@ -120,7 +123,7 @@ export default function Game() {
         </Scene>
         <QualityProbe quality={quality} />
         <ShaderWarmUp />
-        {showFps && <FpsProbe output={fpsOutput} quality={quality} />}
+        {showFps && <FpsProbe output={fpsOutput} quality={quality} switches={describeDiagnostics(diagnostics)} />}
       </Canvas>
       {touch && !closeUp && <Joystick input={input} />}
       {closeUp && <TurnArea turn={turn} />}

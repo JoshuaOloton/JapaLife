@@ -13,6 +13,7 @@ import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BufferAttribute, BufferGeometry, type InstancedMesh, Object3D } from "three";
 import { headerLayout } from "./connection";
+import type { DiagnosticLayer } from "./diagnostics";
 import { ChunkIndex, DRAW_REACH, areaBox, areaCell, splitByDetail, useCapacity } from "./world/area";
 import { Boxes, type Slab } from "./world/Boxes";
 import { ModelBuildings, Windows, plainBuildingSlabs, windowCount } from "./world/Buildings";
@@ -63,10 +64,13 @@ const SIGN_COLOURS: Record<Interactable["kind"], string> = {
 export function World({
   district,
   header,
+  hide = NOTHING_HIDDEN,
   street,
   predicted,
   quality,
 }: {
+  /** Layers left out to find what costs frame time (`diagnostics.ts`, developer-only). */
+  hide?: ReadonlySet<DiagnosticLayer>;
   /** The district as far as the loaded chunks go. */
   district: DistrictLayout;
   /** What came on join: what the whole district uses, for things that must not restart as chunks change. */
@@ -87,7 +91,7 @@ export function World({
   useLayoutEffect(() => () => ground.dispose(), [ground]);
 
   // The loaded chunks' things, bucketed; the drawn part is refilled from them as the player walks.
-  const index = useMemo(() => worldIndex(district), [district]);
+  const index = useMemo(() => worldIndex(district, hide.has("props")), [district, hide]);
   const slabCapacity = useCapacity(index.slabCount);
   const windowCapacity = useCapacity(index.windowCount);
   // The traffic and walkers run on the header alone, so they never restart as chunks come and go.
@@ -95,14 +99,15 @@ export function World({
   const [centre, setCentre] = useState(() => areaCell(district.spawn));
   const near = useMemo(() => {
     const drawArea = areaBox(centre, DRAW_REACH);
-    const plain = index.plainBuildings.within(drawArea);
-    const { models, boxes } = splitByDetail(index.modelBuildings, centre);
+    const noBuildings = hide.has("buildings");
+    const plain = noBuildings ? [] : index.plainBuildings.within(drawArea);
+    const { models, boxes } = noBuildings ? { models: [], boxes: [] } : splitByDetail(index.modelBuildings, centre);
     return {
       plain,
       models,
       slabs: [...index.slabs.within(drawArea), ...plainBuildingSlabs(plain), ...plainBuildingSlabs(boxes)],
     };
-  }, [index, centre]);
+  }, [index, centre, hide]);
 
   return (
     <group>
@@ -122,16 +127,20 @@ export function World({
         street={street}
         predicted={predicted}
       />
-      <Props layout={district} centre={centre} />
-      <Npcs layout={district} predicted={predicted} />
-      <Traffic layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />
-      <Pedestrians layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />
+      {!hide.has("props") && <Props layout={district} centre={centre} />}
+      {!hide.has("npcs") && <Npcs layout={district} predicted={predicted} />}
+      {!hide.has("traffic") && <Traffic layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />}
+      {!hide.has("people") && (
+        <Pedestrians layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />
+      )}
       {district.interactables.map((place) => (
         <Sign key={place.id} place={place} radius={district.interactRadius} />
       ))}
     </group>
   );
 }
+
+const NOTHING_HIDDEN: ReadonlySet<DiagnosticLayer> = new Set();
 
 /** Tells the world when the player crosses into another area cell, so it refills what is drawn (a few times a minute, not every frame). */
 function AreaWatcher({ predicted, onMove }: { predicted: { current: Point }; onMove: (centre: Point) => void }) {
@@ -146,7 +155,7 @@ function AreaWatcher({ predicted, onMove }: { predicted: { current: Point }; onM
 }
 
 /** The loaded district's things bucketed into chunks, and how many there are (to size the instanced meshes). */
-function worldIndex(district: DistrictLayout) {
+function worldIndex(district: DistrictLayout, withoutProps = false) {
   const t = EDGE_WALL_THICKNESS / 2;
   const { halfWidth: w, halfDepth: d } = district;
   const wall = (x: number, z: number, halfWidth: number, halfDepth: number): Slab => ({
@@ -159,7 +168,7 @@ function worldIndex(district: DistrictLayout) {
     wall(-w - t, 0, t, d),
     wall(w + t, 0, t, d),
     ...gutterSlabs(district.roads, district),
-    ...propSlabs(district),
+    ...(withoutProps ? [] : propSlabs(district)),
   ];
   const hasModel = (building: Building): boolean => Boolean(building.model && district.models[building.model]);
   const plain = district.buildings.filter((building) => !hasModel(building));
