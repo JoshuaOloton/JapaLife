@@ -73,11 +73,18 @@ export function Traffic({
   );
 }
 
+/** Reused every frame: new ones per vehicle per frame fed the garbage collector, whose pauses are hitches. */
+const PLACE = { position: new Vector3(), turn: new Quaternion(), size: new Vector3() };
+
 /** Where a vehicle stands and which way it faces, or null while it is parked off the road. */
 function placeVehicle(vehicle: Vehicle, scale: number, target: Matrix4): Matrix4 | null {
   if (vehicle.parked) return null;
   const { x, z, heading } = pointOnLane(vehicle.lane, vehicle.s);
-  return target.compose(new Vector3(x, 0, z), new Quaternion().setFromAxisAngle(UP, heading), new Vector3(scale, scale, scale));
+  return target.compose(
+    PLACE.position.set(x, 0, z),
+    PLACE.turn.setFromAxisAngle(UP, heading),
+    PLACE.size.setScalar(scale),
+  );
 }
 
 /** Every vehicle of one kind, as one instanced mesh per mesh in its model (usually just one). */

@@ -116,6 +116,17 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - **Budgets fail loudly.** Each district's models (what `buildDistrictLayout` sends: placed models plus every hair part and garment piece) must stay within `DISTRICT_DOWNLOAD_BUDGET_BYTES` (6 MB), or the content check refuses to start the server. `public/assets/characters/` must stay within 1.5 MB, or `pnpm budget` fails. At 11g, Yaba's models were about 0.4 MB and the characters 0.67 MB. Ground, roads and prints are painted in code, so they cost nothing here.
   - **Shader warm-up.** `ShaderWarmUp` calls `renderer.compileAsync(scene, camera)` four times in the first 4.5 s, so every material (including buildings far out of view, and the street hidden behind a new player's creator, via the `warmUpWhileHidden` flag) compiles at load instead of when it first comes into view. A material that first appears later (a walker in a new outfit after warm-up) can still compile late; the `?fps` meter then shows "⚠ late shaders N". The warm-up also uploads every texture held in a material's slots (`renderer.initTexture`). Textures held only in shader uniforms (the people's region masks and prints) still upload on first draw: about 20 when a new player leaves the creator, 26 ms on desktop Chrome (2026-10-21), so check that frame on the phone. `shaderCache.test.ts` checks that building and body materials share one shader each.
   - **Adaptive quality and app switches.** `QualityGovernor` used to read the gap while the page was hidden as seconds of low fps and halve the street for good after any app switch of 5 s or more. It now pauses on `visibilitychange`, like the fps meter.
+- **vivo Y29 after 11h-4 (2026-10-22, production build, `?fps`).**
+  - **First reading:** 44 fps, low 33, worst 110 ms.
+  - **Diagnosis:** with the `?fps` switches (`diagnostics.ts`), the steady cost was the bones of 50 mounted people (20 NPCs, 30 walkers). three.js recomputes every object's matrices each frame, hidden or not.
+    - `skipWhileHidden` now makes a hidden person skip their whole subtree.
+    - Rule: anything mounted but usually hidden that has many children gets `skipWhileHidden`.
+  - **After the fix, all at 60 fps:**
+    - standing: low 43, one 219 ms hitch at 31 s, 42 calls, 45k triangles;
+    - running north 30 s across chunk edges: low 58, worst 53 ms, no hitch, 26 calls (so streaming is fine on the phone);
+    - `dpr=1`: low 57, worst 35 ms, the same as dpr 1.5 (so the GPU is not short of fill rate).
+  - **The remaining standing hitch** had no shader or texture work, which suggests a garbage-collection pause. The traffic stopped allocating every frame (reused math objects in `placeVehicle`, lane lists made once and sorted in place); the phone reading after that is still to take.
+  - **Meter:** it now shows when the worst frame happened and how many frames took over 100 ms (`worst 219 ms at 31s · 1 hitch`).
 - **Chunk streaming and area of interest (Slice 11h-4, 2026-10-22).**
   - **What a client is sent.**
     - On join: the `district` header (`districtHeader` in `packages/shared/src/chunks.ts`). It holds the places, roads, road furniture (speed bumps, which the traffic needs from the start), traffic lanes, catalogs, NPCs, every building model with its count, and an outline map of every building for 11i.

@@ -159,6 +159,8 @@ export interface TrafficWorld {
   junctions: JunctionState[];
   /** Simulation seconds. */
   time: number;
+  /** Each lane's vehicles, made on the first step (vehicles never change lane). */
+  byLane?: Map<Lane, Vehicle[]>;
 }
 
 export function createJunctions(count: number): JunctionState[] {
@@ -266,9 +268,13 @@ export function roadOverlaps(roads: readonly Box[]): Box[] {
  */
 export function stepTraffic(world: TrafficWorld, dt: number, player: Point, share: (kind: string) => number): void {
   world.time += dt;
+  // Vehicles never change lane, so each lane's list is made once and only re-sorted in place:
+  // building new arrays every frame feeds the garbage collector, whose pauses show as hitches on a phone.
+  world.byLane ??= new Map(world.lanes.map((lane) => [lane, world.vehicles.filter((vehicle) => vehicle.lane === lane)]));
   for (const lane of world.lanes) {
+    const onLane = world.byLane.get(lane) ?? [];
     // Leaders first, so each follower sees where the vehicle ahead has got to.
-    const onLane = world.vehicles.filter((vehicle) => vehicle.lane === lane).sort((a, b) => b.s - a.s);
+    onLane.sort(leaderFirst);
     let leader: Vehicle | undefined;
     for (const vehicle of onLane) {
       if (vehicle.parked) {
@@ -280,6 +286,8 @@ export function stepTraffic(world: TrafficWorld, dt: number, player: Point, shar
     }
   }
 }
+
+const leaderFirst = (a: Vehicle, b: Vehicle): number => b.s - a.s;
 
 function tryToUnpark(vehicle: Vehicle, onLane: readonly Vehicle[], share: number): void {
   if (vehicle.hash >= share) return;
