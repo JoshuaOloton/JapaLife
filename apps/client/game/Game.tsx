@@ -4,10 +4,12 @@ import {
   type Appearance,
   COPY,
   type DistrictConfig,
+  type DistrictHeader,
   type DistrictLayout,
   type Interactable,
   MAX_DEVICE_PIXEL_RATIO,
   type Point,
+  type Route,
 } from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
 import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -27,10 +29,14 @@ import styles from "./hud.module.css";
 import { InboxPanel } from "./InboxPanel";
 import { MoveInput } from "./input";
 import { Joystick } from "./Joystick";
+import { MapScreen } from "./map/MapScreen";
+import { paintMapBase } from "./map/mapPaint";
+import { Minimap } from "./map/Minimap";
 import { nearestPlace } from "./nearby";
 import { PlacePanel } from "./PlacePanel";
 import { ShaderWarmUp, WARM_UP_WHILE_HIDDEN } from "./ShaderWarmUp";
 import { Player, type PlayerActivity } from "./Player";
+import { RouteFollower, planRoute } from "./route";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
 import { FOG_FAR, Lighting } from "./world/Lighting";
@@ -54,6 +60,8 @@ export default function Game() {
   const activity = useRef<PlayerActivity>({ working: false, gestureAt: Number.NEGATIVE_INFINITY });
   const showFps = useFpsMeterEnabled();
   const diagnostics = useDiagnostics();
+  // The way picked on the map: drawn on the minimap, the map and the street.
+  const [route, setRoute] = useState<Route | null>(null);
   const fpsOutput = useRef<HTMLParagraphElement>(null);
   const street = useRef<StreetState>(initialStreet());
   // Halves the traffic and people for good if the frame rate stays low (adaptive quality).
@@ -120,6 +128,7 @@ export default function Game() {
                   district={district}
                   header={connection.header}
                   hide={diagnostics.hide}
+                  route={route}
                   street={street}
                   predicted={predicted}
                   quality={quality}
@@ -155,6 +164,10 @@ export default function Game() {
         room={connection.room}
         messages={connection.messages}
         district={connection.district}
+        header={connection.header}
+        input={input}
+        route={route}
+        onRoute={setRoute}
         predicted={predicted}
         activity={activity}
         street={street}
@@ -208,6 +221,10 @@ function Overlay({
   room,
   messages,
   district,
+  header,
+  input,
+  route,
+  onRoute,
   predicted,
   activity,
   street,
@@ -217,6 +234,12 @@ function Overlay({
   room: DistrictRoom;
   messages: MessageBuffer;
   district: DistrictLayout;
+  /** What came on join: every road and building outline, for the map. */
+  header: DistrictHeader;
+  /** Walks a route by itself ("walk there"). */
+  input: MoveInput;
+  route: Route | null;
+  onRoute: (route: Route | null) => void;
   predicted: { current: Point };
   activity: { current: PlayerActivity };
   street: { current: StreetState };
@@ -291,6 +314,49 @@ function Overlay({
 
   const openPlace = interaction ? district.interactables.find((place) => place.id === interaction.targetId) : undefined;
 
+  // The map: painted once from the header; tap a spot for the way there by road, then "walk there".
+  const mapBase = useMemo(() => paintMapBase(header), [header]);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [walking, setWalking] = useState(false);
+  const [mapStatus, setMapStatus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mapStatus) return;
+    const timer = window.setTimeout(() => setMapStatus(null), MAP_STATUS_MS);
+    return () => window.clearTimeout(timer);
+  }, [mapStatus]);
+  const pickOnMap = useCallback(
+    (point: Point) => {
+      input.clearAutopilot();
+      setWalking(false);
+      const picked = planRoute(header, predicted.current, point);
+      onRoute(picked ?? null);
+      if (!picked) setMapStatus(COPY.map.noRoute);
+    },
+    [header, input, onRoute, predicted],
+  );
+  const walkRoute = (): void => {
+    if (!route) return;
+    input.setAutopilot(new RouteFollower(route.points), (end) => {
+      setWalking(false);
+      if (end === "arrived") {
+        onRoute(null);
+        setMapStatus(COPY.map.arrived);
+      } else if (end === "stuck") {
+        setMapStatus(COPY.map.stuck);
+      }
+    });
+    setWalking(true);
+    setMapOpen(false);
+  };
+  const stopWalking = (): void => {
+    input.clearAutopilot();
+    setWalking(false);
+  };
+  const clearRoute = (): void => {
+    stopWalking();
+    onRoute(null);
+  };
+
   return (
     <>
       <Hud
@@ -335,11 +401,36 @@ function Overlay({
             />
           )}
           {!interaction && !inbox && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
+          {!interaction && !inbox && !mapOpen && (
+            <Minimap header={header} base={mapBase} predicted={predicted} route={route} onOpen={() => setMapOpen(true)} />
+          )}
+          {walking && !mapOpen && (
+            <button type="button" className={styles.mapStop} onClick={stopWalking}>
+              {COPY.map.stop}
+            </button>
+          )}
+          {mapStatus && !mapOpen && <p className={styles.mapStatus}>{mapStatus}</p>}
+          {mapOpen && (
+            <MapScreen
+              header={header}
+              base={mapBase}
+              predicted={predicted}
+              route={route}
+              walking={walking}
+              onPick={pickOnMap}
+              onWalk={walkRoute}
+              onClear={clearRoute}
+              onClose={() => setMapOpen(false)}
+            />
+          )}
         </>
       )}
     </>
   );
 }
+
+/** How long a line like "You're there." stays up. */
+const MAP_STATUS_MS = 3000;
 
 /** The place the player is standing at, if any. A display hint only: the server re-checks distance. */
 function useNearbyPlace(district: DistrictConfig, predicted: { current: Point }): Interactable | undefined {

@@ -72,7 +72,7 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - The old 120 m Yaba is the `yaba-junction` landmark, unchanged except that the face-me-face-you house's footprint went from 5.05 to 5.0 m. It had reached 5 cm into Herbert Macaulay Way, which the new "building on a road" check caught.
   - `checkLayout` now also refuses a building on a road and two buildings that overlap.
 - **Yaba's street plan is stylised, not surveyed (decided 2026-10-21).** It uses real street names on a straight grid, not OpenStreetMap data, whose ODbL licence would make us share our city data under the same licence.
-  - Positions are approximate. Murtala Muhammed Way is drawn at the west edge as the plan said; if it belongs east of Herbert Macaulay Way, move it in the plan.
+  - Positions are approximate. Murtala Muhammed Way runs along the east edge (moved there 2026-10-22 at the owner's word; its fuel station moved with it).
   - Ojuelegba Road and Iwaya Road were added as the two inner north–south streets. They are real Yaba-area roads, but placed loosely.
   - Business names are generic (Yabacon Hub, Sabo Plaza). The mosque is a placeholder: a white box and a green minaret box, until a Blender model is made like 11f's buildings.
   - Main roads stay 8 m with one lane each way, not the 4 lanes the 11h plan first said, so the old centre and its poles stay as they were.
@@ -153,6 +153,23 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
     - `dpr=1`: low 57, worst 35 ms, the same as dpr 1.5 (so the GPU is not short of fill rate).
   - **The remaining standing hitch** had no shader or texture work, which suggests a garbage-collection pause. The traffic stopped allocating every frame (reused math objects in `placeVehicle`, lane lists made once and sorted in place); the phone reading after that is still to take.
   - **Meter:** it now shows when the worst frame happened and how many frames took over 100 ms (`worst 219 ms at 31s · 1 hitch`).
+- **The map and "walk there" (Slice 11i-1, 2026-10-22).**
+  - **The map.**
+    - Drawn on 2D canvases from the district header (every road and building outline, whatever chunks are loaded), north up like the street (`game/map/mapPaint.ts`).
+    - The ground, roads and buildings are painted once into a base image (1.5 px a metre, about 950 px a side). Each redraw copies the visible part and adds the route, place dots, labels and the player.
+    - The minimap (bottom right, about 190 m across, 5 redraws a second) opens the full map: drag, pinch or scroll to zoom, tap for a route.
+    - No GPU cost and no new dependency.
+  - **Routes.**
+    - `routeBetween` (`packages/shared/src/roadGraph.ts`) turns the roads into a graph (nodes at crossings and road ends) and runs A*. A route keeps to the right-hand side of each road, 0.8 m in from the edge, or the middle of a narrow lane.
+    - Nothing solid may stand on a road, so only the first leg (to the road) and the last (from the road) can meet a wall.
+    - `planRoute` drops the last leg when a building outline stands in its way (a yard behind a shop), ending at the roadside.
+  - **"Walk there".** A `RouteFollower` steers through `MoveInput` like a pushed joystick, so the server moves the player as for any walking.
+    - Touching the joystick or keys takes over.
+    - It ends "arrived" within 1 m of the end, or "stuck" when it gets less than 0.4 m closer to the next waypoint in 1.5 s. Pushing into a wall slides you along it, so "not moving" would miss that.
+    - The route is a yellow strip on the road (`RouteRibbon`): one draw call, always mounted and warmed up, hidden without a route.
+  - **Not done:**
+    - The first leg can still meet a wall if the player starts inside a compound; the walk then stops as "stuck".
+    - Routes ignore the traffic, which stops for the player anyway.
 - **Chunk streaming and area of interest (Slice 11h-4, 2026-10-22).**
   - **What a client is sent.**
     - On join: the `district` header (`districtHeader` in `packages/shared/src/chunks.ts`). It holds the places, roads, road furniture (speed bumps, which the traffic needs from the start), traffic lanes, catalogs, NPCs, every building model with its count, and an outline map of every building for 11i.

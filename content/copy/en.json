@@ -54,6 +54,18 @@
     "empty": "Nothing yet. News about your shifts, rent and family shows up here.",
     "new": "New"
   },
+  "map": {
+    "open": "Open the map",
+    "hint": "Tap anywhere to find the way there by road.",
+    "route": "{metres} m by road",
+    "noRoute": "No road goes near there.",
+    "walkThere": "Walk there",
+    "stop": "Stop",
+    "clearRoute": "Clear route",
+    "close": "Close",
+    "arrived": "You're there.",
+    "stuck": "Something's in the way. Find your way round from here."
+  },
   "places": {
     "prompts": {
       "job_site": "Work a shift at {place}",

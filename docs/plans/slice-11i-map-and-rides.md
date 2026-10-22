@@ -33,6 +33,19 @@ Decided 2026-10-21:
   - The roads become a graph: nodes at junctions and road ends, edges along the roads.
   - A\* is the standard shortest-path search: it explores towards the goal first, so it is fast on a graph this small.
 
+## Built in two parts
+
+**11i-1, the map and "walk there"** (built 2026-10-22 on `feat/map-and-rides`): the map, routes and "walk there", as below. Details are in [known-limits, Client](../known-limits.md#client-appsclientgame).
+- A route that would end through a building stops at the roadside instead.
+- The route on the street is a flat strip rather than a line, since a WebGL line is one pixel wide on a phone.
+- Murtala Muhammed Way moved to the east edge in the same part.
+
+**11i-2, the rides** (next): the rides, with these decisions (2026-10-22):
+- **Fares.**
+  - **Danfo:** a flat ₦500, the top of the ₦250–₦500 quoted for short Yaba hops after the fuel rises ([Lagos.Cool](https://lagos.cool/transport), [transportlog](https://transportlog.com.ng/transport-fare-in-nigeria-2026-complete-guide-to-bus-taxi-okada-and-interstate-prices/)).
+  - **Okada:** ₦500 up to 500 m, ₦800 up to 1 km, ₦1,200 up to 2 km, between a short-trip guide (₦300–₦500 for 0.5–1.5 km) and the NBS average for Lagos (₦1,660 a trip in May 2026, all lengths; [Channels TV](https://www.channelstv.com/2026/04/01/nigerians-spent-more-on-air-okada-fares-in-february/), [Nairametrics](http://nairametrics.com/2026/06/02/nbs-bus-fares-climb-21-6-year-on-year-to-n9607-per-passenger-in-april/)).
+- **The new `PlayerRide` table is approved.**
+
 ## Map
 
 - **Minimap:**
