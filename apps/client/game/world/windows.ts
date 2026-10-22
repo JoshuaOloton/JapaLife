@@ -97,7 +97,7 @@ export function modelWindowsLit(buildingId: string, power: StreetPower): boolean
 }
 
 /** FNV-1a, folded to [0, 1). Plenty for picking which windows glow. */
-function hash01(text: string): number {
+export function hash01(text: string): number {
   let h = 0x811c9dc5;
   for (let index = 0; index < text.length; index++) {
     h ^= text.charCodeAt(index);

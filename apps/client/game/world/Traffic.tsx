@@ -7,6 +7,7 @@ import { Group, InstancedMesh, Matrix4, Mesh, MeshLambertMaterial, type MeshStan
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { ASSET_ROOT, withDecoders } from "../character/loaders";
 import { ModelBoundary } from "../ModelBoundary";
+import { DRAW_REACH, areaBox } from "./area";
 import type { QualityGovernor } from "./quality";
 import { localHour } from "./sky";
 import type { StreetState } from "./street";
@@ -26,7 +27,6 @@ const MAX_STEP_SECONDS = 0.1;
 /** Runs before the drawing frame callbacks (lower runs first; negative never takes over rendering). */
 const SIMULATE_FIRST = -1;
 
-const HIDDEN = new Matrix4().makeScale(0, 0, 0);
 const UP = new Vector3(0, 1, 0);
 
 export function Traffic({
@@ -65,7 +65,7 @@ export function Traffic({
         // No stand-in while a model downloads: traffic arrives after the street is on screen.
         <ModelBoundary key={id} fallback={null}>
           <Suspense fallback={null}>
-            <ModelFleet world={world} kindId={id} look={look} model={model} />
+            <ModelFleet world={world} kindId={id} look={look} model={model} predicted={predicted} />
           </Suspense>
         </ModelBoundary>
       ))}
@@ -86,11 +86,14 @@ function ModelFleet({
   kindId,
   look,
   model,
+  predicted,
 }: {
   world: TrafficWorld;
   kindId: string;
   look: VehicleKind["look"];
   model: ModelInfo;
+  /** Where the player is: only vehicles in the drawn area around them are drawn. */
+  predicted: { current: Point };
 }) {
   const gl = useThree((three) => three.gl);
   const gltf = useLoader(GLTFLoader, `${ASSET_ROOT}/${model.file}`, withDecoders(gl));
@@ -125,11 +128,22 @@ function ModelFleet({
   const placed = useMemo(() => new Matrix4(), []);
   const combined = useMemo(() => new Matrix4(), []);
   useFrame(() => {
-    fleet.forEach((vehicle, index) => {
+    // Only vehicles in the drawn area take a slot: the rest of the district's traffic costs the GPU nothing.
+    const area = areaBox(predicted.current, DRAW_REACH);
+    let shown = 0;
+    for (const vehicle of fleet) {
       const at = placeVehicle(vehicle, look.scale, placed);
-      for (const { mesh, local } of meshes) mesh.setMatrixAt(index, at ? combined.multiplyMatrices(at, local) : HIDDEN);
-    });
-    for (const { mesh } of meshes) mesh.instanceMatrix.needsUpdate = true;
+      if (!at) continue;
+      const x = at.elements[12] ?? 0;
+      const z = at.elements[14] ?? 0;
+      if (Math.abs(x - area.x) > area.halfWidth || Math.abs(z - area.z) > area.halfDepth) continue;
+      for (const { mesh, local } of meshes) mesh.setMatrixAt(shown, combined.multiplyMatrices(at, local));
+      shown++;
+    }
+    for (const { mesh } of meshes) {
+      mesh.count = shown;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
   });
 
   return <primitive object={group} />;

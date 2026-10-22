@@ -26,7 +26,7 @@ import { ShaderWarmUp, WARM_UP_WHILE_HIDDEN } from "./ShaderWarmUp";
 import { Player, type PlayerActivity } from "./Player";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
-import { Lighting } from "./world/Lighting";
+import { FOG_FAR, Lighting } from "./world/Lighting";
 import { QualityGovernor } from "./world/quality";
 import { type StreetState, initialStreet } from "./world/street";
 
@@ -82,8 +82,8 @@ export default function Game() {
         dpr={[1, MAX_DEVICE_PIXEL_RATIO]}
         // Antialiasing costs a lot on mobile GPUs and matters little at 1.5x.
         gl={{ antialias: false, powerPreference: "high-performance" }}
-        // The fog hides everything past 140 m, so nothing beyond it needs drawing.
-        camera={{ fov: 50, near: 0.5, far: 150 }}
+        // The haze hides everything past FOG_FAR, so nothing beyond it needs drawing.
+        camera={{ fov: 50, near: 0.5, far: FOG_FAR + 5 }}
       >
         <Lighting street={street} indoors={closeUp} />
         {/* The creator takes place in a bedroom set, so the street is hidden (still simulated) meanwhile. */}

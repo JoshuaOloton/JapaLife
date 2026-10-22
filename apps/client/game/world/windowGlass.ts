@@ -53,59 +53,62 @@ export function flagWindowGlass(geometry: BufferGeometry, rects: readonly UvRect
   flagUvCells(geometry, rects, WINDOW_GLASS_ATTRIBUTE);
 }
 
-/** The handle a building keeps to turn its windows' glow up or down. */
-export interface WindowGlow {
-  /** Glow colour times strength; black is off. */
-  readonly value: Color;
-}
-
-/** The handle a building keeps to fade itself out while it hides the player: 0 solid, 1 gone. */
-export interface BuildingFade {
-  value: number;
-}
+/** Per building copy: how far it is faded out while it hides the player, 0 solid to 1 gone. */
+export const INSTANCE_FADE_ATTRIBUTE = "instanceFade";
+/** Per building copy: 1 while its windows are lit, else 0. */
+export const INSTANCE_LIT_ATTRIBUTE = "instanceLit";
 
 /**
- * Two effects in a building's shader:
- *  - its glass glows where the geometry is flagged as glass, by `glow`;
- *  - it fades out by `fade` with a dither: a fixed 4x4 pattern of screen
- *    pixels is skipped, more of them the higher `fade`. Unlike real
+ * Two effects in the shader of instanced building models, each set per copy
+ * (per building) through an instance attribute, so every building of a kind
+ * is still one draw call:
+ *  - its glass glows `glow` where the geometry is flagged as glass and the
+ *    copy's `instanceLit` is 1;
+ *  - it fades out by its `instanceFade` with a dither: a fixed 4x4 pattern of
+ *    screen pixels is skipped, more of them the higher the fade. Unlike real
  *    transparency this needs no second shader and no back-to-front sorting, so
  *    fading never compiles anything mid-game (a compile can freeze a phone for
  *    a second or more).
- * Every building's material gets the same added code, so they share one
+ * Every building material gets the same added code, so they share one
  * compiled shader.
  */
-export function addBuildingEffects(material: MeshLambertMaterial): { glow: WindowGlow; fade: BuildingFade } {
-  const glow: WindowGlow = { value: new Color(0, 0, 0) };
-  const fade: BuildingFade = { value: 0 };
+export function addBuildingEffects(material: MeshLambertMaterial, glow: { readonly value: Color }): void {
   material.onBeforeCompile = (shader) => {
     shader.uniforms["windowGlow"] = glow;
-    shader.uniforms["buildingFade"] = fade;
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
-        `#include <common>\nattribute float ${WINDOW_GLASS_ATTRIBUTE};\nvarying float vWindowGlass;`,
+        `#include <common>
+        attribute float ${WINDOW_GLASS_ATTRIBUTE};
+        attribute float ${INSTANCE_FADE_ATTRIBUTE};
+        attribute float ${INSTANCE_LIT_ATTRIBUTE};
+        varying float vWindowGlass;
+        varying float vFade;`,
       )
-      .replace("#include <begin_vertex>", `#include <begin_vertex>\nvWindowGlass = ${WINDOW_GLASS_ATTRIBUTE};`);
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        vWindowGlass = ${WINDOW_GLASS_ATTRIBUTE} * ${INSTANCE_LIT_ATTRIBUTE};
+        vFade = ${INSTANCE_FADE_ATTRIBUTE};`,
+      );
     shader.fragmentShader = shader.fragmentShader
       .replace(
         "#include <common>",
         `#include <common>
         uniform vec3 windowGlow;
-        uniform float buildingFade;
         varying float vWindowGlass;
+        varying float vFade;
         const float DITHER[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);`,
       )
       .replace(
         "#include <clipping_planes_fragment>",
         `#include <clipping_planes_fragment>
-        if (buildingFade > 0.0) {
+        if (vFade > 0.0) {
           ivec2 cell = ivec2(mod(gl_FragCoord.xy, 4.0));
-          if ((DITHER[cell.x + cell.y * 4] + 0.5) / 16.0 < buildingFade) discard;
+          if ((DITHER[cell.x + cell.y * 4] + 0.5) / 16.0 < vFade) discard;
         }`,
       )
       .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += windowGlow * vWindowGlass;");
   };
-  material.customProgramCacheKey = () => "building";
-  return { glow, fade };
+  material.customProgramCacheKey = () => "building-instanced";
 }

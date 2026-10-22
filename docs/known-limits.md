@@ -116,6 +116,32 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - **Budgets fail loudly.** Each district's models (what `buildDistrictLayout` sends: placed models plus every hair part and garment piece) must stay within `DISTRICT_DOWNLOAD_BUDGET_BYTES` (6 MB), or the content check refuses to start the server. `public/assets/characters/` must stay within 1.5 MB, or `pnpm budget` fails. At 11g, Yaba's models were about 0.4 MB and the characters 0.67 MB. Ground, roads and prints are painted in code, so they cost nothing here.
   - **Shader warm-up.** `ShaderWarmUp` calls `renderer.compileAsync(scene, camera)` four times in the first 4.5 s, so every material (including buildings far out of view, and the street hidden behind a new player's creator, via the `warmUpWhileHidden` flag) compiles at load instead of when it first comes into view. A material that first appears later (a walker in a new outfit after warm-up) can still compile late; the `?fps` meter then shows "⚠ late shaders N". The warm-up also uploads every texture held in a material's slots (`renderer.initTexture`). Textures held only in shader uniforms (the people's region masks and prints) still upload on first draw: about 20 when a new player leaves the creator, 26 ms on desktop Chrome (2026-10-21), so check that frame on the phone. `shaderCache.test.ts` checks that building and body materials share one shader each.
   - **Adaptive quality and app switches.** `QualityGovernor` used to read the gap while the page was hidden as seconds of low fps and halve the street for good after any app switch of 5 s or more. It now pauses on `visibilitychange`, like the fps meter.
+- **Only the area around the player is drawn (Slice 11h-3, 2026-10-22; `world/area.ts`).**
+  - **How it works.**
+    - At load, everything is bucketed into 64 m chunks (`ChunkIndex`, over the shared `SpatialGrid`).
+    - When the player crosses into another 16 m area cell, the world refills its instanced meshes with the things nearby. That covers the plain-box mesh, the windows, one mesh per building model, one per prop model, the palm fronds and the vehicles.
+    - Each kind stays one draw call, sized once for every copy in the district (`capacity`), so a refill only rewrites numbers and never builds a mesh or compiles a shader.
+    - We chose this over one mesh per chunk, which would multiply draw calls by the number of chunks on screen.
+  - **What is drawn where.**
+    - The drawn area reaches 90 m ahead (north), 30 m behind and 75 m to each side. A portrait phone's camera sees almost to the horizon ahead and little behind.
+    - Model buildings are full models within 60 m ahead and 50 m to the side, and plain boxes beyond (LOD).
+    - Painted labels are drawn within 40 m. Their canvases are cached, so walking back never repaints them.
+    - NPCs are hidden past 90 m.
+    - The roads are one merged mesh, and the ground repeats a seamless 180 m tile (painted blobs wrap round its edges).
+  - **Haze:** the fog now runs from 35 to 100 m from the camera (it was 50–140), and the camera's far plane is 105 m.
+  - **Building models are instanced per kind.**
+    - Their occlusion fade and window light became per-copy instance attributes (`instanceFade`, `instanceLit` in `addBuildingEffects`) instead of per-building uniforms. Every model building now shares its kind's materials (no more `withOwnMaterials`).
+    - Only buildings within 35 m are tested for hiding the player.
+    - A kind with nothing near is warmed up while hidden (`WARM_UP_WHILE_HIDDEN` on each instanced mesh), so the first one to come near compiles nothing.
+  - **Traffic:** the simulation still runs every vehicle in the district (11h-5 changes that), but only those in the drawn area take an instance slot.
+  - **Measured.** Headless Chrome with software WebGL (SwiftShader) on a Mac, production build, a 430×860 portrait window. The same 70 m walk north from spawn, then east:
+
+    | Build | fps | Draw calls | Triangles | Street |
+    |---|---|---|---|---|
+    | 11h-2 (600 m, everything drawn) | 8–9 | 52–81 (⚠ peak warning) | 219–253k | adaptive quality cut it to 50% |
+    | 11h-3 | 49–59 | 21–40 | 43–70k | 100% |
+
+    - Software fps only compares builds on the same machine; the vivo Y29 reading is still to take.
 - **Standing NPCs (Slice 11c)** are city-file entries (`npcs`: look, pose, spot, facing, optional `says` bubble) drawn with the player's `Character` holding one looping clip (`pose`). They block the player (decided 2026-10-19) but are not synced: they never move. Since 11d their `look` is an appearance from the character catalog, and they may wear non-starter clothes (a gateman's uniform). Beyond 30 m from the player their animation stops (frozen in pose), and a bubble shows within 10 m. The five pose clips doubled `animations.glb` (168 KB to 325 KB raw, 0.15 MB gzipped). Each NPC is 4 draw calls; six of them is most of 11c's draw-call cost, so 11e's pedestrians need the same 30 m cut-off or a cheaper body.
 - **Traffic and pedestrians (Slice 11e) are client-only and cosmetic.** Each phone runs its own little simulation (`world/trafficSim.ts`, `world/walkers.ts`), so two players will not see the same danfo until Phase 5 decides whether to sync it.
   - Vehicles drive lanes from the city file (right-hand traffic), ease over speed bumps, queue, take turns at the junction (one direction of travel at a time, with a 3 s fairness rule), stop for the player in their path, and danfos pause at the bus stop.

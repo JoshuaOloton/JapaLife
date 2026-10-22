@@ -10,8 +10,14 @@ import type { StreetState } from "./street";
 const UPDATE_EVERY_SECONDS = 1;
 /** Before the first stats arrive, show midday. */
 const DEFAULT_HOUR = 12;
-const FOG_NEAR = 50;
-const FOG_FAR = 140;
+/**
+ * The haze, in metres from the camera: Lagos's humid (or harmattan) air.
+ * Everything is gone into it by `FOG_FAR`, so the edge of what is drawn
+ * (`world/area.ts`, about 90 m ahead of the player) is never seen. The
+ * camera's far plane matches it (`CAMERA_FAR` in Game.tsx).
+ */
+export const FOG_NEAR = 35;
+export const FOG_FAR = 100;
 
 /**
  * Indoors (the wardrobe's bedroom): warm, even light from in front and above,

@@ -3,11 +3,12 @@
 import type { DistrictLayout, Point } from "@japalife/shared";
 import { useFrame } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef } from "react";
-import type { Mesh } from "three";
+import type { Group, Mesh } from "three";
 import type { CharacterMotion } from "../character/animation";
 import { resolveLook } from "../character/appearance";
 import { Character } from "../character/Character";
 import { ModelBoundary } from "../ModelBoundary";
+import { WARM_UP_WHILE_HIDDEN } from "../ShaderWarmUp";
 import { paintSign } from "./paint";
 
 /**
@@ -24,6 +25,8 @@ import { paintSign } from "./paint";
 
 /** Metres from the player within which NPCs animate. */
 const ANIMATION_RANGE = 30;
+/** Metres from the player within which NPCs are drawn at all; past it the haze hides them. */
+const DRAW_RANGE = 90;
 /** Metres from the player within which a speech bubble shows. */
 const BUBBLE_RANGE = 10;
 /** How often to re-check distances, in seconds. People do not need it every frame. */
@@ -51,6 +54,7 @@ export function Npcs({
     [npcs, layout.characters, layout.models],
   );
   const bubbles = useRef<(Mesh | null)[]>([]);
+  const people = useRef<(Group | null)[]>([]);
   const sinceCheck = useRef(Number.POSITIVE_INFINITY);
 
   useFrame((_, frameSeconds) => {
@@ -64,6 +68,8 @@ export function Npcs({
       if (flag) flag.current = distance > ANIMATION_RANGE;
       const bubble = bubbles.current[index];
       if (bubble) bubble.visible = distance <= BUBBLE_RANGE;
+      const person = people.current[index];
+      if (person) person.visible = distance <= DRAW_RANGE;
     });
   });
 
@@ -73,7 +79,16 @@ export function Npcs({
         const look = looks[index];
         if (!look) return null;
         return (
-          <group key={npc.id} position={[npc.x, 0, npc.z]} rotation-y={(npc.facing * Math.PI) / 180}>
+          <group
+            key={npc.id}
+            ref={(group) => {
+              people.current[index] = group;
+            }}
+            position={[npc.x, 0, npc.z]}
+            rotation-y={(npc.facing * Math.PI) / 180}
+            // Warmed up at load even if they start out of range.
+            userData={{ [WARM_UP_WHILE_HIDDEN]: true }}
+          >
             {/* No stand-in: they arrive with the player's own character download. */}
             <ModelBoundary fallback={null}>
               <Suspense fallback={null}>

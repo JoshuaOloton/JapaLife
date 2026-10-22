@@ -138,6 +138,19 @@ The plan as written before building:
 
 ### 11h-3 Client chunks, culling, LOD, haze
 
+**As built (2026-10-22)**
+
+- **One mesh per kind, not per chunk.** Instead of a mesh per chunk, each kind keeps one instanced mesh for the whole district. It is refilled from the 64 m chunks nearby whenever the player crosses into another 16 m cell, so draw calls stay flat.
+- **The drawn area follows the camera:**
+  - it reaches 90 m ahead, 30 m behind and 75 m to each side;
+  - models are drawn within 60 m ahead and 50 m to the side;
+  - a portrait phone sees almost to the horizon ahead, so the area leans north.
+- **Haze:** 35–100 m from the camera.
+- **Traffic:** only vehicles in the drawn area are drawn. That came forward from 11h-5, because the far traffic was most of the triangles.
+- **Details and measurements:** [known-limits, Client](../known-limits.md#client-appsclientgame).
+
+**The plan as written before building:**
+
 - `apps/client/game/world/chunks.ts`:
   - splits the layout into chunks;
   - the visible set is the chunks within about 100 m of the camera's look point;
