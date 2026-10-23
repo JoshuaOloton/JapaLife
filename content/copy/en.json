@@ -71,7 +71,8 @@
       "job_site": "Work a shift at {place}",
       "food_vendor": "Buy food at {place}",
       "home": "Go home",
-      "bus_stop": "Wait for a danfo",
+      "bus_stop": "Take a danfo",
+      "okada_park": "Take an okada",
       "fuel_station": "Buy petrol at {place}"
     },
     "jobTerms": "{pay} for {minutes} min · uses {energy} energy",
@@ -85,7 +86,11 @@
     "rentOverdue": "{amount} · overdue",
     "rentLateFee": "Pay within {time} or the landlord adds a {fee} late fee",
     "payRent": "Pay rent",
-    "noBuses": "No danfo yet. They're coming in a later update.",
+    "noBuses": "Nothing goes from here.",
+    "ridesTitle": "Where to?",
+    "rideTerms": "{fare} · about {minutes} min",
+    "ride": "Ride",
+    "okadaNote": "Commercial okada is banned on Lagos Mainland. The riders keep to the back streets, and the task force sometimes stops them.",
     "fuelRuns": "Runs your gen {hours}h when NEPA takes light at night",
     "fuelInTank": "in your jerrycan: {hours}h"
   },
@@ -115,7 +120,15 @@
     "shiftPaid": "You earned {amount} for your shift.",
     "rentLateFeeTitle": "Rent overdue",
     "rentLateFee": "Your landlord added a {amount} late fee. Pay your rent at home to stop more fees.",
-    "rentLateFeeBroke": "Your landlord came for a {amount} late fee you couldn't pay, and the whole compound heard. Pay your rent at home."
+    "rentLateFeeBroke": "Your landlord came for a {amount} late fee you couldn't pay, and the whole compound heard. Pay your rent at home.",
+    "taskForceTitle": "Task force!",
+    "taskForce": "The task force stopped your okada before {place}. You're walking the rest, and the fare is gone."
+  },
+  "riding": {
+    "onTheWay": "On the {vehicle} to {place} · {time}",
+    "boarding": "Boarding the {vehicle} to {place}...",
+    "danfo": "danfo",
+    "okada": "okada"
   },
   "rejections": {
     "invalid": "That didn't work. Try again.",
@@ -135,6 +148,8 @@
     "already_answered": "You've already answered that.",
     "choice_expired": "Too late. They've stopped waiting for an answer.",
     "not_owned": "That isn't yours yet.",
-    "not_at_home": "Change your clothes at home."
+    "not_at_home": "Change your clothes at home.",
+    "already_riding": "You're already on a ride.",
+    "no_ride": "Nothing goes there from here."
   }
 }

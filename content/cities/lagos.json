@@ -43,7 +43,10 @@
           "kind": "food_vendor",
           "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"]
         },
+        { "id": "tejuosho-okada", "label": "Tejuosho Okada", "position": { "x": -89, "z": 148 }, "kind": "okada_park" },
         { "id": "sabo-bus-stop", "label": "Sabo Bus Stop", "position": { "x": 158, "z": 6 }, "kind": "bus_stop" },
+        { "id": "sabo-okada", "label": "Sabo Okada", "position": { "x": 156, "z": 40 }, "kind": "okada_park" },
+        { "id": "montgomery-okada", "label": "Okada Park", "position": { "x": -100, "z": -115 }, "kind": "okada_park" },
         {
           "id": "murtala-fuel-station",
           "label": "Fuel Station",
@@ -12808,6 +12811,10 @@
         { "id": "sabo-plaza", "name": "Sabo Plaza", "x": 112, "z": -24 },
         { "id": "yaba-mosque", "name": "Mosque", "x": -40, "z": 205 },
         { "id": "okada-park", "name": "Okada Park", "x": -102, "z": -112 }
+      ],
+      "rides": [
+        { "id": "yaba-danfo", "kind": "danfo", "stops": ["yaba-motor-park", "yaba-bus-stop", "sabo-bus-stop"] },
+        { "id": "yaba-okada", "kind": "okada", "stops": ["montgomery-okada", "tejuosho-okada", "sabo-okada"] }
       ],
       "traffic": {
         "lanes": [

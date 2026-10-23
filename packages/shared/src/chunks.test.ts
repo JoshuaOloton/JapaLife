@@ -34,6 +34,7 @@ function layout(): DistrictLayout {
     ],
     npcs: [],
     landmarks: [],
+    rides: [],
     models: { flats: { file: "buildings/flats.glb", halfWidth: 1, halfDepth: 0.65, height: 2.25, triangles: 10, bytes: 10 } },
     propKinds: {},
     characters: {} as DistrictLayout["characters"],

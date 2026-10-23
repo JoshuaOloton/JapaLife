@@ -314,7 +314,6 @@ function collectTodos(
     if (note) todos.push(`${where}: ${note}`);
   };
   add("economy/needs.json", needs.todo);
-  add("economy/ngn.json busFareKobo", ngn.busFareTodo);
   add("economy/ngn.json rent", ngn.rent.todo);
   for (const item of ngn.food) add(`economy/ngn.json food "${item.id}"`, item.todo);
   for (const item of ngn.shop) add(`economy/ngn.json shop "${item.id}"`, item.todo);

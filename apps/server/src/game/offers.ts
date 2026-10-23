@@ -1,12 +1,22 @@
-import type { Interactable, InteractionMessage, MenuItem, NeedsConfig, PriceCategory, ShopOffer } from "@japalife/shared";
+import type {
+  Interactable,
+  InteractionMessage,
+  MenuItem,
+  NeedsConfig,
+  PriceCategory,
+  RideOption,
+  ShopOffer,
+} from "@japalife/shared";
 import type { GameContent } from "../content/loadContent";
 import { shiftPay } from "./jobs";
 import { priceWithFactor } from "./prices";
 
-/** What the offer depends on right now: price rises and the player's morale. */
+/** What the offer depends on right now: price rises, the player's morale, and the rides from here. */
 export interface OfferContext {
   priceFactorBp: Record<PriceCategory, bigint>;
   morale: number;
+  /** At a bus stop or okada park: where you can ride to, with the server's fares (`RideService.options`). */
+  rides?: RideOption[];
 }
 
 /**
@@ -64,8 +74,10 @@ export function describeOffer(target: Interactable, content: GameContent, contex
       }
       return { targetId: target.id, kind: "fuel_station", items };
     }
-    case "home":
     case "bus_stop":
+    case "okada_park":
+      return { targetId: target.id, kind: target.kind, rides: context.rides ?? [] };
+    case "home":
       return { targetId: target.id, kind: target.kind };
   }
 }

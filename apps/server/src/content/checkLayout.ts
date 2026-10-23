@@ -15,8 +15,10 @@ import {
   obstacleGrid,
   propBlockSize,
   reachableTargets,
+  routeBetween,
   turnHalfSize,
 } from "@japalife/shared";
+import { rideRoads } from "../game/district";
 
 /**
  * Problems with a district's physical layout. A layout mistake would otherwise
@@ -104,6 +106,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
 
   const obstacles = obstacleGrid(districtObstacles(layout));
   if (layout.traffic) problems.push(...checkTraffic(where, layout.traffic, roads, bounds, obstacles));
+  problems.push(...checkRides(where, layout));
 
   if (isBlocked(spawn, obstacles)) {
     problems.push(`${where}: the spawn point is inside a building, prop or person`);
@@ -180,6 +183,48 @@ function checkTraffic(where: string, traffic: Traffic, roads: readonly Box[], bo
       problems.push(
         `${where}: walkway "${walkway.id}" runs into something (or off the district) at ${blocked.x.toFixed(1)}, ${blocked.z.toFixed(1)}`,
       );
+    }
+  }
+  return problems;
+}
+
+/** A stop may stand this far from the nearest road its rides may use, metres: a short walk to the kerb. */
+const STOP_TO_ROAD_METRES = 35;
+
+/**
+ * Every ride works: its stops are real places of the right kind (bus stops for
+ * danfos, okada parks for okadas), each stands near a road its ride may use
+ * (danfos the main roads, okadas only the inner streets), and every stop can be
+ * reached from every other on those roads.
+ */
+function checkRides(where: string, layout: DistrictLayout): string[] {
+  const problems: string[] = [];
+  const places = new Map(layout.interactables.map((place) => [place.id, place]));
+  for (const ride of layout.rides) {
+    const what = `${where}: ride "${ride.id}"`;
+    const wanted = ride.kind === "danfo" ? "bus_stop" : "okada_park";
+    const roads = rideRoads(layout.roads, ride.kind);
+    if (roads.length === 0) {
+      problems.push(`${what} has no roads it may use`);
+      continue;
+    }
+    for (const stopId of ride.stops) {
+      const stop = places.get(stopId);
+      if (!stop) {
+        problems.push(`${what} stops at "${stopId}", which is not a place in the district`);
+        continue;
+      }
+      if (stop.kind !== wanted) problems.push(`${what} stops at "${stopId}", which is a ${stop.kind}, not a ${wanted}`);
+      const nearest = Math.min(
+        ...roads.map((road) => Math.max(Math.abs(stop.position.x - road.x) - road.halfWidth, Math.abs(stop.position.z - road.z) - road.halfDepth, 0)),
+      );
+      if (nearest > STOP_TO_ROAD_METRES) problems.push(`${what}: "${stopId}" is ${nearest.toFixed(0)} m from any road a ${ride.kind} may use`);
+    }
+    const [first, ...rest] = ride.stops.map((id) => places.get(id)).filter((place) => place !== undefined);
+    for (const other of rest) {
+      if (first && !routeBetween(roads, first.position, other.position)) {
+        problems.push(`${what} has no road route from "${first.id}" to "${other.id}"`);
+      }
     }
   }
   return problems;

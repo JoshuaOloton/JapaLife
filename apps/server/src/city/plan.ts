@@ -7,6 +7,7 @@ import {
   npcSchema,
   positionSchema,
   propSchema,
+  rideRouteSchema,
 } from "@japalife/shared";
 import { z } from "zod";
 
@@ -111,6 +112,8 @@ export const districtPlanSchema = z
     zones: z.array(z.strictObject({ id: contentIdSchema, x: z.number(), z: z.number(), ...areaSchema.shape, mix: mixSchema })).default([]),
     streets: z.array(streetSchema).min(1),
     landmarks: z.array(landmarkPlanSchema).default([]),
+    /** Danfo and okada routes between bus stops and okada parks (places in the landmarks). */
+    rides: z.array(rideRouteSchema).default([]),
     /** Trees and palms dotted over open ground, away from roads and buildings. */
     scatter: z.strictObject({ count: z.int().nonnegative(), kinds: z.array(contentIdSchema).min(1) }),
     traffic: z.strictObject({

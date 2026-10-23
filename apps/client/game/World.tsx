@@ -7,7 +7,6 @@ import {
   type Interactable,
   type Point,
   type Road,
-  type Route,
   seededRandom,
 } from "@japalife/shared";
 import { useFrame } from "@react-three/fiber";
@@ -16,6 +15,7 @@ import { BufferAttribute, BufferGeometry, type InstancedMesh, Object3D } from "t
 import { headerLayout } from "./connection";
 import type { DiagnosticLayer } from "./diagnostics";
 import { PLACE_COLOURS } from "./placeColours";
+import type { RouteStore } from "./routeStore";
 import { ChunkIndex, DRAW_REACH, areaBox, areaCell, splitByDetail, useCapacity } from "./world/area";
 import { Boxes, type Slab } from "./world/Boxes";
 import { ModelBuildings, Windows, plainBuildingSlabs, windowCount } from "./world/Buildings";
@@ -62,13 +62,13 @@ export function World({
   district,
   header,
   hide = NOTHING_HIDDEN,
-  route = null,
+  routes,
   street,
   predicted,
   quality,
 }: {
-  /** The route picked on the map, drawn on the street. */
-  route?: Route | null;
+  /** The route picked on the map, drawn on the street (only the strip re-renders when it changes). */
+  routes?: RouteStore;
   /** Layers left out to find what costs frame time (`diagnostics.ts`, developer-only). */
   hide?: ReadonlySet<DiagnosticLayer>;
   /** The district as far as the loaded chunks go. */
@@ -118,7 +118,7 @@ export function World({
       </mesh>
       <Roads roads={district.roads} />
       <Potholes roads={district.roads} />
-      <RouteRibbon route={route} />
+      {routes && <RouteRibbon routes={routes} />}
       <Boxes slabs={near.slabs} capacity={slabCapacity} />
       <Windows buildings={near.plain} capacity={windowCapacity} street={street} />
       <ModelBuildings

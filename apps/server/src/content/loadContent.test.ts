@@ -15,7 +15,7 @@ describe("loadContent (real content/)", () => {
     const districts = content.cities["lagos"]?.districts ?? [];
     expect(districts.map((d) => d.id)).toEqual(["yaba"]);
     expect([...new Set(districts[0]?.interactables.map((i) => i.kind))].sort()).toEqual(
-      ["bus_stop", "food_vendor", "fuel_station", "home", "job_site"].sort(),
+      ["bus_stop", "food_vendor", "fuel_station", "home", "job_site", "okada_park"].sort(),
     );
     // Every location has sign text, and the district has buildings and roads to draw.
     expect(districts[0]?.interactables.every((i) => i.label.length > 0)).toBe(true);

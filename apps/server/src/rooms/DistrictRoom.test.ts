@@ -226,7 +226,11 @@ describe("intents", () => {
     s.room.send("interact", { targetId: "yaba-bus-stop" });
     s.room.send("interact", { targetId: "nowhere" });
     await until(() => interactions.length >= 1 && s.rejected.length >= 1, "both answers");
-    expect(interactions[0]).toEqual({ targetId: "yaba-bus-stop", kind: "bus_stop" });
+    expect(interactions[0]).toMatchObject({ targetId: "yaba-bus-stop", kind: "bus_stop" });
+    expect((interactions[0] as { rides: { toStop: string }[] }).rides.map((r) => r.toStop).sort()).toEqual([
+      "sabo-bus-stop",
+      "yaba-motor-park",
+    ]);
     expect(s.rejected[0]?.reason).toBe("unknown_target");
   });
 

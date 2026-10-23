@@ -1,8 +1,23 @@
 {
   "meta": { "asOf": "2026-10-15", "basis": "game-balance" },
   "startingBalanceKobo": 2000000,
-  "busFareKobo": 50000,
-  "busFareTodo": "TODO: check a real 2026 Yaba short-hop danfo/BRT fare",
+  "transport": {
+    "sources": [
+      "https://lagos.cool/transport",
+      "https://transportlog.com.ng/transport-fare-in-nigeria-2026-complete-guide-to-bus-taxi-okada-and-interstate-prices/",
+      "https://www.channelstv.com/2026/04/01/nigerians-spent-more-on-air-okada-fares-in-february/",
+      "http://nairametrics.com/2026/06/02/nbs-bus-fares-climb-21-6-year-on-year-to-n9607-per-passenger-in-april/"
+    ],
+    "asOf": "2026-10-22",
+    "danfoFareKobo": 50000,
+    "okadaFares": [
+      { "upToMetres": 500, "fareKobo": 50000 },
+      { "upToMetres": 1000, "fareKobo": 80000 },
+      { "upToMetres": 2000, "fareKobo": 120000 }
+    ],
+    "danfoBoardingSeconds": 6,
+    "okadaTaskForceChance": 0.08
+  },
   "rent": {
     "amountKobo": 4000000,
     "periodDays": 30,

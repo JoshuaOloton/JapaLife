@@ -4,6 +4,7 @@ import type { Appearance, InboxEntry, InteractionMessage, StatsMessage } from "@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageBuffer } from "./connection";
 import { rejectionText } from "./format";
+import type { ClientRide } from "./routeStore";
 
 export interface Toast {
   id: number;
@@ -38,6 +39,7 @@ export function useGameMessages(messages: MessageBuffer) {
   /** Counters, so the creator knows when its save came back or was refused. */
   const [appearanceSaves, setAppearanceSaves] = useState(0);
   const [appearanceRefusals, setAppearanceRefusals] = useState(0);
+  const [ride, setRide] = useState<ClientRide | null>(null);
   const nextToastId = useRef(1);
 
   const pushToast = useCallback((toast: Omit<Toast, "id">) => {
@@ -77,6 +79,20 @@ export function useGameMessages(messages: MessageBuffer) {
           case "inbox":
             setInbox(event.inbox.messages);
             return;
+          case "ride": {
+            const { ride } = event.ride;
+            setRide(
+              ride
+                ? {
+                    ...ride,
+                    startedAt: Date.parse(ride.startedAt),
+                    arrivesAt: Date.parse(ride.arrivesAt),
+                    endsAt: Date.parse(ride.endsAt),
+                  }
+                : null,
+            );
+            return;
+          }
         }
       }),
     [messages, pushToast],
@@ -92,5 +108,7 @@ export function useGameMessages(messages: MessageBuffer) {
     appearance,
     appearanceSaves,
     appearanceRefusals,
+    /** The ride under way, or null. */
+    ride,
   };
 }

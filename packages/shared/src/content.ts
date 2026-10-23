@@ -102,11 +102,34 @@ export const shopItemSchema = z.strictObject({
   todo: todoNote,
 });
 
+/** A ride's kind: a danfo along the main roads, or an okada along the inner streets. */
+export const RIDE_KINDS = ["danfo", "okada"] as const;
+export type RideKind = (typeof RIDE_KINDS)[number];
+
+/** Fares and the rest of how rides work. Every fare comes from a real 2026 Lagos source. */
+export const transportSchema = z.strictObject({
+  sources: z.array(z.url()).min(1),
+  asOf: isoDate,
+  /** A danfo costs the same for any ride within the district. */
+  danfoFareKobo: smallestUnits,
+  /** An okada costs by distance: the first band at least as long as the ride (the last band beyond that). */
+  okadaFares: z
+    .array(z.strictObject({ upToMetres: z.number().positive(), fareKobo: smallestUnits }))
+    .min(1)
+    .refine((bands) => bands.every((band, index) => index === 0 || band.upToMetres > (bands[index - 1]?.upToMetres ?? 0)), {
+      message: "okada fare bands must get longer in order",
+    }),
+  /** Seconds a danfo waits at the stop, loading passengers, before it sets off. */
+  danfoBoardingSeconds: z.number().min(0).max(120),
+  /** Chance (0 to 1) that a task-force stop ends an okada ride early: commercial okada is banned in Lagos Mainland (2022). */
+  okadaTaskForceChance: z.number().min(0).max(1),
+});
+export type TransportConfig = z.infer<typeof transportSchema>;
+
 export const ngnEconomySchema = z.strictObject({
   meta: contentMetaSchema,
   startingBalanceKobo: smallestUnits,
-  busFareKobo: smallestUnits,
-  busFareTodo: todoNote,
+  transport: transportSchema,
   rent: z.strictObject({
     todo: todoNote,
     amountKobo: smallestUnits,
@@ -299,8 +322,10 @@ export const interactableSchema = z.discriminatedUnion("kind", [
   }),
   /** Where the player lives (their room); rent is paid here and sleeping restores energy. */
   z.strictObject({ ...signedSpot, kind: z.literal("home") }),
-  /** Where the player pays the bus fare (`busFareKobo`) to travel. */
+  /** Where a danfo picks up: pay the fare (`transport` in ngn.json) and ride to another stop. */
   z.strictObject({ ...signedSpot, kind: z.literal("bus_stop") }),
+  /** Where okada riders wait, on an inner street: they never take the main roads. */
+  z.strictObject({ ...signedSpot, kind: z.literal("okada_park") }),
   z.strictObject({
     ...signedSpot,
     kind: z.literal("fuel_station"),
@@ -578,6 +603,14 @@ export const trafficSchema = z.strictObject({
 });
 export type Traffic = z.infer<typeof trafficSchema>;
 
+/** A ride route: danfos or okadas running between these places (bus stops or okada parks), either way. */
+export const rideRouteSchema = z.strictObject({
+  id: contentIdSchema,
+  kind: z.enum(RIDE_KINDS),
+  stops: z.array(contentIdSchema).min(2),
+});
+export type RideRoute = z.infer<typeof rideRouteSchema>;
+
 export const districtSchema = z.strictObject({
   id: contentIdSchema,
   name: z.string().min(1).max(60),
@@ -593,6 +626,7 @@ export const districtSchema = z.strictObject({
   props: z.array(propSchema).default([]),
   npcs: z.array(npcSchema).default([]),
   landmarks: z.array(landmarkSchema).default([]),
+  rides: z.array(rideRouteSchema).default([]),
   traffic: trafficSchema.optional(),
 });
 

@@ -72,6 +72,17 @@ export const openInboxIntentSchema = z.strictObject({});
  */
 export const setAppearanceIntentSchema = appearanceSchema;
 
+/**
+ * Take a danfo or okada from the stop you are at to another on the same ride.
+ * The server checks you are at `from`, works out the route and the fare, and
+ * moves you; the fare is never sent.
+ */
+export const takeRideIntentSchema = z.strictObject({
+  rideId: contentId,
+  from: contentId,
+  to: contentId,
+});
+
 export const intentSchemas = {
   move: moveIntentSchema,
   interact: interactIntentSchema,
@@ -82,6 +93,7 @@ export const intentSchemas = {
   answerEvent: answerEventIntentSchema,
   openInbox: openInboxIntentSchema,
   setAppearance: setAppearanceIntentSchema,
+  takeRide: takeRideIntentSchema,
 } as const;
 
 export type IntentType = keyof typeof intentSchemas;

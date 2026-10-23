@@ -15,6 +15,7 @@ import {
   type InteractionMessage,
   type NoticeMessage,
   type RejectedMessage,
+  type RideMessage,
   SERVER_MESSAGES,
   type StatsMessage,
   chunkKey,
@@ -60,7 +61,8 @@ export type ServerEvent =
   | { type: "rejected"; rejected: RejectedMessage }
   | { type: "interaction"; interaction: InteractionMessage }
   | { type: "inbox"; inbox: InboxMessage }
-  | { type: "appearance"; appearance: AppearanceMessage };
+  | { type: "appearance"; appearance: AppearanceMessage }
+  | { type: "ride"; ride: RideMessage };
 
 /** More than a join could ever produce; a cap only so a stalled UI cannot grow it forever. */
 const MAX_BUFFERED = 50;
@@ -90,6 +92,7 @@ export class MessageBuffer {
     room.onMessage(SERVER_MESSAGES.appearance, (appearance: AppearanceMessage) =>
       this.deliver({ type: "appearance", appearance }),
     );
+    room.onMessage(SERVER_MESSAGES.ride, (ride: RideMessage) => this.deliver({ type: "ride", ride }));
   }
 
   /** One listener at a time (the HUD). Anything that arrived earlier is handed over first. */

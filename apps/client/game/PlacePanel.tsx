@@ -151,7 +151,31 @@ function Body({
         </>
       );
     case "bus_stop":
-      return <p className={styles.detail}>{text.noBuses}</p>;
+    case "okada_park":
+      if (interaction.rides.length === 0) return <p className={styles.detail}>{text.noBuses}</p>;
+      return (
+        <>
+          <p className={styles.detail}>{text.ridesTitle}</p>
+          {interaction.rides.map((ride) => (
+            <div key={`${ride.rideId}:${ride.toStop}`} className={styles.row}>
+              <div>
+                <strong>{ride.toLabel}</strong>
+                <div className={styles.detail}>
+                  {fill(text.rideTerms, { fare: formatNaira(ride.fareKobo), minutes: Math.max(1, Math.round(ride.seconds / 60)) })}
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.action}
+                onClick={() => room.send("takeRide", { rideId: ride.rideId, from: interaction.targetId, to: ride.toStop })}
+              >
+                {text.ride}
+              </button>
+            </div>
+          ))}
+          {interaction.kind === "okada_park" && <p className={styles.detail}>{text.okadaNote}</p>}
+        </>
+      );
     case "fuel_station":
       return (
         <>

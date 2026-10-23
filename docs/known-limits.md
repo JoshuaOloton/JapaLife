@@ -167,6 +167,13 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
     - Touching the joystick or keys takes over.
     - It ends "arrived" within 1 m of the end, or "stuck" when it gets less than 0.4 m closer to the next waypoint in 1.5 s. Pushing into a wall slides you along it, so "not moving" would miss that.
     - The route is a yellow strip on the road (`RouteRibbon`): one draw call, always mounted and warmed up, hidden without a route.
+  - **First play-test fixes (vivo Y29, 2026-10-22):** walking a route ran at 60 fps (low 37, 34 calls, 55.3k triangles), but there was one 497 ms hitch. Timing headless runs traced it to the tap that picks a route, which had two costs:
+    - **A shader finishing its compile.** The route strip's plain material was the only one of its kind, hidden until the first route. The warm-up starts compiling such a shader, but without parallel compiling it finishes on the first draw (`getProgramInfoLog`, 109 ms in software GL). The strip now draws a tiny stand-in under the ground from the start.
+    - **A whole-scene re-render.** The route was React state at the top of `Game`. It is now a `RouteStore`, so only the strip, the minimap and the map re-render.
+    - **Rule:** anything that first appears mid-game must share its material setup with something drawn from the start, or be drawn from the start out of sight. Warming a hidden object is not enough.
+  - **After the fixes (vivo Y29, 2026-10-23, Next.js 16.4.2, night):** 60 fps, low 46, 33 calls, 60.1k triangles, no hitch on picking routes.
+    - The one hitch left is 200 ms at 6 s (+21 textures): the people's painted clothes, uploaded on their first draw as the street finishes loading, just after the meter's warm-up.
+    - It is once per load, so it is left as is. Uploading them earlier would only move the stall.
   - **Not done:**
     - The first leg can still meet a wall if the player starts inside a compound; the walk then stops as "stuck".
     - Routes ignore the traffic, which stops for the player anyway.
