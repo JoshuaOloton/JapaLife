@@ -13,6 +13,7 @@ import {
   buildDistrictLayout,
   districtHeader,
   districtObstacles,
+  isBlocked,
   moveWithCollisions,
   obstacleGrid,
   routeBetween,
@@ -96,6 +97,12 @@ export class DistrictMap {
    */
   move(from: Point, delta: Point): Point {
     return moveWithCollisions(from, delta, this.obstacles, this.config);
+  }
+
+  /** Whether a player could stand here: inside the district and clear of every obstacle. */
+  canStand(point: Point): boolean {
+    const inside = Math.abs(point.x) <= this.config.halfWidth && Math.abs(point.z) <= this.config.halfDepth;
+    return inside && Number.isFinite(point.x) && Number.isFinite(point.z) && !isBlocked(point, this.obstacles);
   }
 
   byId(targetId: string): Interactable | undefined {

@@ -362,6 +362,50 @@ describe("movement", () => {
     await until(() => !room.live.has(oldSession), "the old session's place given up");
   });
 
+  /** Walks west for about a second and stops; returns where the server put them. */
+  async function walkWest(s: Session): Promise<{ x: number; z: number }> {
+    await until(() => s.stats.length > 0, "stats");
+    s.room.send("move", { seq: 1, dx: -1, dz: 0 });
+    await sleep(1000);
+    s.room.send("move", { seq: 2, dx: 0, dz: 0 });
+    await sleep(150);
+    const mine = s.room.state.players.get(s.room.sessionId);
+    return { x: mine.x as number, z: mine.z as number };
+  }
+
+  it("brings a player who left back where they stood, header and all", async () => {
+    const s = await join("homebody");
+    const left = await walkWest(s);
+    expect(left.x).toBeLessThan(-1);
+    await s.room.leave();
+    open.splice(open.indexOf(s.room), 1);
+    // The save on leave is in flight; a real player takes longer than this to reopen the game.
+    const saved = async () => h.db.playerLocation.findUnique({ where: { playerId: "homebody" } });
+    for (let tries = 0; tries < 100 && Math.abs(((await saved())?.x ?? 0) - left.x) > 0.01; tries++) await sleep(10);
+
+    const back = await join("homebody");
+    await until(() => back.layouts.length > 0 && back.stats.length > 0, "the header and stats");
+    expect(back.layouts[0]!.spawn.x).toBeCloseTo(left.x, 5);
+    expect(back.layouts[0]!.spawn.z).toBeCloseTo(left.z, 5);
+    expect(back.room.state.players.get(back.room.sessionId).x as number).toBeCloseTo(left.x, 5);
+  });
+
+  it("starts a player who reloads while dropped where the old connection stood, without waiting for a save", async () => {
+    const s = await join("blinker");
+    s.room.reconnection.enabled = false;
+    const left = await walkWest(s);
+    const room = matchMaker.getLocalRoomById(s.room.roomId) as unknown as {
+      clients: { getById(id: string): { leave(code: number): void } | undefined };
+    };
+    room.clients.getById(s.room.sessionId)?.leave(4010);
+    open.splice(open.indexOf(s.room), 1);
+    await sleep(200);
+
+    const again = await join("blinker");
+    await until(() => again.layouts.length > 0, "the header");
+    expect(again.layouts[0]!.spawn.x).toBeCloseTo(left.x, 5);
+  });
+
   it("syncs only the players near each other (area of interest)", async () => {
     const a = await join("aoi-near");
     const b = await join("aoi-far");

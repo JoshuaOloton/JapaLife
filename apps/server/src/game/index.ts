@@ -14,6 +14,7 @@ import { FoodService } from "./food";
 import { InboxService } from "./inbox";
 import { JobService } from "./jobs";
 import { KeyedMutex } from "./keyedMutex";
+import { LocationService } from "./locations";
 import { NoticeBus } from "./noticeBus";
 import { PlayerService } from "./players";
 import { RentService } from "./rent";
@@ -40,6 +41,8 @@ export interface GameSystems {
   appearance: AppearanceService;
   /** Paid danfo and okada rides between stops. */
   rides: RideService;
+  /** Where each player last stood, to come back there. */
+  locations: LocationService;
   /** Live toasts for connected players. Game code tells players through `inbox`, which also uses this. */
   notices: NoticeBus;
   /** Every notice to a player, kept for when they come back. */
@@ -105,6 +108,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     stats,
     appearance: new AppearanceService(deps),
     rides: new RideService(deps, inbox),
+    locations: new LocationService(deps),
     notices,
     inbox,
     mutex: new KeyedMutex(),

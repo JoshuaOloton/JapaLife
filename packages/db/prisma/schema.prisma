@@ -61,6 +61,21 @@ model Player {
   inbox        InboxMessage[]
   appearance   PlayerAppearance?
   rides        PlayerRide[]
+  location     PlayerLocation?
+}
+
+// ---- Where the player last stood (Slice 11i-2) --------------------------------
+// Saved when they leave, every few seconds while they move, and where a ride
+// ends, so they come back where they were. Its own table, not PlayerState,
+// so these frequent writes never wait on the meter and rent updates.
+model PlayerLocation {
+  playerId   String   @id
+  districtId String
+  x          Float
+  z          Float
+  updatedAt  DateTime @updatedAt
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
 }
 
 // ---- Character (Slice 11d) ---------------------------------------------------

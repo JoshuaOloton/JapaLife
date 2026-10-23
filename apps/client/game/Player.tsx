@@ -171,7 +171,7 @@ export function Player({
     return () => document.removeEventListener("visibilitychange", onHidden);
   }, [input, sender]);
 
-  // The server spawns every joining player here; start the prediction at the same spot.
+  // The server starts the player here (its header's spawn is where they last stood); start the prediction at the same spot.
   useLayoutEffect(() => {
     predicted.current = { ...district.spawn };
   }, [district.spawn, predicted]);
