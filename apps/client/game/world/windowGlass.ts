@@ -1,4 +1,4 @@
-import { BufferAttribute, type BufferGeometry, Color, type MeshLambertMaterial } from "three";
+import { BufferAttribute, type BufferGeometry, Color, type Material, type MeshLambertMaterial } from "three";
 
 /**
  * Lit windows on the imported building models. The pack models paint their
@@ -80,16 +80,15 @@ export function addBuildingEffects(material: MeshLambertMaterial, glow: { readon
         "#include <common>",
         `#include <common>
         attribute float ${WINDOW_GLASS_ATTRIBUTE};
-        attribute float ${INSTANCE_FADE_ATTRIBUTE};
         attribute float ${INSTANCE_LIT_ATTRIBUTE};
         varying float vWindowGlass;
-        varying float vFade;`,
+        ${FADE_VERTEX_HEAD}`,
       )
       .replace(
         "#include <begin_vertex>",
         `#include <begin_vertex>
         vWindowGlass = ${WINDOW_GLASS_ATTRIBUTE} * ${INSTANCE_LIT_ATTRIBUTE};
-        vFade = ${INSTANCE_FADE_ATTRIBUTE};`,
+        ${FADE_VERTEX_BODY}`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -97,18 +96,37 @@ export function addBuildingEffects(material: MeshLambertMaterial, glow: { readon
         `#include <common>
         uniform vec3 windowGlow;
         varying float vWindowGlass;
-        varying float vFade;
-        const float DITHER[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);`,
+        ${FADE_FRAGMENT_HEAD}`,
       )
-      .replace(
-        "#include <clipping_planes_fragment>",
-        `#include <clipping_planes_fragment>
-        if (vFade > 0.0) {
-          ivec2 cell = ivec2(mod(gl_FragCoord.xy, 4.0));
-          if ((DITHER[cell.x + cell.y * 4] + 0.5) / 16.0 < vFade) discard;
-        }`,
-      )
+      .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>\n${FADE_FRAGMENT_BODY}`)
       .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += windowGlow * vWindowGlass;");
   };
   material.customProgramCacheKey = () => "building-instanced";
 }
+
+/**
+ * Only the dithered fade, for the plain buildings' boxes and windows (and so
+ * every `Boxes` call, which shares the material setup). Called once when the
+ * material is made, never during play: it changes the shader.
+ */
+export function addDitherFade(material: Material, cacheKey: string): void {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${FADE_VERTEX_HEAD}`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\n${FADE_VERTEX_BODY}`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\n${FADE_FRAGMENT_HEAD}`)
+      .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>\n${FADE_FRAGMENT_BODY}`);
+  };
+  material.customProgramCacheKey = () => cacheKey;
+}
+
+const FADE_VERTEX_HEAD = `attribute float ${INSTANCE_FADE_ATTRIBUTE};
+varying float vFade;`;
+const FADE_VERTEX_BODY = `vFade = ${INSTANCE_FADE_ATTRIBUTE};`;
+const FADE_FRAGMENT_HEAD = `varying float vFade;
+const float DITHER[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);`;
+const FADE_FRAGMENT_BODY = `if (vFade > 0.0) {
+  ivec2 cell = ivec2(mod(gl_FragCoord.xy, 4.0));
+  if ((DITHER[cell.x + cell.y * 4] + 0.5) / 16.0 < vFade) discard;
+}`;

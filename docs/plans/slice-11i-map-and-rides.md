@@ -40,7 +40,14 @@ Decided 2026-10-21:
 - The route on the street is a flat strip rather than a line, since a WebGL line is one pixel wide on a phone.
 - Murtala Muhammed Way moved to the east edge in the same part.
 
-**11i-2, the rides** (next): the rides, with these decisions (2026-10-22):
+**11i-2, the rides** (built 2026-10-23 on `feat/map-and-rides`, not yet play-tested on the phone). As built:
+- **Stops:** the danfo runs Yaba Motor Park, Yaba bus stop and Sabo bus stop; okada parks at Montgomery Road, Tejuosho and Sabo.
+- **Your vehicle** is one more instance of its kind in the traffic. In a danfo you are hidden, and on an okada you sit behind the rider.
+- **During the ride:** the ride's road shows as the route, a chip counts down, and the joystick and "walk there" are off.
+- **Building fade:** plain box buildings now fade like model buildings when they hide you. A headless danfo ride put the camera above a roof otherwise.
+- **Measured** (headless, Yaba bus stop to Sabo, 184 m): about 30 s including 6 s boarding, the fare charged once, no errors.
+
+The decisions (2026-10-22):
 - **Fares.**
   - **Danfo:** a flat ₦500, the top of the ₦250–₦500 quoted for short Yaba hops after the fuel rises ([Lagos.Cool](https://lagos.cool/transport), [transportlog](https://transportlog.com.ng/transport-fare-in-nigeria-2026-complete-guide-to-bus-taxi-okada-and-interstate-prices/)).
   - **Okada:** ₦500 up to 500 m, ₦800 up to 1 km, ₦1,200 up to 2 km, between a short-trip guide (₦300–₦500 for 0.5–1.5 km) and the NBS average for Lagos (₦1,660 a trip in May 2026, all lengths; [Channels TV](https://www.channelstv.com/2026/04/01/nigerians-spent-more-on-air-okada-fares-in-february/), [Nairametrics](http://nairametrics.com/2026/06/02/nbs-bus-fares-climb-21-6-year-on-year-to-n9607-per-passenger-in-april/)).

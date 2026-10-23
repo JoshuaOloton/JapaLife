@@ -15,10 +15,10 @@ import { BufferAttribute, BufferGeometry, type InstancedMesh, Object3D } from "t
 import { headerLayout } from "./connection";
 import type { DiagnosticLayer } from "./diagnostics";
 import { PLACE_COLOURS } from "./placeColours";
-import type { RouteStore } from "./routeStore";
+import type { RideStore, RouteStore } from "./routeStore";
 import { ChunkIndex, DRAW_REACH, areaBox, areaCell, splitByDetail, useCapacity } from "./world/area";
 import { Boxes, type Slab } from "./world/Boxes";
-import { ModelBuildings, Windows, plainBuildingSlabs, windowCount } from "./world/Buildings";
+import { ModelBuildings, Windows, plainBuildingSlabs, useOcclusionFade, windowCount } from "./world/Buildings";
 import { layOutGutters } from "./world/gutters";
 import { Npcs } from "./world/Npcs";
 import { Pedestrians } from "./world/Pedestrians";
@@ -63,12 +63,15 @@ export function World({
   header,
   hide = NOTHING_HIDDEN,
   routes,
+  rides,
   street,
   predicted,
   quality,
 }: {
   /** The route picked on the map, drawn on the street (only the strip re-renders when it changes). */
-  routes?: RouteStore;
+  routes: RouteStore;
+  /** The player's ride under way: its vehicle is drawn with the traffic. */
+  rides: RideStore;
   /** Layers left out to find what costs frame time (`diagnostics.ts`, developer-only). */
   hide?: ReadonlySet<DiagnosticLayer>;
   /** The district as far as the loaded chunks go. */
@@ -102,12 +105,15 @@ export function World({
     const noBuildings = hide.has("buildings");
     const plain = noBuildings ? [] : index.plainBuildings.within(drawArea);
     const { models, boxes } = noBuildings ? { models: [], boxes: [] } : splitByDetail(index.modelBuildings, centre);
-    return {
-      plain,
-      models,
-      slabs: [...index.slabs.within(drawArea), ...plainBuildingSlabs(plain), ...plainBuildingSlabs(boxes)],
-    };
+    const props = index.slabs.within(drawArea);
+    const slabs = [...props, ...plainBuildingSlabs(plain), ...plainBuildingSlabs(boxes)];
+    // A plain building's walls and roof (two slabs each, after the props) fade with it.
+    const owners = new Int32Array(slabs.length).fill(-1);
+    plain.forEach((_, building) => owners.fill(building, props.length + building * 2, props.length + building * 2 + 2));
+    return { plain, models, slabs, owners };
   }, [index, centre, hide]);
+  const plainFades = useOcclusionFade(near.plain, predicted);
+  const slabFades = useMemo(() => ({ set: plainFades, owners: near.owners }), [plainFades, near.owners]);
 
   return (
     <group>
@@ -118,9 +124,9 @@ export function World({
       </mesh>
       <Roads roads={district.roads} />
       <Potholes roads={district.roads} />
-      {routes && <RouteRibbon routes={routes} />}
-      <Boxes slabs={near.slabs} capacity={slabCapacity} />
-      <Windows buildings={near.plain} capacity={windowCapacity} street={street} />
+      <RouteRibbon routes={routes} />
+      <Boxes slabs={near.slabs} capacity={slabCapacity} fades={slabFades} />
+      <Windows buildings={near.plain} capacity={windowCapacity} street={street} fades={plainFades} />
       <ModelBuildings
         kinds={header.buildingModels}
         near={near.models}
@@ -130,7 +136,9 @@ export function World({
       />
       {!hide.has("props") && <Props layout={district} centre={centre} />}
       {!hide.has("npcs") && <Npcs layout={district} predicted={predicted} />}
-      {!hide.has("traffic") && <Traffic layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />}
+      {!hide.has("traffic") && (
+        <Traffic layout={wholeDistrict} predicted={predicted} street={street} quality={quality} rides={rides} />
+      )}
       {!hide.has("people") && (
         <Pedestrians layout={wholeDistrict} predicted={predicted} street={street} quality={quality} />
       )}

@@ -283,6 +283,23 @@
   pointer-events: none;
 }
 
+/* On a ride: where to and how long, where the stop button would be. */
+.riding {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(40px, env(safe-area-inset-bottom)) + 4px);
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(20, 28, 36, 0.88);
+  color: #fff;
+  font: 600 15px system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+
 .mapStop {
   position: absolute;
   left: 50%;
