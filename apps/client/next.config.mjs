@@ -7,6 +7,9 @@ const nextConfig = {
   // work). These are the private home and hotspot ranges, so it keeps working when the
   // router hands the Mac a new address. Dev only: production builds ignore it.
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*"],
+  experimental: {
+    agentUpgrade: "security",
+  },
 };
 
 export default nextConfig;
