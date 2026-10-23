@@ -253,6 +253,103 @@
   touch-action: manipulation;
 }
 
+/* The minimap: bottom right, just above the "use" button. Tapping it opens the full map. */
+.minimap {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(max(40px, env(safe-area-inset-bottom)) + 62px);
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #cdbf9f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  line-height: 0;
+  touch-action: manipulation;
+}
+
+/* Walking a route: a short line under the minimap, and a stop button. */
+.mapStatus {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(max(40px, env(safe-area-inset-bottom)) + 182px);
+  max-width: 220px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(20, 28, 36, 0.88);
+  color: #fff;
+  font: 600 13px system-ui, sans-serif;
+  pointer-events: none;
+}
+
+.mapStop {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(40px, env(safe-area-inset-bottom)) + 4px);
+  transform: translateX(-50%);
+  min-height: 44px;
+  padding: 8px 20px;
+  border: 2px solid #fff;
+  border-radius: 12px;
+  background: #8a2f2f;
+  color: #fff;
+  font: 600 15px system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
+/* The full-screen map. */
+.mapScreen {
+  position: fixed;
+  inset: 0;
+  background: #cdbf9f;
+}
+
+.mapCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.mapHint {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  margin: 0 auto;
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(20, 28, 36, 0.88);
+  color: #fff;
+  font: 600 14px system-ui, sans-serif;
+  text-align: center;
+  pointer-events: none;
+}
+
+.mapButtons {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mapSecondary {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(20, 28, 36, 0.88);
+  color: #fff;
+  font: 600 15px system-ui, sans-serif;
+  touch-action: manipulation;
+}
+
 .sheet {
   position: absolute;
   left: 0;

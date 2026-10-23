@@ -7,6 +7,7 @@ import {
   type Interactable,
   type Point,
   type Road,
+  type Route,
   seededRandom,
 } from "@japalife/shared";
 import { useFrame } from "@react-three/fiber";
@@ -14,6 +15,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BufferAttribute, BufferGeometry, type InstancedMesh, Object3D } from "three";
 import { headerLayout } from "./connection";
 import type { DiagnosticLayer } from "./diagnostics";
+import { PLACE_COLOURS } from "./placeColours";
 import { ChunkIndex, DRAW_REACH, areaBox, areaCell, splitByDetail, useCapacity } from "./world/area";
 import { Boxes, type Slab } from "./world/Boxes";
 import { ModelBuildings, Windows, plainBuildingSlabs, windowCount } from "./world/Buildings";
@@ -26,6 +28,7 @@ import { GROUND_TILE_METRES, paintGround, paintRoad, paintSign } from "./world/p
 import { Props } from "./world/Props";
 import { propSlabs } from "./world/propShapes";
 import { roadHeight, roadSurface } from "./world/roads";
+import { RouteRibbon } from "./world/RouteRibbon";
 import type { StreetState } from "./world/street";
 
 /**
@@ -53,22 +56,19 @@ const GUTTER_LIP = { colour: "#a7a196", thickness: 0.14, height: 0.2 };
 const GUTTER_CHANNEL = { colour: "#2a3229", height: 0.03 };
 const GUTTER_SLAB = { colour: "#b5afa4", height: 0.22 };
 
-const SIGN_COLOURS: Record<Interactable["kind"], string> = {
-  home: "#7a4b2a",
-  job_site: "#2f5d8a",
-  food_vendor: "#b5432f",
-  bus_stop: "#2f7a55",
-  fuel_station: "#8a2f6a",
-};
+const SIGN_COLOURS = PLACE_COLOURS;
 
 export function World({
   district,
   header,
   hide = NOTHING_HIDDEN,
+  route = null,
   street,
   predicted,
   quality,
 }: {
+  /** The route picked on the map, drawn on the street. */
+  route?: Route | null;
   /** Layers left out to find what costs frame time (`diagnostics.ts`, developer-only). */
   hide?: ReadonlySet<DiagnosticLayer>;
   /** The district as far as the loaded chunks go. */
@@ -118,6 +118,7 @@ export function World({
       </mesh>
       <Roads roads={district.roads} />
       <Potholes roads={district.roads} />
+      <RouteRibbon route={route} />
       <Boxes slabs={near.slabs} capacity={slabCapacity} />
       <Windows buildings={near.plain} capacity={windowCapacity} street={street} />
       <ModelBuildings

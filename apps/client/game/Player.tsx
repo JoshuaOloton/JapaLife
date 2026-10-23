@@ -165,8 +165,9 @@ export function Player({
   useFrame((_, frameSeconds) => {
     const dt = Math.min(frameSeconds, MAX_FRAME_SECONDS);
     const now = performance.now();
-    // In the character creator the player stands still and turns to face the camera.
-    const direction = closeUp ? STILL : input.direction();
+    // In the character creator the player stands still and turns to face the camera. The position
+    // and time are for walking a route picked on the map ("walk there").
+    const direction = closeUp ? STILL : input.direction(predicted.current, now);
     const moving = direction.x !== 0 || direction.z !== 0;
     sender.update(direction, now);
 

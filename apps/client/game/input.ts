@@ -1,5 +1,6 @@
 import type { Point } from "@japalife/shared";
 import { RUN_PUSH, WALK_FRACTION } from "./gait";
+import type { RouteEnd, RouteFollower } from "./route";
 
 /**
  * The direction the player is asking to move, on the ground plane. The camera
@@ -13,6 +14,21 @@ import { RUN_PUSH, WALK_FRACTION } from "./gait";
 export class MoveInput {
   private readonly keys = new Set<string>();
   private joystick: Point = { x: 0, z: 0 };
+  private autopilot: { follower: RouteFollower; onEnd: (end: RouteEnd) => void } | null = null;
+
+  /** Walks a route by itself ("walk there") until it arrives, gets stuck, or the player takes over. */
+  setAutopilot(follower: RouteFollower, onEnd: (end: RouteEnd) => void): void {
+    this.autopilot = { follower, onEnd };
+  }
+
+  /** Stops walking a route, without telling anyone (the caller asked). */
+  clearAutopilot(): void {
+    this.autopilot = null;
+  }
+
+  get walkingRoute(): boolean {
+    return this.autopilot !== null;
+  }
 
   setJoystick(direction: Point): void {
     this.joystick = direction;
@@ -24,8 +40,29 @@ export class MoveInput {
     this.joystick = { x: 0, z: 0 };
   }
 
-  /** Current direction, never longer than 1. The joystick wins over keys when both are used. */
-  direction(): Point {
+  /**
+   * Current direction, never longer than 1. The joystick wins over keys when
+   * both are used, and either takes over from a route being walked. `position`
+   * (where the player is) and `now` (ms) are needed only while walking a route.
+   */
+  direction(position?: Point, now = 0): Point {
+    const manual = this.manualDirection();
+    const pilot = this.autopilot;
+    if (!pilot) return manual;
+    if (manual.x !== 0 || manual.z !== 0) {
+      this.autopilot = null;
+      pilot.onEnd("cancelled");
+      return manual;
+    }
+    if (!position) return manual;
+    const steer = pilot.follower.steer(position, now);
+    if (typeof steer !== "string") return steer;
+    this.autopilot = null;
+    pilot.onEnd(steer);
+    return { x: 0, z: 0 };
+  }
+
+  private manualDirection(): Point {
     if (this.joystick.x !== 0 || this.joystick.z !== 0) return joystickGait(this.joystick);
     const has = (...codes: string[]): boolean => codes.some((code) => this.keys.has(code));
     const x = (has("KeyD", "ArrowRight") ? 1 : 0) - (has("KeyA", "ArrowLeft") ? 1 : 0);

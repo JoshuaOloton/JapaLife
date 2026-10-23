@@ -74,7 +74,7 @@
     { "id": "commercial-avenue", "name": "Commercial Avenue", "axis": "ew", "at": 0, "class": "main" },
     { "id": "tejuosho-street", "name": "Tejuosho Street", "axis": "ew", "at": 120, "class": "inner" },
     { "id": "alagomeji-road", "name": "Alagomeji Road", "axis": "ew", "at": 240, "class": "inner" },
-    { "id": "murtala-muhammed-way", "name": "Murtala Muhammed Way", "axis": "ns", "at": -280, "class": "main" },
+    { "id": "murtala-muhammed-way", "name": "Murtala Muhammed Way", "axis": "ns", "at": 280, "class": "main" },
     { "id": "ojuelegba-road", "name": "Ojuelegba Road", "axis": "ns", "at": -150, "class": "inner" },
     { "id": "herbert-macaulay-way", "name": "Herbert Macaulay Way", "axis": "ns", "at": 0, "class": "main" },
     { "id": "iwaya-road", "name": "Iwaya Road", "axis": "ns", "at": 150, "class": "inner" },
@@ -418,17 +418,17 @@
     },
     {
       "id": "murtala-fuel-station",
-      "x": -266, "z": -90,
+      "x": 266, "z": -90,
       "clear": { "halfWidth": 12, "halfDepth": 12 },
       "interactables": [
-        { "id": "murtala-fuel-station", "label": "Fuel Station", "prompt": "Buy petrol for your gen", "kind": "fuel_station", "position": { "x": -1, "z": 4 }, "shopItemIds": ["generator-petrol"] }
+        { "id": "murtala-fuel-station", "label": "Fuel Station", "prompt": "Buy petrol for your gen", "kind": "fuel_station", "position": { "x": 1, "z": 4 }, "shopItemIds": ["generator-petrol"] }
       ],
       "buildings": [
-        { "id": "murtala-fuel-station-shop", "name": "Fuel station", "x": 4, "z": 0, "halfWidth": 2.6, "halfDepth": 5.05, "height": 4.42, "colour": "#c95f5f", "model": "fuel-station", "rotation": 270 }
+        { "id": "murtala-fuel-station-shop", "name": "Fuel station", "x": -4, "z": 0, "halfWidth": 2.6, "halfDepth": 5.05, "height": 4.42, "colour": "#c95f5f", "model": "fuel-station", "rotation": 90 }
       ],
       "props": [
-        { "kind": "fuel-canopy", "x": -4, "z": 0, "rotation": 90 },
-        { "kind": "signboard-yellow", "x": 6, "z": 9, "label": "Petrol • Diesel • Gas" }
+        { "kind": "fuel-canopy", "x": 4, "z": 0, "rotation": 90 },
+        { "kind": "signboard-yellow", "x": -6, "z": 9, "label": "Petrol • Diesel • Gas" }
       ]
     }
   ],

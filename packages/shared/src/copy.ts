@@ -98,6 +98,18 @@ export const copySchema = z.strictObject({
     empty: text(),
     new: text(),
   }),
+  map: z.strictObject({
+    open: text(),
+    hint: text(),
+    route: text(["metres"]),
+    noRoute: text(),
+    walkThere: text(),
+    stop: text(),
+    clearRoute: text(),
+    close: text(),
+    arrived: text(),
+    stuck: text(),
+  }),
   places: z.strictObject({
     /** The action button's text for each kind of place, unless the place sets its own `prompt`. */
     prompts: promptsSchema,
