@@ -375,6 +375,7 @@ export function generateDistrict(plan: DistrictPlan, catalogs: Catalogs): Distri
     props,
     npcs,
     landmarks,
+    rides: plan.rides,
     traffic: trafficFor(plan, frames),
   };
 }

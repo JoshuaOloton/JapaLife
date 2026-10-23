@@ -1,33 +1,36 @@
 "use client";
 
-import type { Route } from "@japalife/shared";
-import { useSyncExternalStore } from "react";
+import type { Route, RideKind } from "@japalife/shared";
+import { Store, useStore } from "./store";
 
-/**
- * The route picked on the map, kept outside React's state on purpose. As
- * state at the top of the game it re-rendered the whole 3D scene every time a
- * route was picked (a half-second freeze on the vivo Y29); here only what
- * draws it (the street strip, the minimap, the map) hears about it.
- */
-export class RouteStore {
-  private route: Route | null = null;
-  private readonly listeners = new Set<() => void>();
-
-  get = (): Route | null => this.route;
-
-  set(route: Route | null): void {
-    if (route === this.route) return;
-    this.route = route;
-    for (const listener of this.listeners) listener();
+/** The route picked on the map (or the ride's road while riding): drawn on the street, the minimap and the map. */
+export class RouteStore extends Store<Route | null> {
+  constructor() {
+    super(null);
   }
-
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
 }
 
 /** The current route, re-rendering only the component that asks. */
 export function useRoute(store: RouteStore): Route | null {
-  return useSyncExternalStore(store.subscribe, store.get, store.get);
+  return useStore(store);
+}
+
+/** A ride under way, as the client draws it: the server's numbers, with times in ms on the server clock. */
+export interface ClientRide {
+  kind: RideKind;
+  toLabel: string;
+  path: { x: number; z: number }[];
+  startedAt: number;
+  arrivesAt: number;
+  endsAt: number;
+  boardingSeconds: number;
+  speed: number;
+  stopsAtMetres: number;
+}
+
+/** The player's ride under way, or null. Read every frame by the player; set from the server's `ride` messages. */
+export class RideStore extends Store<ClientRide | null> {
+  constructor() {
+    super(null);
+  }
 }

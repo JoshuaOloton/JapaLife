@@ -37,6 +37,7 @@ const promptsSchema = z.strictObject({
   food_vendor: text([], ["place"]),
   home: text([], ["place"]),
   bus_stop: text([], ["place"]),
+  okada_park: text([], ["place"]),
   fuel_station: text([], ["place"]),
 } satisfies Record<Interactable["kind"], unknown>);
 
@@ -125,6 +126,12 @@ export const copySchema = z.strictObject({
     rentLateFee: text(["fee", "time"]),
     payRent: text(),
     noBuses: text(),
+    /** At a bus stop or okada park: where you can go. */
+    ridesTitle: text(),
+    rideTerms: text(["fare", "minutes"]),
+    ride: text(),
+    /** Under an okada park's list: the ban, in one plain line. */
+    okadaNote: text(),
     fuelRuns: text(["hours"]),
     fuelInTank: text(["hours"]),
   }),
@@ -159,6 +166,15 @@ export const copySchema = z.strictObject({
     rentLateFeeTitle: text(),
     rentLateFee: text(["amount"]),
     rentLateFeeBroke: text(["amount"]),
+    taskForceTitle: text(),
+    taskForce: text(["place"]),
+  }),
+  /** The chip while you ride, and the vehicles' names in it. */
+  riding: z.strictObject({
+    onTheWay: text(["vehicle", "place", "time"]),
+    boarding: text(["vehicle", "place"]),
+    danfo: text(),
+    okada: text(),
   }),
   /** What the player is told when the server refuses an intent, one per reason. */
   rejections: rejectionsSchema,

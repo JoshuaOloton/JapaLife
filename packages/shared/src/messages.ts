@@ -4,6 +4,8 @@
  * on the server clock: countdowns use `serverTime`, never the device clock.
  */
 import type { Appearance } from "./appearance";
+import type { Point } from "./collision";
+import type { RideKind } from "./content";
 
 /** Why the server refused an intent. Stable codes so the client can show its own words. */
 export const REJECT_REASONS = [
@@ -30,6 +32,10 @@ export const REJECT_REASONS = [
   "not_owned",
   /** Clothes can only be changed at home, once the character exists. */
   "not_at_home",
+  /** A ride is under way: one at a time. */
+  "already_riding",
+  /** No ride goes from this stop to that one. */
+  "no_ride",
 ] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
@@ -87,7 +93,7 @@ export interface PendingChoice {
   declineLabel: string;
 }
 
-export const NOTICE_KINDS = ["event", "shift_paid", "rent"] as const;
+export const NOTICE_KINDS = ["event", "shift_paid", "rent", "ride"] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 /** A toast: something happened to the player (an event, a shift paid out, a late fee). Also kept in the inbox. */
@@ -147,11 +153,43 @@ export interface ShopOffer {
  * what the place offers, so the client never needs its own copy of prices or pay.
  * Rent is not repeated here: it is in `StatsMessage`.
  */
+/** One ride on offer at a stop: where it goes, what it costs (server's fare), and about how long it takes. */
+export interface RideOption {
+  rideId: string;
+  kind: RideKind;
+  toStop: string;
+  toLabel: string;
+  fareKobo: number;
+  seconds: number;
+}
+
 export type InteractionMessage =
   | { targetId: string; kind: "job_site"; job: JobOffer }
   | { targetId: string; kind: "food_vendor"; menu: MenuItem[] }
   | { targetId: string; kind: "fuel_station"; items: ShopOffer[] }
-  | { targetId: string; kind: "home" | "bus_stop" };
+  | { targetId: string; kind: "bus_stop" | "okada_park"; rides: RideOption[] }
+  | { targetId: string; kind: "home" };
+
+/**
+ * The player's ride, sent when it starts, on join or reconnect while one is
+ * under way, and as `null` when it ends. The client draws the ride from these
+ * numbers with `ridePose`, as the server moves the player by them.
+ */
+export interface RideMessage {
+  ride: {
+    kind: RideKind;
+    toLabel: string;
+    path: Point[];
+    /** ISO times on the server clock. */
+    startedAt: string;
+    /** When it would reach the stop; it ends at `endsAt`, earlier if the task force stopped it. */
+    arrivesAt: string;
+    endsAt: string;
+    boardingSeconds: number;
+    speed: number;
+    stopsAtMetres: number;
+  } | null;
+}
 
 /**
  * The player's own character. Null means they have never made one, so the
@@ -177,5 +215,7 @@ export const SERVER_MESSAGES = {
   district: "district",
   /** A `ChunksMessage`: the chunks near the player not sent yet, on join and whenever they walk into another chunk. */
   chunks: "chunks",
+  /** A `RideMessage`: the player's ride starting, still going (on join), or over. */
+  ride: "ride",
   appearance: "appearance",
 } as const;

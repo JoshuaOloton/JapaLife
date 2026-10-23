@@ -234,7 +234,8 @@
       "x": -105, "z": 150,
       "clear": { "halfWidth": 29, "halfDepth": 22 },
       "interactables": [
-        { "id": "tejuosho-buka", "label": "Iya Basira's Buka", "prompt": "Buy food at Iya Basira's", "kind": "food_vendor", "position": { "x": -10, "z": 4 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] }
+        { "id": "tejuosho-buka", "label": "Iya Basira's Buka", "prompt": "Buy food at Iya Basira's", "kind": "food_vendor", "position": { "x": -10, "z": 4 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] },
+        { "id": "tejuosho-okada", "label": "Tejuosho Okada", "kind": "okada_park", "position": { "x": 16, "z": -2 } }
       ],
       "buildings": [
         { "id": "tejuosho-market-west", "name": "Tejuosho Market", "x": -15, "z": -15, "halfWidth": 8, "halfDepth": 6.1, "height": 5.45, "colour": "#d68f5d", "model": "market", "rotation": 180 },
@@ -271,7 +272,8 @@
       "x": 183, "z": 28,
       "clear": { "halfWidth": 26, "halfDepth": 20 },
       "interactables": [
-        { "id": "sabo-bus-stop", "label": "Sabo Bus Stop", "kind": "bus_stop", "position": { "x": -25, "z": -22 } }
+        { "id": "sabo-bus-stop", "label": "Sabo Bus Stop", "kind": "bus_stop", "position": { "x": -25, "z": -22 } },
+        { "id": "sabo-okada", "label": "Sabo Okada", "kind": "okada_park", "position": { "x": -27, "z": 12 } }
       ],
       "buildings": [
         { "id": "sabo-market-hall", "name": "Sabo Market", "x": 0, "z": -8, "halfWidth": 8, "halfDepth": 6.1, "height": 5.45, "colour": "#d68f5d", "model": "market", "rotation": 180 },
@@ -404,6 +406,9 @@
       "name": "Okada Park",
       "x": -102, "z": -112,
       "clear": { "halfWidth": 12, "halfDepth": 5 },
+      "interactables": [
+        { "id": "montgomery-okada", "label": "Okada Park", "kind": "okada_park", "position": { "x": 2, "z": -3 } }
+      ],
       "props": [
         { "kind": "okada-parked", "x": -4, "z": 0 },
         { "kind": "okada-parked", "x": -2.4, "z": 0 },
@@ -431,6 +436,10 @@
         { "kind": "signboard-yellow", "x": -6, "z": 9, "label": "Petrol • Diesel • Gas" }
       ]
     }
+  ],
+  "rides": [
+    { "id": "yaba-danfo", "kind": "danfo", "stops": ["yaba-motor-park", "yaba-bus-stop", "sabo-bus-stop"] },
+    { "id": "yaba-okada", "kind": "okada", "stops": ["montgomery-okada", "tejuosho-okada", "sabo-okada"] }
   ],
   "scatter": { "count": 140, "kinds": ["tree-large", "tree-small", "palm"] },
   "traffic": {

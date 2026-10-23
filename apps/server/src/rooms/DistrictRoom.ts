@@ -9,6 +9,8 @@ import {
   MAX_PLAYERS_PER_ROOM,
   PLAYER_SPEED_UNITS_PER_SECOND,
   PLAYER_VIEW_METRES,
+  type PathPoint,
+  ridePose,
   POSITION_UPDATE_HZ,
   type RejectReason,
   SERVER_MESSAGES,
@@ -18,6 +20,7 @@ import {
 import { z } from "zod";
 import type { GameSystems } from "../game";
 import { ChunkStream } from "../game/chunkStream";
+import { type ActiveRide, rideMessage } from "../game/rides";
 import type { DistrictMap } from "../game/district";
 import { logError } from "../log";
 import { describeOffer } from "../game/offers";
@@ -66,7 +69,14 @@ interface LivePlayer {
   chunks: ChunkStream;
   /** While the connection is dropped: the place kept for them, which a fresh join can give up. */
   dropped: Deferred<Client> | null;
+  /** A paid ride under way: the room moves them along it, and walking is ignored. */
+  ride: ActiveRide | null;
+  /** The ride has reached its end and is being finished (once). */
+  finishingRide: boolean;
 }
+
+/** Reused every tick for a rider's position, rather than a new object per rider. */
+const RIDE_POSE: PathPoint = { x: 0, z: 0, heading: 0 };
 
 /**
  * Builds the room class with the game systems it needs. Colyseus constructs
@@ -120,16 +130,32 @@ export function createDistrictRoom(game: GameSystems) {
         unsubscribeNotices: () => {},
         chunks: new ChunkStream(this.district.chunks),
         dropped: null,
+        ride: null,
+        finishingRide: false,
       };
 
       // Catch up on whatever happened while the player was away, then show the HUD.
       // Not subscribed to toasts yet: what the catch-up finds was missed, so it
       // waits in the inbox as unread instead of flashing past as toasts.
-      const appearance = await game.mutex.run(playerId, async () => {
+      const { appearance, ride } = await game.mutex.run(playerId, async () => {
         await game.players.ensurePlayer(playerId);
         await this.catchUp(playerId);
-        return game.appearance.get(playerId);
+        // A ride carries on while the player is away: still going, or over (then they stand where it ended).
+        let current = await game.rides.current(playerId, this.district);
+        if (current && game.clock.now() >= current.endsAt) {
+          await game.rides.finish(current, game.clock.now());
+          live.x = current.endPoint.x;
+          live.z = current.endPoint.z;
+          current = null;
+        }
+        return { appearance: await game.appearance.get(playerId), ride: current };
       });
+      if (ride) {
+        live.ride = ride;
+        ridePose(ride, game.clock.now().getTime(), RIDE_POSE);
+        live.x = RIDE_POSE.x;
+        live.z = RIDE_POSE.z;
+      }
 
       live.unsubscribeNotices = game.notices.subscribe(playerId, (notice) => client.send(SERVER_MESSAGES.notice, notice));
       this.live.set(client.sessionId, live);
@@ -145,6 +171,7 @@ export function createDistrictRoom(game: GameSystems) {
       // header now, then the chunks around the player, more as they walk.
       client.send(SERVER_MESSAGES.district, this.district.header);
       this.sendChunks(client, live);
+      if (live.ride) client.send(SERVER_MESSAGES.ride, rideMessage(live.ride));
       // Null opens the character creator.
       this.showAppearance(client, appearance);
       await this.sendStats(client, live);
@@ -181,8 +208,34 @@ export function createDistrictRoom(game: GameSystems) {
       if (!client.view.has(position)) client.view.add(position);
       this.updateViews();
       live.unsubscribeNotices = game.notices.subscribe(live.playerId, (notice) => client.send(SERVER_MESSAGES.notice, notice));
+      // A ride that ended while they were away was finished by the tick; one still going is sent again.
+      client.send(SERVER_MESSAGES.ride, rideMessage(live.ride));
       await game.mutex.run(live.playerId, () => this.catchUp(live.playerId));
       await this.sendStats(client, live);
+    }
+
+    /** A ride has reached its end: finish it (once, under the player's mutex) and leave them where it ended. */
+    private finishRide(sessionId: string, live: LivePlayer, now: Date): void {
+      const ride = live.ride;
+      if (!ride || live.finishingRide) return;
+      live.finishingRide = true;
+      game.mutex
+        .run(live.playerId, () => game.rides.finish(ride, now))
+        .then(async () => {
+          live.ride = null;
+          live.x = ride.endPoint.x;
+          live.z = ride.endPoint.z;
+          live.dx = 0;
+          live.dz = 0;
+          const client = this.clients.getById(sessionId);
+          if (!client) return;
+          client.send(SERVER_MESSAGES.ride, rideMessage(null));
+          await this.sendStats(client, live);
+        })
+        .catch((error: unknown) => logError("finishing a ride failed", error))
+        .finally(() => {
+          live.finishingRide = false;
+        });
     }
 
     override onLeave(client: Client): void {
@@ -277,7 +330,8 @@ export function createDistrictRoom(game: GameSystems) {
             game.events.activeEffects(playerId, now),
             game.players.currentNeeds(state, now),
           ]);
-          client.send(SERVER_MESSAGES.interaction, describeOffer(target, game.content, { priceFactorBp, morale }));
+          const rides = game.rides.options(this.district, target.id);
+          client.send(SERVER_MESSAGES.interaction, describeOffer(target, game.content, { priceFactorBp, morale, rides }));
           return;
         }
         case "work": {
@@ -339,6 +393,24 @@ export function createDistrictRoom(game: GameSystems) {
           outcome = result;
           break;
         }
+        case "takeRide": {
+          if (live.ride) return this.reject(client, intent.type, "already_riding");
+          const { rideId, from, to } = intent.payload;
+          const stop = this.district.byId(from);
+          if (!stop || (stop.kind !== "bus_stop" && stop.kind !== "okada_park")) {
+            return this.reject(client, intent.type, "unknown_target");
+          }
+          if (!this.district.nearest(position, (thing) => thing.id === from)) return this.reject(client, intent.type, "too_far");
+          const taken = await game.rides.take(playerId, this.district, rideId, from, to, now);
+          if (taken.ok) {
+            live.ride = taken.ride;
+            live.dx = 0;
+            live.dz = 0;
+            client.send(SERVER_MESSAGES.ride, rideMessage(taken.ride));
+          }
+          outcome = taken;
+          break;
+        }
         case "move":
           return;
       }
@@ -349,24 +421,37 @@ export function createDistrictRoom(game: GameSystems) {
 
     // ---- ticks -----------------------------------------------------------------
 
-    /** Moves every player by their last direction, at the server's speed, inside the district. */
+    /**
+     * Moves every player: a rider along their ride by the server clock (and the
+     * ride finished at its end), anyone else by their last direction, at the
+     * server's speed, inside the district.
+     */
     private step(deltaMs: number): void {
       const seconds = Math.min(deltaMs / 1000, MAX_STEP_SECONDS);
+      const now = game.clock.now();
       for (const [sessionId, live] of this.live) {
-        if (live.dx === 0 && live.dz === 0) continue;
-        const next = this.district.move(
-          { x: live.x, z: live.z },
-          {
-            x: live.dx * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
-            z: live.dz * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
-          },
-        );
-        live.x = next.x;
-        live.z = next.z;
+        if (live.ride) {
+          ridePose(live.ride, now.getTime(), RIDE_POSE);
+          live.x = RIDE_POSE.x;
+          live.z = RIDE_POSE.z;
+          if (now >= live.ride.endsAt) this.finishRide(sessionId, live, now);
+        } else if (live.dx !== 0 || live.dz !== 0) {
+          const next = this.district.move(
+            { x: live.x, z: live.z },
+            {
+              x: live.dx * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
+              z: live.dz * PLAYER_SPEED_UNITS_PER_SECOND * seconds,
+            },
+          );
+          live.x = next.x;
+          live.z = next.z;
+        } else {
+          continue;
+        }
         const synced = this.state.players.get(sessionId);
         if (synced) {
-          synced.x = next.x;
-          synced.z = next.z;
+          synced.x = live.x;
+          synced.z = live.z;
         }
         const client = this.clients.getById(sessionId);
         if (client) this.sendChunks(client, live);

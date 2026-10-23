@@ -23,6 +23,7 @@ describe("parseIntent", () => {
         "setAppearance",
         { body: "body-1", skinTone: "tone-4", hair: "low-cut", hairColour: "black", outfit: "senator", outfitColour: "green" },
       ],
+      ["takeRide", { rideId: "yaba-danfo", from: "yaba-motor-park", to: "sabo-bus-stop" }],
     ];
     for (const [type, payload] of valid) {
       expect(parseIntent(type, payload).ok, type).toBe(true);
@@ -31,7 +32,7 @@ describe("parseIntent", () => {
 
   it("covers every declared intent type in the valid cases", () => {
     expect([...INTENT_TYPES].sort()).toEqual(
-      ["answerEvent", "buyFood", "buyItem", "interact", "move", "openInbox", "payRent", "setAppearance", "work"].sort(),
+      ["answerEvent", "buyFood", "buyItem", "interact", "move", "openInbox", "payRent", "setAppearance", "takeRide", "work"].sort(),
     );
   });
 

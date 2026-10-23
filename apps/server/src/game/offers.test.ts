@@ -50,7 +50,15 @@ describe("describeOffer", () => {
     expect(low.job.payKobo).toBeLessThan(job.shiftPayKobo);
   });
 
-  it("describes places with nothing to offer yet by kind only", () => {
-    expect(describeOffer(place("yaba-bus-stop"), content, calm)).toEqual({ targetId: "yaba-bus-stop", kind: "bus_stop" });
+  it("passes on the rides from a stop, and none when the room gave none", () => {
+    const rides = [
+      { rideId: "yaba-danfo", kind: "danfo" as const, toStop: "sabo-bus-stop", toLabel: "Sabo", fareKobo: 50_000, seconds: 40 },
+    ];
+    expect(describeOffer(place("yaba-bus-stop"), content, { ...calm, rides })).toEqual({
+      targetId: "yaba-bus-stop",
+      kind: "bus_stop",
+      rides,
+    });
+    expect(describeOffer(place("yaba-bus-stop"), content, calm)).toEqual({ targetId: "yaba-bus-stop", kind: "bus_stop", rides: [] });
   });
 });

@@ -12,5 +12,6 @@ export * from "./format";
 export * from "./intents";
 export * from "./messages";
 export * from "./random";
+export * from "./rides";
 export * from "./roadGraph";
 export * from "./spatialGrid";

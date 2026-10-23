@@ -17,6 +17,7 @@ import { KeyedMutex } from "./keyedMutex";
 import { NoticeBus } from "./noticeBus";
 import { PlayerService } from "./players";
 import { RentService } from "./rent";
+import { RideService } from "./rides";
 import { ShopService } from "./shop";
 import { StatsService } from "./stats";
 
@@ -37,6 +38,8 @@ export interface GameSystems {
   stats: StatsService;
   /** The player's character: made once, changed at home. */
   appearance: AppearanceService;
+  /** Paid danfo and okada rides between stops. */
+  rides: RideService;
   /** Live toasts for connected players. Game code tells players through `inbox`, which also uses this. */
   notices: NoticeBus;
   /** Every notice to a player, kept for when they come back. */
@@ -101,6 +104,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     choices,
     stats,
     appearance: new AppearanceService(deps),
+    rides: new RideService(deps, inbox),
     notices,
     inbox,
     mutex: new KeyedMutex(),

@@ -60,6 +60,7 @@ model Player {
   eventChoices EventChoice[]
   inbox        InboxMessage[]
   appearance   PlayerAppearance?
+  rides        PlayerRide[]
 }
 
 // ---- Character (Slice 11d) ---------------------------------------------------
@@ -78,6 +79,44 @@ model PlayerAppearance {
   updatedAt    DateTime @updatedAt
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+}
+
+// ---- Rides (Slice 11i) -------------------------------------------------------
+// Not money: the fare is a ledger debit (reference `ride:<playerId>:<id>`).
+
+/// A danfo or okada ride. Claimed first: `activeKey` holds the player's id while
+/// the ride is live, so a player can have at most one, even across servers.
+/// Then the fare is charged; `paidAt` is set once it is, and a ride without it
+/// never started (it is removed). The server moves the rider along `path` from
+/// its own clock, so the ride carries on while the player is offline.
+model PlayerRide {
+  id              String    @id @default(uuid(7))
+  playerId        String
+  /// The ride route (content), its kind, and the two places.
+  rideId          String
+  kind            String
+  fromStop        String
+  toStop          String
+  fareKobo        BigInt
+  /// The road route: [{ x, z }, ...].
+  path            Json
+  /// Metres per second, and how long a danfo waits at the stop first.
+  speed           Float
+  boardingSeconds Float
+  /// Where along the path the ride ends: its length, or where the task force stopped it.
+  stopsAtMetres   Float
+  stoppedEarly    Boolean   @default(false)
+  startedAt       DateTime
+  /// When it would reach the stop, and when it actually ends.
+  arrivesAt       DateTime
+  endsAt          DateTime
+  paidAt          DateTime?
+  finishedAt      DateTime?
+  activeKey       String?   @unique
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@index([playerId, finishedAt])
 }
 
 // ---- Game state (Phase 1, Slice 4) -------------------------------------------
