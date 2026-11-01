@@ -1,12 +1,22 @@
 "use client";
 
-import { type Box, type DistrictLayout, type ModelInfo, type Point, type VehicleKind, seededRandom } from "@japalife/shared";
+import {
+  type Box,
+  type DistrictLayout,
+  type ModelInfo,
+  type PathPoint,
+  type Point,
+  type VehicleKind,
+  ridePose,
+  seededRandom,
+} from "@japalife/shared";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import { Group, InstancedMesh, Matrix4, Mesh, MeshLambertMaterial, type MeshStandardMaterial, Quaternion, Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { ASSET_ROOT, withDecoders } from "../character/loaders";
 import { ModelBoundary } from "../ModelBoundary";
+import type { RideStore } from "../routeStore";
 import { DRAW_REACH, TRAFFIC_REACH, areaBox, areaCell, busyShare } from "./area";
 import type { QualityGovernor } from "./quality";
 import { localHour } from "./sky";
@@ -29,6 +39,8 @@ const NO_AREAS: readonly Box[] = [];
  * lanes. Client-only and cosmetic (see `trafficSim.ts`). Every copy of a
  * vehicle model is one instanced mesh whose positions are rewritten each
  * frame, so the whole fleet costs about one draw call per kind of vehicle.
+ * The player's own ride is one more instance of its kind: no extra draw call,
+ * and no new shader to compile mid-game.
  */
 
 /** Before the first stats arrive, the street looks like midday. */
@@ -45,11 +57,14 @@ export function Traffic({
   predicted,
   street,
   quality,
+  rides,
 }: {
   layout: DistrictLayout;
   predicted: { current: Point };
   street: { current: StreetState };
   quality: QualityGovernor;
+  /** The player's ride under way, drawn with the traffic of its kind. */
+  rides: RideStore;
 }) {
   const world = useMemo(() => createTraffic(layout), [layout]);
   const random = useMemo(() => seededRandom(0x7aff1d), []);
@@ -87,7 +102,15 @@ export function Traffic({
         // No stand-in while a model downloads: traffic arrives after the street is on screen.
         <ModelBoundary key={id} fallback={null}>
           <Suspense fallback={null}>
-            <ModelFleet world={world} kindId={id} look={look} model={model} predicted={predicted} />
+            <ModelFleet
+              world={world}
+              kindId={id}
+              look={look}
+              model={model}
+              predicted={predicted}
+              rides={rides}
+              street={street}
+            />
           </Suspense>
         </ModelBoundary>
       ))}
@@ -96,17 +119,23 @@ export function Traffic({
 }
 
 /** Reused every frame: new ones per vehicle per frame fed the garbage collector, whose pauses are hitches. */
-const PLACE = { position: new Vector3(), turn: new Quaternion(), size: new Vector3(), on: { x: 0, z: 0, heading: 0 } as LanePoint };
+const PLACE = {
+  position: new Vector3(),
+  turn: new Quaternion(),
+  size: new Vector3(),
+  on: { x: 0, z: 0, heading: 0 } as LanePoint,
+  ride: { x: 0, z: 0, heading: 0 } as PathPoint,
+};
 
 /** Where a vehicle stands and which way it faces, or null while it is parked off the road. */
 function placeVehicle(vehicle: Vehicle, scale: number, target: Matrix4): Matrix4 | null {
   if (vehicle.parked) return null;
   const { x, z, heading } = pointOnLane(vehicle.lane, vehicle.s, PLACE.on);
-  return target.compose(
-    PLACE.position.set(x, 0, z),
-    PLACE.turn.setFromAxisAngle(UP, heading),
-    PLACE.size.setScalar(scale),
-  );
+  return placeAt(x, z, heading, scale, target);
+}
+
+function placeAt(x: number, z: number, heading: number, scale: number, target: Matrix4): Matrix4 {
+  return target.compose(PLACE.position.set(x, 0, z), PLACE.turn.setFromAxisAngle(UP, heading), PLACE.size.setScalar(scale));
 }
 
 /** Every vehicle of one kind, as one instanced mesh per mesh in its model (usually just one). */
@@ -116,6 +145,8 @@ function ModelFleet({
   look,
   model,
   predicted,
+  rides,
+  street,
 }: {
   world: TrafficWorld;
   kindId: string;
@@ -123,6 +154,8 @@ function ModelFleet({
   model: ModelInfo;
   /** Where the player is: only vehicles in the drawn area around them are drawn. */
   predicted: { current: Point };
+  rides: RideStore;
+  street: { current: StreetState };
 }) {
   const gl = useThree((three) => three.gl);
   const gltf = useLoader(GLTFLoader, `${ASSET_ROOT}/${model.file}`, withDecoders(gl));
@@ -137,7 +170,8 @@ function ModelFleet({
       const original = object.material as MeshStandardMaterial;
       // Lambert, not the glTF's physically based material: far cheaper on a weak GPU.
       const material = new MeshLambertMaterial({ map: original.map, color: original.color.clone() });
-      const mesh = new InstancedMesh(object.geometry, material, Math.max(1, fleet.length));
+      // One slot more than the fleet, for the player's own ride.
+      const mesh = new InstancedMesh(object.geometry, material, fleet.length + 1);
       // The instances move every frame, so their bounds are never up to date; there are few of them.
       mesh.frustumCulled = false;
       root.add(mesh);
@@ -160,6 +194,15 @@ function ModelFleet({
     // Only vehicles in the drawn area take a slot: the rest of the district's traffic costs the GPU nothing.
     const area = areaBox(predicted.current, DRAW_REACH);
     let shown = 0;
+    // The player's ride, placed from the server's clock exactly as the player is (see `Player`).
+    const ride = rides.get();
+    const serverNow = street.current.serverNow;
+    if (ride && ride.kind === kindId && serverNow) {
+      const { x, z, heading } = ridePose(ride, serverNow(), PLACE.ride);
+      const at = placeAt(x, z, heading, look.scale, placed);
+      for (const { mesh, local } of meshes) mesh.setMatrixAt(shown, combined.multiplyMatrices(at, local));
+      shown++;
+    }
     for (const vehicle of fleet) {
       const at = placeVehicle(vehicle, look.scale, placed);
       if (!at) continue;

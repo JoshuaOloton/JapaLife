@@ -10,6 +10,7 @@ import {
   MAX_DEVICE_PIXEL_RATIO,
   type Point,
   type Route,
+  fill,
 } from "@japalife/shared";
 import { Canvas } from "@react-three/fiber";
 import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,7 +23,7 @@ import {
   useDistrictConnection,
   useLoadedDistrict,
 } from "./connection";
-import { placePrompt } from "./format";
+import { formatCountdown, placePrompt } from "./format";
 import { FpsProbe, QualityProbe, useFpsMeterEnabled } from "./FpsMeter";
 import { Hud, useTicker } from "./Hud";
 import styles from "./hud.module.css";
@@ -37,7 +38,9 @@ import { PlacePanel } from "./PlacePanel";
 import { ShaderWarmUp, WARM_UP_WHILE_HIDDEN } from "./ShaderWarmUp";
 import { Player, type PlayerActivity } from "./Player";
 import { RouteFollower, planRoute } from "./route";
-import { RouteStore, useRoute } from "./routeStore";
+import { rideRoute, rideStage } from "./ride";
+import { type ClientRide, RideStore, RouteStore, useRoute } from "./routeStore";
+import { useStore } from "./store";
 import { useGameMessages } from "./useGameMessages";
 import { World } from "./World";
 import { FOG_FAR, Lighting } from "./world/Lighting";
@@ -64,6 +67,8 @@ export default function Game() {
   // The way picked on the map: drawn on the minimap, the map and the street. A store, not state here,
   // so picking a route never re-renders the 3D scene.
   const routes = useMemo(() => new RouteStore(), []);
+  // The ride under way, read every frame by the player and its vehicle; a store for the same reason.
+  const rides = useMemo(() => new RideStore(), []);
   const fpsOutput = useRef<HTMLParagraphElement>(null);
   const street = useRef<StreetState>(initialStreet());
   // Halves the traffic and people for good if the frame rate stays low (adaptive quality).
@@ -131,6 +136,7 @@ export default function Game() {
                   header={connection.header}
                   hide={diagnostics.hide}
                   routes={routes}
+                  rides={rides}
                   street={street}
                   predicted={predicted}
                   quality={quality}
@@ -145,6 +151,8 @@ export default function Game() {
                 appearance={shownLook}
                 closeUp={closeUp}
                 turn={turn}
+                rides={rides}
+                street={street}
               />
             </>
           )}
@@ -153,7 +161,7 @@ export default function Game() {
         <ShaderWarmUp />
         {showFps && <FpsProbe output={fpsOutput} quality={quality} switches={describeDiagnostics(diagnostics)} />}
       </Canvas>
-      {touch && !closeUp && <Joystick input={input} />}
+      {touch && !closeUp && <RideAwareJoystick input={input} rides={rides} />}
       {closeUp && <TurnArea turn={turn} />}
       {/* Going into or out of the bedroom cuts the scene; a quick fade from black hides the cut. */}
       <div key={closeUp ? "indoors" : "street"} className={styles.sceneFade} />
@@ -169,6 +177,7 @@ export default function Game() {
         header={connection.header}
         input={input}
         routes={routes}
+        rides={rides}
         predicted={predicted}
         activity={activity}
         street={street}
@@ -188,6 +197,11 @@ function Scene({
   children: (district: DistrictLayout) => ReactNode;
 }) {
   return children(useLoadedDistrict(connection.district, connection.chunks));
+}
+
+/** No joystick on a ride: the driver is in charge. Its own component, so a ride never re-renders the game. */
+function RideAwareJoystick({ input, rides }: { input: MoveInput; rides: RideStore }) {
+  return useStore(rides) ? null : <Joystick input={input} />;
 }
 
 /** Radians your character turns per pixel dragged. */
@@ -225,6 +239,7 @@ function Overlay({
   header,
   input,
   routes,
+  rides,
   predicted,
   activity,
   street,
@@ -240,6 +255,8 @@ function Overlay({
   input: MoveInput;
   /** The route picked on the map. */
   routes: RouteStore;
+  /** Where the ride from the server goes, for the 3D view. */
+  rides: RideStore;
   predicted: { current: Point };
   activity: { current: PlayerActivity };
   street: { current: StreetState };
@@ -247,8 +264,18 @@ function Overlay({
   /** Tells the 3D view how your character looks and whether the creator is open. */
   onLook: (look: Appearance | null, creatorOpen: boolean) => void;
 }) {
-  const { server, toasts, interaction, closeInteraction, inbox, closeInbox, appearance, appearanceSaves, appearanceRefusals } =
-    useGameMessages(messages);
+  const {
+    server,
+    toasts,
+    interaction,
+    closeInteraction,
+    inbox,
+    closeInbox,
+    appearance,
+    appearanceSaves,
+    appearanceRefusals,
+    ride,
+  } = useGameMessages(messages);
   const now = useTicker(server);
   const near = useNearbyPlace(district, predicted);
   const [editing, setEditing] = useState<{ mode: "create" | "change"; draft: Appearance; saving: boolean } | null>(null);
@@ -328,16 +355,18 @@ function Overlay({
   }, [mapStatus]);
   const pickOnMap = useCallback(
     (point: Point) => {
+      // On a ride the map shows the ride's road; there is nowhere to walk.
+      if (rides.get()) return;
       input.clearAutopilot();
       setWalking(false);
       const picked = planRoute(header, predicted.current, point);
       onRoute(picked ?? null);
       if (!picked) setMapStatus(COPY.map.noRoute);
     },
-    [header, input, onRoute, predicted],
+    [header, input, onRoute, predicted, rides],
   );
   const walkRoute = (): void => {
-    if (!route) return;
+    if (!route || ride) return;
     input.setAutopilot(new RouteFollower(route.points), (end) => {
       setWalking(false);
       if (end === "arrived") {
@@ -358,6 +387,24 @@ function Overlay({
     stopWalking();
     onRoute(null);
   };
+
+  // A ride started (or resumed on join): hand it to the 3D view, stop any walk, and show its road.
+  // When it ends, its road goes too (a route picked before it is gone: the ride replaced it).
+  const rideRoad = useRef<ClientRide["path"] | null>(null);
+  useEffect(() => {
+    rides.set(ride);
+    if (!ride) {
+      if (routes.get()?.points === rideRoad.current) routes.set(null);
+      rideRoad.current = null;
+      return;
+    }
+    input.clearAutopilot();
+    input.clear();
+    setWalking(false);
+    closeInteraction();
+    rideRoad.current = ride.path;
+    routes.set(rideRoute(ride));
+  }, [ride, rides, routes, input, closeInteraction]);
 
   return (
     <>
@@ -385,7 +432,7 @@ function Overlay({
         />
       ) : (
         <>
-          {near && !interaction && !inbox && (
+          {near && !interaction && !inbox && !ride && (
             <button type="button" className={styles.use} onClick={() => open(near)}>
               {placePrompt(near)}
             </button>
@@ -412,6 +459,7 @@ function Overlay({
             </button>
           )}
           {mapStatus && !mapOpen && <p className={styles.mapStatus}>{mapStatus}</p>}
+          {ride && !mapOpen && <RidingChip ride={ride} now={now} />}
           {mapOpen && (
             <MapScreen
               header={header}
@@ -428,6 +476,19 @@ function Overlay({
         </>
       )}
     </>
+  );
+}
+
+/** Where the ride is going and how long is left; `now` is the server's clock. */
+function RidingChip({ ride, now }: { ride: ClientRide; now: number }) {
+  const at = rideStage(ride, now);
+  const vehicle = COPY.riding[ride.kind];
+  return (
+    <p role="status" className={styles.riding}>
+      {at.stage === "boarding"
+        ? fill(COPY.riding.boarding, { vehicle, place: ride.toLabel })
+        : fill(COPY.riding.onTheWay, { vehicle, place: ride.toLabel, time: formatCountdown(at.leftMs) })}
+    </p>
   );
 }
 

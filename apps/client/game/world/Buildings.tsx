@@ -1,6 +1,6 @@
 "use client";
 
-import type { Building, ModelInfo, Point } from "@japalife/shared";
+import { type Building, type ModelInfo, type Point, zincTone } from "@japalife/shared";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
@@ -13,9 +13,11 @@ import {
   type Material,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
   MeshLambertMaterial,
   type MeshStandardMaterial,
   Object3D,
+  PlaneGeometry,
   Quaternion,
   Vector3,
 } from "three";
@@ -23,14 +25,17 @@ import { type GLTF, GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { ASSET_ROOT, withDecoders } from "../character/loaders";
 import { ModelBoundary } from "../ModelBoundary";
 import { WARM_UP_WHILE_HIDDEN } from "../ShaderWarmUp";
-import { Boxes, type Slab } from "./Boxes";
-import { blocksView } from "./occlusion";
+import { Boxes, type FadeSet, type Slab } from "./Boxes";
+import { type FadeRule, type Point3, stepFades } from "./occlusion";
+// Each plain roof's zinc comes from its id (`zincTone`), the same as on the map.
+import { ZINC_COLOURS } from "./roofColours";
 import type { StreetState } from "./street";
 import {
   INSTANCE_FADE_ATTRIBUTE,
   INSTANCE_LIT_ATTRIBUTE,
   WINDOW_GLOW_COLOUR,
   addBuildingEffects,
+  addDitherFade,
   flagWindowGlass,
 } from "./windowGlass";
 import {
@@ -38,7 +43,6 @@ import {
   WINDOW_HEIGHT,
   WINDOW_WIDTH,
   type WindowSpot,
-  hash01,
   isWindowLit,
   modelWindowsLit,
   streetPower,
@@ -62,21 +66,35 @@ import {
 
 const ROOF_THICKNESS = 0.25;
 const ROOF_OVERHANG = 0.3;
-/** Zinc goes from new grey to rusty brown; each roof gets one, from its id. */
-const ZINC_COLOURS = ["#8d9196", "#7b7f82", "#8a6a52", "#7a5640", "#96999c"] as const;
 
 const WINDOW_COLOURS = { glass: "#34424e", lit: "#ffd98a", dark: "#161b22" } as const;
 /** How often the windows check whether night fell or the power went. */
 const WINDOW_CHECK_SECONDS = 1;
 /** How strongly a model's lit glass glows (times `WINDOW_GLOW_COLOUR`), on top of its painted colour. */
 const MODEL_GLOW = { value: new Color(WINDOW_GLOW_COLOUR).multiplyScalar(0.9) };
-/** A building hiding the player loses this share of its pixels, quickly but not in a blink. */
-const FADED_AMOUNT = 0.7;
-const FADE_PER_SECOND = 4;
-/** The point of the player the camera must see. */
-const PLAYER_CHEST_HEIGHT = 1.2;
-/** Only buildings this close to the player (the camera is at most about 25 m back) can hide them. */
-const OCCLUSION_RANGE = 35;
+/**
+ * A building hiding the player loses 70% of its pixels, quickly but not in a
+ * blink. Only buildings within 35 m can hide them (the camera is at most about
+ * 25 m back).
+ */
+const FADE_RULE: FadeRule = { faded: 0.7, perSecond: 4, range: 35 };
+/** The point of the player the camera must see; reused every frame. */
+const CHEST: Point3 = { x: 0, y: 1.2, z: 0 };
+
+/**
+ * Keeps the given buildings' fades up to date every frame, for meshes that
+ * draw them (the plain buildings' boxes and windows, through `FadeSet`).
+ */
+export function useOcclusionFade(buildings: readonly Building[], predicted: { current: Point }): FadeSet {
+  const camera = useThree((three) => three.camera);
+  const set = useMemo<FadeSet>(() => ({ amounts: new Float32Array(buildings.length), version: 0 }), [buildings]);
+  useFrame((_, frameSeconds) => {
+    CHEST.x = predicted.current.x;
+    CHEST.z = predicted.current.z;
+    if (stepFades(buildings, set.amounts, camera.position, CHEST, Math.min(frameSeconds, 0.25), FADE_RULE)) set.version++;
+  });
+  return set;
+}
 
 /** The boxes for plain buildings: walls and roofs, drawn by the world's single `Boxes` call. */
 export function plainBuildingSlabs(buildings: readonly Building[]): Slab[] {
@@ -90,7 +108,7 @@ export function plainBuildingSlabs(buildings: readonly Building[]): Slab[] {
       height: ROOF_THICKNESS,
       y: building.height - ROOF_THICKNESS,
       // From the id, not the list position, so a roof keeps its colour as the drawn area changes.
-      colour: ZINC_COLOURS[Math.floor(hash01(building.id) * ZINC_COLOURS.length)] ?? ZINC_COLOURS[0],
+      colour: ZINC_COLOURS[zincTone(building.id)] ?? ZINC_COLOURS[0],
     },
   ]);
 }
@@ -184,21 +202,10 @@ function BuildingKind({
 
   // Dither out a building while it stands between the camera and the player (occlusion fading).
   useFrame((_, frameSeconds) => {
-    const { x, z } = predicted.current;
-    const step = Math.min(frameSeconds, 0.25) * FADE_PER_SECOND;
-    const fades = kind.fade;
-    let changed = false;
-    const count = Math.min(buildings.length, capacity);
-    for (let index = 0; index < count; index++) {
-      const building = buildings[index] as Building;
-      const close = Math.abs(building.x - x) < OCCLUSION_RANGE && Math.abs(building.z - z) < OCCLUSION_RANGE;
-      const want = close && blocksView(building, camera.position, { x, y: PLAYER_CHEST_HEIGHT, z }) ? FADED_AMOUNT : 0;
-      const now = fades.getX(index);
-      if (now === want) continue;
-      fades.setX(index, want > now ? Math.min(want, now + step) : Math.max(want, now - step));
-      changed = true;
-    }
-    if (changed) fades.needsUpdate = true;
+    CHEST.x = predicted.current.x;
+    CHEST.z = predicted.current.z;
+    const amounts = kind.fade.array as Float32Array;
+    if (stepFades(buildings, amounts, camera.position, CHEST, Math.min(frameSeconds, 0.25), FADE_RULE)) kind.fade.needsUpdate = true;
   });
 
   // Check about once a second whether night fell or the power went; only then touch the glow.
@@ -315,19 +322,44 @@ export function Windows({
   buildings,
   capacity,
   street,
+  fades,
 }: {
   buildings: readonly Building[];
   capacity: number;
   street: { current: StreetState };
+  /** How far each of `buildings` is faded out: its windows fade with it. */
+  fades: FadeSet;
 }) {
-  const spots = useMemo<WindowSpot[]>(() => buildings.flatMap(windowsOf).slice(0, capacity), [buildings, capacity]);
-  const mesh = useRef<InstancedMesh>(null);
+  // Each window, and the index of its building in `buildings` (for its fade).
+  const { spots, owners } = useMemo(() => {
+    const all = buildings.flatMap((building, owner) => windowsOf(building).map((spot) => ({ spot, owner }))).slice(0, capacity);
+    return { spots: all.map(({ spot }): WindowSpot => spot), owners: Int32Array.from(all, ({ owner }) => owner) };
+  }, [buildings, capacity]);
+  const mesh = useMemo(() => {
+    const geometry = new PlaneGeometry(WINDOW_WIDTH, WINDOW_HEIGHT);
+    const fade = new InstancedBufferAttribute(new Float32Array(Math.max(1, capacity)), 1).setUsage(DynamicDrawUsage);
+    geometry.setAttribute(INSTANCE_FADE_ATTRIBUTE, fade);
+    const material = new MeshBasicMaterial();
+    addDitherFade(material, "windows-dither");
+    const instanced = new InstancedMesh(geometry, material, Math.max(1, capacity));
+    instanced.count = 0;
+    instanced.visible = false;
+    instanced.userData[WARM_UP_WHILE_HIDDEN] = true;
+    return instanced;
+  }, [capacity]);
+  useEffect(
+    () => () => {
+      mesh.geometry.dispose();
+      (mesh.material as MeshBasicMaterial).dispose();
+    },
+    [mesh],
+  );
   const shown = useRef<string | null>(null);
   const sinceCheck = useRef(Number.POSITIVE_INFINITY);
+  const seenFade = useRef(-1);
 
   useLayoutEffect(() => {
-    const instanced = mesh.current;
-    if (!instanced) return;
+    const instanced = mesh;
     const placer = new Object3D();
     spots.forEach((spot, index) => {
       placer.position.set(spot.x, spot.y, spot.z);
@@ -341,12 +373,24 @@ export function Windows({
     instanced.computeBoundingSphere();
     shown.current = null; // repaint the colours for the new windows
     sinceCheck.current = Number.POSITIVE_INFINITY;
-  }, [spots]);
+    seenFade.current = -1; // and copy the fades again
+  }, [mesh, spots]);
+
+  // A fading building's windows fade with it; copied only when a fade changed.
+  useFrame(() => {
+    if (fades.version === seenFade.current) return;
+    seenFade.current = fades.version;
+    const attribute = mesh.geometry.getAttribute(INSTANCE_FADE_ATTRIBUTE) as InstancedBufferAttribute;
+    const values = attribute.array as Float32Array;
+    const count = Math.min(owners.length, values.length);
+    for (let index = 0; index < count; index++) values[index] = fades.amounts[owners[index] as number] ?? 0;
+    attribute.needsUpdate = true;
+  });
 
   useFrame((_, frameSeconds) => {
     sinceCheck.current += frameSeconds;
-    const instanced = mesh.current;
-    if (!instanced || sinceCheck.current < WINDOW_CHECK_SECONDS) return;
+    const instanced = mesh;
+    if (sinceCheck.current < WINDOW_CHECK_SECONDS) return;
     sinceCheck.current = 0;
     const { serverNow, isNight, blackoutEndsAt } = street.current;
     const power = streetPower(isNight, blackoutEndsAt, serverNow?.() ?? 0);
@@ -361,12 +405,7 @@ export function Windows({
   });
 
   if (capacity === 0) return null;
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, capacity]} key={capacity} userData={{ [WARM_UP_WHILE_HIDDEN]: true }}>
-      <planeGeometry args={[WINDOW_WIDTH, WINDOW_HEIGHT]} />
-      <meshBasicMaterial />
-    </instancedMesh>
-  );
+  return <primitive object={mesh} />;
 }
 
 /** How many windows the given plain buildings have, to size the windows mesh once. */

@@ -5,12 +5,14 @@ import {
   type DistrictLayout,
   PLAYER_RADIUS,
   PLAYER_SPEED_UNITS_PER_SECOND,
+  type PathPoint,
   type Point,
   decodeAppearance,
   districtObstacles,
   encodeAppearance,
   moveWithCollisions,
   obstacleGrid,
+  ridePose,
 } from "@japalife/shared";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
@@ -25,7 +27,11 @@ import { DressingRoom } from "./DressingRoom";
 import type { MoveInput } from "./input";
 import { MoveSender } from "./moveSender";
 import { reconcile } from "./reconcile";
+import { OKADA_SEAT } from "./ride";
+import type { RideStore } from "./routeStore";
 import { INTERPOLATION_DELAY_MS, SnapshotBuffer } from "./snapshots";
+import { useStore } from "./store";
+import type { StreetState } from "./world/street";
 
 const BODY_LENGTH = 1;
 const BODY_COLOUR = "#2e7d4f";
@@ -55,6 +61,8 @@ const STILL = { x: 0, z: 0 } as const;
 const MAX_FRAME_SECONDS = 0.25;
 /** How quickly the measured speed follows the real one, per second. Smooths out uneven frames. */
 const SPEED_SMOOTHING_RATE = 12;
+/** Reused every frame while riding. */
+const RIDE_AT: PathPoint = { x: 0, z: 0, heading: 0 };
 
 /** What the HUD knows that the animation needs: on shift at the job site, and when a place was last used. */
 export interface PlayerActivity {
@@ -69,6 +77,11 @@ export interface PlayerActivity {
  *     so movement feels instant instead of waiting a round trip,
  *  3. nudges the prediction toward the server's interpolated position, which is the truth,
  *  4. moves the camera smoothly after it.
+ *
+ * On a ride none of that applies: the ride's path and the server's clock say
+ * where the player is (the server moves them the same way), so nothing to
+ * predict or correct. Inside a danfo the player is hidden; on an okada they
+ * sit behind the rider.
  */
 export function Player({
   room,
@@ -79,6 +92,8 @@ export function Player({
   appearance,
   closeUp,
   turn,
+  rides,
+  street,
 }: {
   room: DistrictRoom;
   district: DistrictLayout;
@@ -92,8 +107,14 @@ export function Player({
   closeUp: boolean;
   /** In the creator, how far the player has turned the character round by dragging (radians). */
   turn: { current: number };
+  /** The ride under way, if any. */
+  rides: RideStore;
+  /** For the server's clock, which places a rider. */
+  street: { current: StreetState };
 }) {
   const body = useRef<Group>(null);
+  // Re-renders only when a ride starts or ends, to seat or hide the character.
+  const riding = useStore(rides)?.kind;
   const bedroom = useRef<Group>(null);
   const camera = useThree((three) => three.camera);
   const aspect = useThree((three) => three.size.width / three.size.height);
@@ -150,7 +171,7 @@ export function Player({
     return () => document.removeEventListener("visibilitychange", onHidden);
   }, [input, sender]);
 
-  // The server spawns every joining player here; start the prediction at the same spot.
+  // The server starts the player here (its header's spawn is where they last stood); start the prediction at the same spot.
   useLayoutEffect(() => {
     predicted.current = { ...district.spawn };
   }, [district.spawn, predicted]);
@@ -165,6 +186,22 @@ export function Player({
   useFrame((_, frameSeconds) => {
     const dt = Math.min(frameSeconds, MAX_FRAME_SECONDS);
     const now = performance.now();
+    const ride = rides.get();
+    const serverNow = street.current.serverNow;
+    if (ride && serverNow) {
+      sender.update(STILL, now);
+      const { x, z, heading: facing } = ridePose(ride, serverNow(), RIDE_AT);
+      predicted.current = { x, z };
+      motion.current.speed = 0;
+      heading.current = facing;
+      body.current?.position.set(x, 0, z);
+      body.current?.rotation.set(0, facing, 0);
+      cameraTarget.set(x + offset.x, offset.y, z + offset.z);
+      camera.position.lerp(cameraTarget, 1 - Math.exp(-CAMERA_FOLLOW_RATE * dt));
+      lookAt.set(camera.position.x - offset.x, 1, camera.position.z - offset.z);
+      camera.lookAt(lookAt);
+      return;
+    }
     // In the character creator the player stands still and turns to face the camera. The position
     // and time are for walking a route picked on the map ("walk there").
     const direction = closeUp ? STILL : input.direction(predicted.current, now);
@@ -234,14 +271,20 @@ export function Player({
         </group>
       )}
       <group ref={body}>
-        {/* The capsule shows while the model downloads, or for good if the download fails. */}
-        <ModelBoundary fallback={standIn}>
-          <Suspense fallback={standIn}>
-            <Character look={look} motion={motion} />
-          </Suspense>
-        </ModelBoundary>
-        {/* A dark disc instead of a real shadow: almost free on the GPU. */}
-        <mesh rotation-x={-Math.PI / 2} position-y={0.04}>
+        {/* Hidden inside a danfo (one character's bones: too few to need skipping); on an okada, on the seat. */}
+        <group
+          visible={riding !== "danfo"}
+          position={riding === "okada" ? [0, OKADA_SEAT.raise, -OKADA_SEAT.back] : [0, 0, 0]}
+        >
+          {/* The capsule shows while the model downloads, or for good if the download fails. */}
+          <ModelBoundary fallback={standIn}>
+            <Suspense fallback={standIn}>
+              <Character look={look} motion={motion} pose={riding === "okada" ? "sit" : undefined} />
+            </Suspense>
+          </ModelBoundary>
+        </group>
+        {/* A dark disc instead of a real shadow: almost free on the GPU. The vehicles have none either. */}
+        <mesh rotation-x={-Math.PI / 2} position-y={0.04} visible={!riding}>
           <circleGeometry args={[PLAYER_RADIUS * 1.3, 16]} />
           <meshBasicMaterial color="#000000" transparent opacity={0.3} />
         </mesh>

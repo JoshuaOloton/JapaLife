@@ -1,4 +1,5 @@
 import {
+  LANDMARK_ICONS,
   ROAD_CLASSES,
   buildingSchema,
   citySchema,
@@ -8,6 +9,7 @@ import {
   positionSchema,
   propSchema,
   rideRouteSchema,
+  waterSchema,
 } from "@japalife/shared";
 import { z } from "zod";
 
@@ -81,6 +83,8 @@ const landmarkPlanSchema = z.strictObject({
   id: contentIdSchema,
   /** Drawn on the map. Leave out for a cluster that needs no label. */
   name: z.string().min(1).max(60).optional(),
+  /** Its picture on the map. */
+  icon: z.enum(LANDMARK_ICONS).optional(),
   x: z.number(),
   z: z.number(),
   clear: areaSchema.optional(),
@@ -112,6 +116,8 @@ export const districtPlanSchema = z
     zones: z.array(z.strictObject({ id: contentIdSchema, x: z.number(), z: z.number(), ...areaSchema.shape, mix: mixSchema })).default([]),
     streets: z.array(streetSchema).min(1),
     landmarks: z.array(landmarkPlanSchema).default([]),
+    /** Canals and ponds, copied as written. Nothing generated is put in them or on their banks; roads crossing them are bridges. */
+    water: z.array(waterSchema).default([]),
     /** Danfo and okada routes between bus stops and okada parks (places in the landmarks). */
     rides: z.array(rideRouteSchema).default([]),
     /** Trees and palms dotted over open ground, away from roads and buildings. */

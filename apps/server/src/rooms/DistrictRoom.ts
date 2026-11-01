@@ -10,6 +10,7 @@ import {
   PLAYER_SPEED_UNITS_PER_SECOND,
   PLAYER_VIEW_METRES,
   type PathPoint,
+  type Point,
   ridePose,
   POSITION_UPDATE_HZ,
   type RejectReason,
@@ -47,6 +48,11 @@ const MAX_STEP_SECONDS = 0.25;
  */
 const RECONNECT_SECONDS = 300;
 
+/** How often a moving player's position is saved, so a crashed server loses at most this much walking. */
+const LOCATION_SAVE_MS = 10_000;
+/** Moves smaller than this since the last save are not worth a write. */
+const LOCATION_SAVE_METRES = 0.5;
+
 /**
  * DEV IDENTITY STUB. There is no sign-in yet (auth needs the owner's approval),
  * so a client names itself with `playerId`. This is only accepted outside
@@ -73,6 +79,8 @@ interface LivePlayer {
   ride: ActiveRide | null;
   /** The ride has reached its end and is being finished (once). */
   finishingRide: boolean;
+  /** The position last saved (`LocationService`), to skip saving a player who has not moved. */
+  saved: Point;
 }
 
 /** Reused every tick for a rider's position, rather than a new object per rider. */
@@ -89,6 +97,11 @@ export function createDistrictRoom(game: GameSystems) {
 
     private district!: DistrictMap;
     private readonly live = new Map<string, LivePlayer>();
+    /**
+     * Where a dropped player stood when they joined again (a reload): their
+     * new session starts there, without waiting for the old one's save.
+     */
+    private readonly handover = new Map<string, Point>();
 
     override onCreate(): void {
       const district = game.districts.get(DEFAULT_DISTRICT_ID);
@@ -98,6 +111,7 @@ export function createDistrictRoom(game: GameSystems) {
 
       this.setSimulationInterval((deltaMs) => this.step(deltaMs), 1000 / POSITION_UPDATE_HZ);
       this.clock.setInterval(() => this.checkEventsForEveryone(), EVENT_CHECK_INTERVAL_MS);
+      this.clock.setInterval(() => this.saveLocations(), LOCATION_SAVE_MS);
       this.onMessage("*", (client, type, payload) => this.receive(client, String(type), payload));
     }
 
@@ -111,8 +125,12 @@ export function createDistrictRoom(game: GameSystems) {
       for (const other of this.live.values()) {
         if (other.playerId !== playerId) continue;
         // A dropped player who reloads gets in at once: the place kept for the old connection is given up.
-        if (other.dropped) other.dropped.reject(new Error("joined again"));
-        else throw new ServerError(409, "already connected");
+        if (other.dropped) {
+          this.handover.set(playerId, { x: other.x, z: other.z });
+          other.dropped.reject(new Error("joined again"));
+        } else {
+          throw new ServerError(409, "already connected");
+        }
       }
       return { playerId };
     }
@@ -132,6 +150,7 @@ export function createDistrictRoom(game: GameSystems) {
         dropped: null,
         ride: null,
         finishingRide: false,
+        saved: { ...this.district.spawn },
       };
 
       // Catch up on whatever happened while the player was away, then show the HUD.
@@ -140,12 +159,19 @@ export function createDistrictRoom(game: GameSystems) {
       const { appearance, ride } = await game.mutex.run(playerId, async () => {
         await game.players.ensurePlayer(playerId);
         await this.catchUp(playerId);
+        // Back where they left (or where they stood a moment ago, after a reload).
+        const start = this.handover.get(playerId) ?? (await game.locations.startingPoint(playerId, this.district));
+        this.handover.delete(playerId);
+        live.x = start.x;
+        live.z = start.z;
+        live.saved = { ...start };
         // A ride carries on while the player is away: still going, or over (then they stand where it ended).
         let current = await game.rides.current(playerId, this.district);
         if (current && game.clock.now() >= current.endsAt) {
           await game.rides.finish(current, game.clock.now());
           live.x = current.endPoint.x;
           live.z = current.endPoint.z;
+          await this.saveLocation(live);
           current = null;
         }
         return { appearance: await game.appearance.get(playerId), ride: current };
@@ -169,7 +195,8 @@ export function createDistrictRoom(game: GameSystems) {
       this.updateViews();
       // The layout the client draws and predicts its walking from (one source of truth): the
       // header now, then the chunks around the player, more as they walk.
-      client.send(SERVER_MESSAGES.district, this.district.header);
+      // Its spawn is where this player starts (where they left), so the client's camera and prediction begin there.
+      client.send(SERVER_MESSAGES.district, { ...this.district.header, spawn: { x: live.x, z: live.z } });
       this.sendChunks(client, live);
       if (live.ride) client.send(SERVER_MESSAGES.ride, rideMessage(live.ride));
       // Null opens the character creator.
@@ -220,13 +247,17 @@ export function createDistrictRoom(game: GameSystems) {
       if (!ride || live.finishingRide) return;
       live.finishingRide = true;
       game.mutex
-        .run(live.playerId, () => game.rides.finish(ride, now))
-        .then(async () => {
+        .run(live.playerId, async () => {
+          await game.rides.finish(ride, now);
           live.ride = null;
           live.x = ride.endPoint.x;
           live.z = ride.endPoint.z;
           live.dx = 0;
           live.dz = 0;
+          // A failed save must not keep the client riding: the next periodic save tries again.
+          await this.saveLocation(live).catch((error: unknown) => logError("saving a location failed", error));
+        })
+        .then(async () => {
           const client = this.clients.getById(sessionId);
           if (!client) return;
           client.send(SERVER_MESSAGES.ride, rideMessage(null));
@@ -239,7 +270,14 @@ export function createDistrictRoom(game: GameSystems) {
     }
 
     override onLeave(client: Client): void {
-      this.live.get(client.sessionId)?.unsubscribeNotices();
+      const live = this.live.get(client.sessionId);
+      if (live) {
+        live.unsubscribeNotices();
+        // Under their mutex, so a join right after reads it (a reload uses `handover` and does not wait).
+        game.mutex
+          .run(live.playerId, () => this.saveLocation(live))
+          .catch((error: unknown) => logError("saving a location failed", error));
+      }
       this.live.delete(client.sessionId);
       const position = this.state.players.get(client.sessionId);
       if (position) {
@@ -457,6 +495,23 @@ export function createDistrictRoom(game: GameSystems) {
         if (client) this.sendChunks(client, live);
       }
       this.updateViews();
+    }
+
+    /** Saves where the player stands now. Call under their mutex. */
+    private async saveLocation(live: LivePlayer): Promise<void> {
+      const at = { x: live.x, z: live.z };
+      await game.locations.save(live.playerId, this.district.id, at);
+      live.saved = at;
+    }
+
+    /** Every few seconds, the position of everyone who has moved since their last save. */
+    private saveLocations(): void {
+      for (const live of this.live.values()) {
+        if (Math.hypot(live.x - live.saved.x, live.z - live.saved.z) < LOCATION_SAVE_METRES) continue;
+        game.mutex
+          .run(live.playerId, () => this.saveLocation(live))
+          .catch((error: unknown) => logError("saving a location failed", error));
+      }
     }
 
     private checkEventsForEveryone(): void {

@@ -1,4 +1,4 @@
-import type { Building } from "@japalife/shared";
+import { type Building, hash01 } from "@japalife/shared";
 
 /**
  * Windows on the plain buildings, and which of them are lit. At night most
@@ -94,14 +94,4 @@ export function modelWindowsLit(buildingId: string, power: StreetPower): boolean
   if (power === "day") return false;
   if (power === "night") return true;
   return hash01(buildingId) < GENERATOR_SHARE;
-}
-
-/** FNV-1a, folded to [0, 1). Plenty for picking which windows glow. */
-export function hash01(text: string): number {
-  let h = 0x811c9dc5;
-  for (let index = 0; index < text.length; index++) {
-    h ^= text.charCodeAt(index);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0) / 0x1_0000_0000;
 }

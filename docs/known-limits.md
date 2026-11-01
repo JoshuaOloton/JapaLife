@@ -34,13 +34,24 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - Tested in `DistrictRoom.test.ts` by dropping a socket on the server with close code 4010.
 - **Every intent goes through `parseIntent`** in `DistrictRoom`'s single `onMessage("*")` handler, then through a per-player `KeyedMutex` so one player's intents run in order. Never add a message handler that skips either. The mutex is in-process: with several server instances it needs a database or Redis lock (Phase 5).
 - **No auth (dev identity stub).** A client names itself with the `playerId` join option, accepted only when `NODE_ENV` is not `production`; in production nobody can join. Anyone can pose as anyone in dev. Auth, the 18+ gate and data-protection decisions need your approval before they are built.
-- **Game state is in Postgres, not the room.** `PlayerState` (meters, rent due date, event check time), `Shift` and `EventFiring` hold everything that must survive a restart; rooms only hold positions. Hunger and energy are computed from a stored value plus elapsed real time.
+- **Game state is in Postgres, not the room.** `PlayerState` (meters, rent due date, event check time), `Shift` and `EventFiring` hold everything that must survive a restart. Hunger and energy are computed from a stored value plus elapsed real time.
+- **Players come back where they left (decided 2026-10-23).** The room holds the live position; `PlayerLocation` (`LocationService`, `apps/server/src/game/locations.ts`) keeps a copy: saved on leave, every 10 s for anyone who moved half a metre, and where a ride ends.
+  - On join the player starts there, or at the spawn if that spot is inside a building, off the map or in another district.
+  - Each player's `district` header carries their own starting spot as `spawn`, so the client's prediction and camera begin there.
+  - A reload while the old connection is still held (5 minutes) takes the old session's live position (`handover`), without waiting for its save.
+  - A server crash loses at most 10 s of walking.
+  - Found on the phone (2026-10-23): closing the tab mid-ride put the player back at the junction. The room had finished the ride while the place was held, so there was nothing to resume, and positions were not stored at all.
 - **Logging goes through `logError`** (`apps/server/src/log.ts`). It keeps only the class and code of Prisma errors, because their messages can echo query arguments (player ids, amounts, references). Never `console.error(error)` directly.
 - **Scheduled jobs:** `startGameLoop` (every 30 s) pays finished shifts, expires unanswered requests and charges late rent fees for everyone, online or not. `startBalanceWatch` (every 10 min) raises balance flags. Random events are only evaluated for connected players (every 60 s, and caught up once on join).
 - **Inbox (decided 2026-10-17).** Every notice to a player goes through `InboxService.deliver` (`apps/server/src/game/inbox.ts`): it stores an `InboxMessage` row and shows a toast if the player is connected. Never tell a player something with `client.send` or `NoticeBus.publish` directly, or an offline player never sees it. A notice a connected player saw as a toast is stored already read, so the HUD's unread badge counts only what they missed; the join catch-up runs before the toast subscription, so whatever happened while away lands as unread. The `openInbox` intent returns the latest 50 and marks them read. The text is stored as shown at the time (later copy changes do not rewrite old messages), and only the latest 50 per player are kept. No push or email yet, so a player only finds out by opening the game.
 - **Power cuts and price rises are per player** in Phase 1 (stored per player), not per district. Revisit in Phase 5 when players share a district.
 - **Unpaid rent costs late fees (decided 2026-10-17).** After the 3-day grace period, a late fee (N4,000, `rent.lateFee` in `ngn.json`) and -5 morale, then again every 7 days until the rent is paid. A player who cannot pay a fee is charged nothing and loses 10 morale instead (wallets never go negative). The next fee time is `PlayerState.lateFeeDueAt`; each fee is claimed by moving it on with a conditional update before the debit (reference `rent_late:<player>:<dueAt>`), so the room and the game loop cannot charge it twice, and a crash between claim and debit loses a fee in the player's favour. Paying rent resets it to the new due date plus the grace period. A player away for months comes back to every missed fee at once; there is no cap and no eviction yet. Eviction (and a credit-score effect abroad) replaces endless fees later, once housing is a system.
-- **No intent for the bus stop.** It exists in `lagos.json` and answers `interact`, but nothing can be ridden yet; the bus fare is config only. The fuel station sells generator petrol through `buyItem` (`ShopService`).
+- **Rides (Slice 11i-2, 2026-10-23; `apps/server/src/game/rides.ts`).**
+  - Danfo routes keep to main roads and okada routes to inner streets (`rideRoads`); `checkLayout` refuses a stop more than 35 m from its kind of road, or a route that does not connect. Paths are worked out once at server start.
+  - `takeRide` claims the ride first: a `PlayerRide` row whose unique `activeKey` (the player id) allows one unfinished ride per player, so a double tap or two sockets get `already_riding`. Then `WalletService.debit` charges the fare (reason `transport`, reference `ride:<player>:<rideRowId>`), then `paidAt` is set. Not enough money deletes the claim. A claim left unpaid by a crash is deleted after 60 s, so a player is never stuck "riding".
+  - The task-force roll happens at boarding: a stopped okada ride ends early at a point on its path (`stopsAtMetres`), keeps its fare, and sends an inbox notice.
+  - **While riding the server moves the player** by `ridePose` from its clock in `step()` and ignores `move` intents. At `endsAt` it finishes the ride once (conditional update on `finishedAt`) and places them at the end point. A player who joins after `endsAt` is finished on join; one who joins mid-ride resumes.
+  - The fuel station sells generator petrol through `buyItem` (`ShopService`).
 - **Food and shop purchases use a random reference per intent** (`food:<player>:<uuid>`, `shop:<player>:<uuid>`). A crash after the debit but before the meter update would charge without feeding (or fuelling). Rare, and safe in the player's disfavour only by one purchase; fix by recording purchases in a table first if it ever matters.
 - **The generator tank limit is checked outside the wallet lock,** relying on the per-player `KeyedMutex`. Money is always safe (the ledger locks), but two purchases that bypass the mutex could overfill the tank.
 - **Capacity queue is a stub.** `CapacityQueue` (`apps/server/src/game/capacityQueue.ts`) holds a line with positions and is tested, but is not connected to matchmaking. Colyseus already refuses joins beyond `MAX_PLAYERS_PER_ROOM`, so nothing over capacity is accepted.
@@ -177,6 +188,42 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
   - **Not done:**
     - The first leg can still meet a wall if the player starts inside a compound; the walk then stops as "stuck".
     - Routes ignore the traffic, which stops for the player anyway.
+- **Riding, on the client (Slice 11i-2, 2026-10-23).**
+  - The `ride` message lands in a `RideStore` (outside React state, like the route). While it holds a ride, `Player` takes its position and heading from `ridePose(ride, serverNow())`, the same function and clock the server moves the rider with, so there is nothing to predict or reconcile. It sends no moves, and the joystick, "walk there" and the place button are gone until the ride ends.
+  - **The vehicle** is one more instance in the traffic's mesh for that kind (`ModelFleet`, one slot over the fleet size), placed from the same pose: no extra draw call and no new shader. Inside a danfo the character is hidden; on an okada it holds the "sit" pose behind the modelled rider (`OKADA_SEAT` in `game/ride.ts`, a guess to check on the phone).
+  - The ride's road is shown as the route (strip, minimap, map), and a chip says "Boarding the danfo to…" then "On the danfo to … · 0:23".
+  - **Plain buildings fade too.** A danfo heading east keeps to the south lane, and a 9 m plain building beside it put the camera just above its roof, which filled the screen (headless run, 2026-10-23). Walking that side of a road did the same. The plain buildings' boxes and windows now carry the same per-copy dither as the model buildings (`addDitherFade`, `useOcclusionFade`, `stepFades` in `world/occlusion.ts`), set up at load, so fading still compiles nothing. Every `Boxes` call shares the setup.
+  - **Not done:**
+    - Traffic queues behind your vehicle as it would behind a walking player, and a traffic danfo waiting at the same stop can overlap yours while you board.
+    - An okada ride from a spot with no traffic okada drawn yet would draw the okada mesh for the first time. It is warmed at load, so a short stall at worst; okadas are usually about near the parks.
+    - Headless run at the Yaba bus stop, before boarding: 76 calls and a "⚠ 83 calls peak", mostly the walkers and NPCs around the busy junction (40 calls with people and NPCs hidden). Not from the rides.
+  - **vivo Y29 (2026-10-23, `next dev`, after a danfo ride to Sabo):** rides work; 60 fps, low 59, worst 58 ms, dpr 1.50, 50 calls, 128.0k triangles, street 100%, but "⚠ 90 calls peak" around the busy stops. The frame rate held, so the peak is about headroom, not a visible drop. A phone tab left open across code changes kept the old riding-less code (no chip, the character dragged along by the server) until it was closed and reopened.
+- **Water and the aerial map (Slice 11i-3, 2026-10-23).**
+  - **Water** is `water` in the city plan: axis-aligned canals and ponds, copied into the district and sent in the header.
+    - A road that crosses water from side to side is its bridge. `waterPieces` (`packages/shared/src/water.ts`) cuts the water there, and the pieces are both what is drawn and what blocks walking (they are in `districtObstacles`).
+    - The content check refuses a road that only partly covers water, and a building, prop or NPC standing in it.
+    - The generator keeps 2 m of bank clear round every body of water.
+  - **Drawn:**
+    - one mesh for all the water, with a 128 px ripple texture drifting by its offset (a uniform), mounted from the start;
+    - lips and bridge parapets in the existing `Boxes` call; the parapets are not solid, so the walkers on the road edges pass;
+    - gutters stop at the canal.
+  - **The map is painted in the aerial style:**
+    - ground patches, kerbs, centre dashes on main roads, water;
+    - every roof in its colour, with a shadow cast to the south-east by its height, so tall blocks read as 3D;
+    - trees as canopies (`mapMark: "tree"` on the prop kinds, sent as `mapTrees`);
+    - landmark badges with pictures painted in code.
+
+    The base image is 2 px a metre (about 6.5 MB of canvas memory, up from about 3.6 MB). The header's `mapBuildings` is now 6 numbers a building (`MAP_BUILDING_STRIDE`: adds height and roof tone).
+  - **First phone check (vivo Y29, 2026-11-01):**
+    - Opening the map gave no hitch (low 55, worst 66 ms).
+    - Standing 5 minutes at night in a power cut gave 2 hitches, worst 104 ms. That is the standing hitch from 11h, smaller.
+    - Two map fixes:
+      - Zoomed out, Yaba shrank to a small square in empty sand. The furthest zoom now fits the district to the screen (`fitScale`), and dragging stops 15 m past its edge (`keepInside`).
+      - Labels piled on top of each other. They are now placed in order (landmarks, then streets, then places), and one that would overlap a badge or another label is left out (`LabelSpace`), so zooming in shows more names.
+  - **Not done:**
+    - Water is boxes only: no curved banks or rounded ponds.
+    - Nothing floats on it and it makes no sound.
+    - The pond has no name label (water has no name yet).
 - **Chunk streaming and area of interest (Slice 11h-4, 2026-10-22).**
   - **What a client is sent.**
     - On join: the `district` header (`districtHeader` in `packages/shared/src/chunks.ts`). It holds the places, roads, road furniture (speed bumps, which the traffic needs from the start), traffic lanes, catalogs, NPCs, every building model with its count, and an outline map of every building for 11i.

@@ -1,8 +1,18 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
-import { Color, type InstancedMesh, Object3D } from "three";
+import { useFrame } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import {
+  BoxGeometry,
+  Color,
+  DynamicDrawUsage,
+  InstancedBufferAttribute,
+  InstancedMesh,
+  MeshLambertMaterial,
+  Object3D,
+} from "three";
 import { WARM_UP_WHILE_HIDDEN } from "../ShaderWarmUp";
+import { INSTANCE_FADE_ATTRIBUTE, addDitherFade } from "./windowGlass";
 
 /** A coloured box standing on the ground (or at `y`), centred on (x, z). */
 export interface Slab {
@@ -17,6 +27,23 @@ export interface Slab {
 }
 
 /**
+ * How far each of some buildings is faded out while it hides the player
+ * (occlusion fading), kept up to date every frame by `useOcclusionFade`.
+ * `version` goes up whenever any amount changes, so each mesh that shows
+ * them copies only then.
+ */
+export interface FadeSet {
+  amounts: Float32Array;
+  version: number;
+}
+
+/** Which slabs belong to a fading building: `owners[slab]` is its index in `set`, or -1. */
+export interface SlabFades {
+  set: FadeSet;
+  owners: Int32Array;
+}
+
+/**
  * Any number of coloured boxes in a single draw call. Every box is the same
  * unit cube, stretched and coloured per copy with one InstancedMesh: the GPU
  * gets ONE draw call for all of them instead of one per box, which is what
@@ -25,13 +52,44 @@ export interface Slab {
  * `capacity` is the most boxes it will ever be given: as the player walks, the
  * world refills it with the boxes nearby, and a fixed capacity means that only
  * rewrites numbers, never rebuilds the mesh.
+ *
+ * Each copy can fade out with a dither (`fades`: a plain building's walls and
+ * roof while it hides the player). The dither is in the shader from the
+ * start, so a fade only changes numbers, never compiles anything.
  */
-export function Boxes({ slabs, capacity = slabs.length }: { slabs: readonly Slab[]; capacity?: number }) {
-  const mesh = useRef<InstancedMesh>(null);
+export function Boxes({
+  slabs,
+  capacity = slabs.length,
+  fades,
+}: {
+  slabs: readonly Slab[];
+  capacity?: number;
+  fades?: SlabFades | undefined;
+}) {
+  const mesh = useMemo(() => {
+    const geometry = new BoxGeometry();
+    const fade = new InstancedBufferAttribute(new Float32Array(Math.max(1, capacity)), 1).setUsage(DynamicDrawUsage);
+    geometry.setAttribute(INSTANCE_FADE_ATTRIBUTE, fade);
+    const material = new MeshLambertMaterial();
+    addDitherFade(material, "boxes-dither");
+    const instanced = new InstancedMesh(geometry, material, Math.max(1, capacity));
+    instanced.count = 0;
+    instanced.visible = false;
+    // Warmed up even while empty, so the first boxes to arrive never compile a shader mid-game.
+    instanced.userData[WARM_UP_WHILE_HIDDEN] = true;
+    return instanced;
+  }, [capacity]);
+  useEffect(
+    () => () => {
+      mesh.geometry.dispose();
+      (mesh.material as MeshLambertMaterial).dispose();
+    },
+    [mesh],
+  );
 
+  // The fade version last copied onto the slabs.
+  const seen = useRef(-1);
   useLayoutEffect(() => {
-    const instanced = mesh.current;
-    if (!instanced) return;
     const placer = new Object3D();
     const colour = new Color();
     const shown = Math.min(slabs.length, capacity);
@@ -40,28 +98,32 @@ export function Boxes({ slabs, capacity = slabs.length }: { slabs: readonly Slab
       placer.position.set(slab.x, (slab.y ?? 0) + slab.height / 2, slab.z);
       placer.scale.set(slab.halfWidth * 2, slab.height, slab.halfDepth * 2);
       placer.updateMatrix();
-      instanced.setMatrixAt(index, placer.matrix);
-      instanced.setColorAt(index, colour.set(slab.colour));
+      mesh.setMatrixAt(index, placer.matrix);
+      mesh.setColorAt(index, colour.set(slab.colour));
     }
-    instanced.count = shown;
-    instanced.visible = shown > 0;
-    instanced.instanceMatrix.needsUpdate = true;
-    if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true;
+    mesh.count = shown;
+    mesh.visible = shown > 0;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     // Bounds are computed from the instances, so the whole group is not culled by mistake.
-    instanced.computeBoundingSphere();
-  }, [slabs, capacity]);
+    mesh.computeBoundingSphere();
+    seen.current = -1; // the slabs moved: copy the fades again
+  }, [mesh, slabs, capacity]);
+
+  // Copy the buildings' fades onto their slabs, only when they changed.
+  useFrame(() => {
+    if (!fades || fades.set.version === seen.current) return;
+    seen.current = fades.set.version;
+    const attribute = mesh.geometry.getAttribute(INSTANCE_FADE_ATTRIBUTE) as InstancedBufferAttribute;
+    const values = attribute.array as Float32Array;
+    const count = Math.min(fades.owners.length, values.length);
+    for (let index = 0; index < count; index++) {
+      const owner = fades.owners[index] as number;
+      values[index] = owner < 0 ? 0 : (fades.set.amounts[owner] ?? 0);
+    }
+    attribute.needsUpdate = true;
+  });
 
   if (capacity === 0) return null;
-  return (
-    <instancedMesh
-      ref={mesh}
-      args={[undefined, undefined, capacity]}
-      key={capacity}
-      // Warmed up even while empty, so the first boxes to arrive never compile a shader mid-game.
-      userData={{ [WARM_UP_WHILE_HIDDEN]: true }}
-    >
-      <boxGeometry />
-      <meshLambertMaterial />
-    </instancedMesh>
-  );
+  return <primitive object={mesh} />;
 }

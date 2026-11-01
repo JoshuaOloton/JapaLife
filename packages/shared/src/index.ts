@@ -15,3 +15,4 @@ export * from "./random";
 export * from "./rides";
 export * from "./roadGraph";
 export * from "./spatialGrid";
+export * from "./water";
