@@ -1,4 +1,4 @@
-import { type AnimationAction, type AnimationClip, AnimationMixer, LoopOnce, type Object3D, type Vector3 } from "three";
+import { type AnimationAction, type AnimationClip, AnimationMixer, LoopOnce, type Object3D, Quaternion, Vector3 } from "three";
 import {
   type CharacterMotion,
   type ClipId,
@@ -13,6 +13,37 @@ import {
 const CROSSFADE_SECONDS = 0.2;
 
 /**
+ * The pack's clips stand with a hunch: the head leans 9° forward of the hips
+ * when idle and 26° in the jog (the rest pose is 5°), which read as stooped
+ * from the street camera (play-tested 2026-11-01). After each pose the middle
+ * of the spine is tipped back this much, which brings standing to about 4°,
+ * walking to 8° and the jog to 21° (measured on the pack's skeleton).
+ * Seated poses are left alone: the okada riders sit right as they are.
+ */
+export const POSTURE_DEGREES = 8;
+const POSTURE_BONE = "spine_02";
+const SEATED: readonly ClipId[] = ["sit", "sit_talk"];
+
+/** Reused every frame, so straightening allocates nothing. */
+const ABOVE = new Quaternion();
+const TURN = new Quaternion();
+const CORRECTION = new Quaternion();
+const SIDEWAYS = new Vector3(1, 0, 0);
+
+/**
+ * Tips `bone` back by `degrees` about the body's sideways axis (x in the
+ * character's own space, which faces +z), whatever its parents' pose: the
+ * turn is carried into the bone's own frame through the rotations above it.
+ */
+export function straighten(bone: Object3D, root: Object3D, degrees: number): void {
+  ABOVE.identity();
+  for (let parent = bone.parent; parent && parent !== root; parent = parent.parent) ABOVE.premultiply(parent.quaternion);
+  TURN.setFromAxisAngle(SIDEWAYS, (-degrees * Math.PI) / 180);
+  CORRECTION.copy(ABOVE).invert().multiply(TURN).multiply(ABOVE);
+  bone.quaternion.premultiply(CORRECTION);
+}
+
+/**
  * Plays a character's animations. An AnimationMixer drives the skeleton from
  * clips; each frame this picks the clip for what the character is doing and
  * crossfades to it when that changes.
@@ -24,11 +55,14 @@ export class CharacterAnimator {
   /** A second copy of the idle clip, mixed in under the run to shorten its strides (`runStanceWeight`). */
   private readonly stance: AnimationAction | undefined;
   private current: ClipId | undefined;
+  /** The spine bone straightened after each pose (`POSTURE_DEGREES`), if the skeleton has one. */
+  private readonly spine: Object3D | undefined;
 
   constructor(
     private readonly root: Object3D,
     clips: readonly AnimationClip[],
   ) {
+    this.spine = root.getObjectByName(POSTURE_BONE);
     this.mixer = new AnimationMixer(root);
     this.actions = new Map();
     for (const clip of clips) this.actions.set(clip.name as ClipId, this.mixer.clipAction(clip));
@@ -63,6 +97,8 @@ export class CharacterAnimator {
     const run = this.actions.get("run");
     if (this.stance && run) this.stance.setEffectiveWeight(runStanceWeight(run.isRunning() ? run.getEffectiveWeight() : 0));
     this.mixer.update(deltaSeconds);
+    // The mixer has just set the spine from the clip, so this never builds up over frames.
+    if (this.spine && !SEATED.includes(next)) straighten(this.spine, this.root, POSTURE_DEGREES);
   }
 
   dispose(): void {

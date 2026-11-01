@@ -54,6 +54,8 @@ export function FpsProbe({
 /** Feeds the adaptive-quality governor every frame (always on, not only with `?fps`). */
 export function QualityProbe({ quality }: { quality: QualityGovernor }) {
   useEffect(() => {
+    // Mounted with the 3D view, which is rebuilt after a dropped connection: warm up again.
+    quality.restart();
     const onVisibility = (): void => {
       if (document.visibilityState === "hidden") quality.pause();
     };

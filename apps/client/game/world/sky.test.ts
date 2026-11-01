@@ -6,7 +6,7 @@ describe("skyAt", () => {
     expect(skyAt(12).darkness).toBe(0);
     expect(skyAt(12).sky).toBe("#c4dcea");
     expect(skyAt(0).darkness).toBe(1);
-    expect(skyAt(2).sky).toBe("#1a2c50");
+    expect(skyAt(2).sky).toBe("#22385f");
   });
 
   it("is clearly darker at night when NEPA has taken light, and unchanged by a cut in the day", () => {

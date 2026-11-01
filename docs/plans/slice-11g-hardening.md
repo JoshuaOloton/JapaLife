@@ -49,6 +49,24 @@ Measured before 11g (2026-10-21):
   - shader warm-up;
   - remove what is no longer true.
 
+## Play-test results (vivo Y29, 2026-11-01)
+
+- **Night:** brightened after this check said it was too dark.
+  - Ordinary night: sky light 1.2 → 1.5, moonlight 0.7 → 0.85.
+  - Power cut: 0.5 → 0.85 and 0.3 → 0.45, with a navy haze instead of near-black.
+  - After the change: visible, and billboards read at night.
+- **App switch:** "street" stays at 100%.
+- **11c review:**
+  - the conductor's bubble shows;
+  - the okada riders at the parks sit right;
+  - the conductors stood stooped (a railing-lean clip), so they moved to the talking pose.
+- **Animations:** fine. Everyone now stands straighter (`POSTURE_DEGREES`; see known-limits, Client).
+- **Power cut:** darker than a normal night, still easy to play.
+- **Meter on a mixed walk at night in a power cut:** 60 fps, low 58, worst 57 ms, 22 calls, 34.0k triangles, no "late shaders".
+- **The reading said "street 50%"**, though no second ran below 58 fps. Two holes in adaptive quality, both fixed:
+  - Any gap of 5 s or more with nothing drawn (a reconnect rebuilding the scene, the browser holding the page) counted as 5 slow seconds. A gap over 1 s now restarts the watch: a struggling phone still draws, just slowly.
+  - When the 3D view was rebuilt after a dropped connection, the quality watch did not skip the loading seconds again, as the meter does. It now restarts (`QualityGovernor.restart`).
+
 ## Play-test checklist (vivo Y29, `pnpm start:client`, `?fps`)
 
 1. **Night** (with `GAME_CLOCK_START=21:00`): windows glow on every building, and the street is bright enough to walk.
