@@ -61,7 +61,11 @@ Measured before 11g (2026-10-21):
   - the okada riders at the parks sit right;
   - the conductors stood stooped (a railing-lean clip), so they moved to the talking pose.
 - **Animations:** fine. Everyone now stands straighter (`POSTURE_DEGREES`; see known-limits, Client).
-- **Still to do:** the power-cut windows, and a meter reading on a mixed walk.
+- **Power cut:** darker than a normal night, still easy to play.
+- **Meter on a mixed walk at night in a power cut:** 60 fps, low 58, worst 57 ms, 22 calls, 34.0k triangles, no "late shaders".
+- **The reading said "street 50%"**, though no second ran below 58 fps. Two holes in adaptive quality, both fixed:
+  - Any gap of 5 s or more with nothing drawn (a reconnect rebuilding the scene, the browser holding the page) counted as 5 slow seconds. A gap over 1 s now restarts the watch: a struggling phone still draws, just slowly.
+  - When the 3D view was rebuilt after a dropped connection, the quality watch did not skip the loading seconds again, as the meter does. It now restarts (`QualityGovernor.restart`).
 
 ## Play-test checklist (vivo Y29, `pnpm start:client`, `?fps`)
 

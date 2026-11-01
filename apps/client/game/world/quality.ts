@@ -12,6 +12,13 @@ const LOW_FPS = 30;
 /** Low for this long, without a break, and the street is halved. */
 const LOW_FOR_MS = 5000;
 const REDUCED_SCALE = 0.5;
+/**
+ * A gap this long between two frames means nothing was drawn (a reconnect
+ * rebuilding the scene, the browser holding the page), not a slow phone: a
+ * phone that struggles still draws, just slowly. The watch starts afresh after
+ * one. A single long frame like this is a hitch, which the `?fps` meter shows.
+ */
+const GAP_MS = 1000;
 
 export class QualityGovernor {
   /** How much of the traffic and people to show: 1, or 0.5 once the phone has struggled. */
@@ -20,14 +27,23 @@ export class QualityGovernor {
   private windowStart = 0;
   private framesInWindow = 0;
   private lowSince: number | null = null;
+  private lastFrame: number | null = null;
   private restarting = false;
 
   /** Call once per rendered frame with `performance.now()`. */
   frame(now: number): void {
     if (this.scale < 1) return;
+    const previous = this.lastFrame;
+    this.lastFrame = now;
     if (this.startedAt === null) {
       this.startedAt = now;
       this.windowStart = now;
+      return;
+    }
+    if (previous !== null && now - previous > GAP_MS) {
+      this.windowStart = now;
+      this.framesInWindow = 0;
+      this.lowSince = null;
       return;
     }
     if (this.restarting) {
@@ -63,5 +79,17 @@ export class QualityGovernor {
   pause(): void {
     this.restarting = true;
     this.lowSince = null;
+  }
+
+  /**
+   * The 3D view was built again (after a dropped connection the game joins
+   * afresh): loading and shader compiles are slow on every phone, so ignore the
+   * first seconds again, as at the start.
+   */
+  restart(): void {
+    this.startedAt = null;
+    this.lastFrame = null;
+    this.lowSince = null;
+    this.framesInWindow = 0;
   }
 }
