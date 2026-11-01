@@ -26,26 +26,31 @@ interface Keyframe extends SkyLook {
 
 /**
  * An ordinary night: dark blue, but bright enough to see where you are walking
- * on a phone outdoors (play-tested 2026-10-19: the first night was too dark).
+ * on a phone outdoors (play-tested 2026-10-19 and again 2026-11-01: both
+ * times too dark, so brightened each time).
  */
 const NIGHT: Omit<Keyframe, "hour"> = {
-  sky: "#1a2c50",
-  hemiSky: "#8aa0d0",
-  hemiGround: "#3a302a",
-  hemiIntensity: 1.2,
-  sunColour: "#a8bde8",
-  sunIntensity: 0.7,
+  sky: "#22385f",
+  hemiSky: "#9cb0dc",
+  hemiGround: "#463a32",
+  hemiIntensity: 1.5,
+  sunColour: "#b2c5ec",
+  sunIntensity: 0.85,
   darkness: 1,
 };
 
-/** A night when NEPA has taken light: no street glow, so it is clearly darker than an ordinary night. */
+/**
+ * A night when NEPA has taken light: no street glow, so it is clearly darker
+ * than an ordinary night, but the street still reads a few houses away (the
+ * near-black haze of 2026-10-19 swallowed everything past 30 m).
+ */
 const BLACKOUT_NIGHT: Omit<Keyframe, "hour"> = {
-  sky: "#0b1428",
-  hemiSky: "#56699a",
-  hemiGround: "#241e1b",
-  hemiIntensity: 0.5,
-  sunColour: "#8fa6d8",
-  sunIntensity: 0.3,
+  sky: "#142243",
+  hemiSky: "#6a7eb0",
+  hemiGround: "#2e2722",
+  hemiIntensity: 0.85,
+  sunColour: "#98aedc",
+  sunIntensity: 0.45,
   darkness: 1,
 };
 

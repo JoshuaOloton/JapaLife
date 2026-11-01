@@ -12318,7 +12318,7 @@
         {
           "id": "conductor",
           "look": { "body": "body-1", "skinTone": "tone-6", "hair": "low-cut", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "white" },
-          "pose": "call",
+          "pose": "talk",
           "x": 5.8,
           "z": 27.2,
           "facing": 300,
@@ -12335,7 +12335,7 @@
         {
           "id": "motor-park-conductor",
           "look": { "body": "body-1", "skinTone": "tone-4", "hair": "fade", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "orange" },
-          "pose": "call",
+          "pose": "talk",
           "x": -28,
           "z": 146,
           "facing": 90,

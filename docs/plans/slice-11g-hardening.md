@@ -49,6 +49,20 @@ Measured before 11g (2026-10-21):
   - shader warm-up;
   - remove what is no longer true.
 
+## Play-test results (vivo Y29, 2026-11-01)
+
+- **Night:** brightened after this check said it was too dark.
+  - Ordinary night: sky light 1.2 → 1.5, moonlight 0.7 → 0.85.
+  - Power cut: 0.5 → 0.85 and 0.3 → 0.45, with a navy haze instead of near-black.
+  - After the change: visible, and billboards read at night.
+- **App switch:** "street" stays at 100%.
+- **11c review:**
+  - the conductor's bubble shows;
+  - the okada riders at the parks sit right;
+  - the conductors stood stooped (a railing-lean clip), so they moved to the talking pose.
+- **Animations:** fine. Everyone now stands straighter (`POSTURE_DEGREES`; see known-limits, Client).
+- **Still to do:** the power-cut windows, and a meter reading on a mixed walk.
+
 ## Play-test checklist (vivo Y29, `pnpm start:client`, `?fps`)
 
 1. **Night** (with `GAME_CLOCK_START=21:00`): windows glow on every building, and the street is bright enough to walk.

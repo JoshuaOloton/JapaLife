@@ -193,7 +193,7 @@
         { "id": "okada-rider-1", "pose": "sit_talk", "x": 7.4, "z": -8.2, "look": { "body": "body-1", "skinTone": "tone-5", "hair": "low-cut", "hairColour": "black", "outfit": "rider-vest", "outfitColour": "black" } },
         { "id": "okada-rider-2", "pose": "sit_talk", "x": 8.6, "z": -8.2, "look": { "body": "body-1", "skinTone": "tone-2", "hair": "bald", "hairColour": "black", "outfit": "office", "outfitColour": "orange" } },
         { "id": "bus-stop-hawker", "pose": "idle", "x": 6.5, "z": 30.1, "look": { "body": "body-2", "skinTone": "tone-4", "hair": "low-cut", "hairColour": "dark-brown", "outfit": "blouse-wrapper", "outfitColour": "green" } },
-        { "id": "conductor", "pose": "call", "x": 5.8, "z": 27.2, "facing": 300, "says": "Oshodi! Obalende! Enter with your change!", "look": { "body": "body-1", "skinTone": "tone-6", "hair": "low-cut", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "white" } },
+        { "id": "conductor", "pose": "talk", "x": 5.8, "z": 27.2, "facing": 300, "says": "Oshodi! Obalende! Enter with your change!", "look": { "body": "body-1", "skinTone": "tone-6", "hair": "low-cut", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "white" } },
         { "id": "gateman", "pose": "sit", "x": 18.6, "z": -12.2, "look": { "body": "body-1", "skinTone": "tone-7", "hair": "low-cut", "hairColour": "grey", "outfit": "security-uniform", "outfitColour": "black" } }
       ]
     },
@@ -225,7 +225,7 @@
         { "kind": "bench", "x": 16, "z": 8 }
       ],
       "npcs": [
-        { "id": "motor-park-conductor", "pose": "call", "x": 4, "z": 1, "facing": 90, "says": "Ojuelegba! CMS! Enter, enter!", "look": { "body": "body-1", "skinTone": "tone-4", "hair": "fade", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "orange" } },
+        { "id": "motor-park-conductor", "pose": "talk", "x": 4, "z": 1, "facing": 90, "says": "Ojuelegba! CMS! Enter, enter!", "look": { "body": "body-1", "skinTone": "tone-4", "hair": "fade", "hairColour": "black", "outfit": "singlet-shorts", "outfitColour": "orange" } },
         { "id": "motor-park-hawker", "pose": "idle", "x": 9.5, "z": -6.9, "look": { "body": "body-2", "skinTone": "tone-6", "hair": "cornrows", "hairColour": "black", "outfit": "blouse-wrapper", "outfitColour": "print-leaves" } }
       ]
     },
