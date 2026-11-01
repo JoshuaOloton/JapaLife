@@ -258,12 +258,12 @@ Decisions (2026-10-17):
 - The current phone player id is `dev-ce5162da`, and the Mac's LAN address changes (it was `192.168.100.36` on 2026-11-01). Production test: `pnpm --filter @japalife/server exec tsx src/index.ts`, plus `NEXT_PUBLIC_SERVER_URL=ws://<mac-ip>:2567 pnpm start:client`. Never set `NODE_ENV=production` on the server: it refuses every join until real sign-in exists.
 - `next dev` works from a phone: `allowedDevOrigins` in `apps/client/next.config.mjs` allows the private home and hotspot ranges (`192.168.*.*`, `10.*.*.*`). Without it, Next 16 blocks dev pages opened from a LAN address and no button works.
 
-**Now: Phase 2, documents, routes and applications** (design-doc Stages 2–4: documents in Lagos, choosing a route, applying, waiting in real time, approval or refusal). Plan, decisions and slices: [docs/plans/phase-2-documents-and-applications.md](docs/plans/phase-2-documents-and-applications.md). Read [docs/look-ahead.md](docs/look-ahead.md) before planning its first slice.
+**Now: Phase 2, documents, routes and applications** (design-doc Stages 2–4: documents in Lagos, choosing a route, applying, waiting in real time, approval or refusal). Plan approved 2026-11-01, a lean version (real facts, light play, no dead ends, Canada Express Entry only; UK comes after): four slices, 2.1 NIN and passport, 2.2 the other documents, 2.3 route, points and application, 2.4 balance. Plan, decisions and slices: [docs/plans/phase-2-documents-and-applications.md](docs/plans/phase-2-documents-and-applications.md). Read [docs/look-ahead.md](docs/look-ahead.md) before planning a slice. Not started: first push `feat/map-and-rides` and open its PR.
 
 **Done: Phase 1, the Lagos single-player core loop** (one district, a job, rent, food, black tax, power cuts, an NGN ledger wallet; play-tested on the phone). Record: [docs/phase-1.md](docs/phase-1.md).
 
 Phases to come:
-- 2 Documents + applications: passport and document quests, UK and Canada routes from config, decision rolls and refusals
+- 2 Documents + applications: passport and document quests, the Canada route from config (UK after), decision rolls and refusals
 - 3 Funds and departure: japa sales, ajo, multi-currency wallets and conversion, packing, flight
 - 4 Abroad: London (UK) and Toronto (Canada), settling in, jobs, credit score, remittances, family reunion
 - 5 Multiplayer presence + chat + advice board
