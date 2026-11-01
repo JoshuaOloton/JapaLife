@@ -1,4 +1,12 @@
-import { type DistrictHeader, type Point, type Route, routeBetween } from "@japalife/shared";
+import {
+  type Box,
+  type DistrictHeader,
+  MAP_BUILDING_STRIDE,
+  type Point,
+  type Route,
+  routeBetween,
+  waterPieces,
+} from "@japalife/shared";
 
 /** A waypoint counts as reached this close, metres; the last one ends the walk. */
 const WAYPOINT_REACH = 1.2;
@@ -18,51 +26,59 @@ const STUCK_SECONDS = 1.5;
  * through a wall. The outlines come from the district header, so far-off
  * buildings count too.
  */
-export function planRoute(header: Pick<DistrictHeader, "roads" | "mapBuildings">, from: Point, to: Point): Route | undefined {
+export function planRoute(
+  header: Pick<DistrictHeader, "roads" | "mapBuildings" | "water">,
+  from: Point,
+  to: Point,
+): Route | undefined {
   const route = routeBetween(header.roads, from, to);
   if (!route || route.points.length < 2) return route;
   const roadside = route.points.at(-2) as Point;
-  if (!crossesBuilding(header.mapBuildings, roadside, to)) return route;
+  const water = waterPieces(header.water, header.roads);
+  if (!crossesBuilding(header.mapBuildings, roadside, to) && !water.some((piece) => crosses(piece, roadside, to))) return route;
   return { points: route.points.slice(0, -1), length: route.length - Math.hypot(to.x - roadside.x, to.z - roadside.z) };
 }
 
-/** Each building outline in the header's flat list (x, z, halfWidth, halfDepth, one after another). */
-function* outlinesOf(outlines: readonly number[]): Generator<[number, number, number, number]> {
-  for (let index = 0; index + 3 < outlines.length; index += 4) {
-    yield outlines.slice(index, index + 4) as [number, number, number, number];
+/** Each building outline in the header's flat list (`MAP_BUILDING_STRIDE` numbers each, starting x, z, halfWidth, halfDepth). */
+function* outlinesOf(outlines: readonly number[]): Generator<Box> {
+  for (let index = 0; index + MAP_BUILDING_STRIDE - 1 < outlines.length; index += MAP_BUILDING_STRIDE) {
+    const [x, z, halfWidth, halfDepth] = outlines.slice(index, index + 4) as [number, number, number, number];
+    yield { x, z, halfWidth, halfDepth };
   }
 }
 
 /** Whether a point falls inside any building outline. */
 export function insideBuilding(outlines: readonly number[], point: Point): boolean {
-  for (const [x, z, halfWidth, halfDepth] of outlinesOf(outlines)) {
+  for (const { x, z, halfWidth, halfDepth } of outlinesOf(outlines)) {
     if (Math.abs(point.x - x) <= halfWidth && Math.abs(point.z - z) <= halfDepth) return true;
   }
   return false;
 }
 
-/** Whether the straight line from `a` to `b` passes through any building outline (the slab method). */
+/** Whether the straight line from `a` to `b` passes through any building outline. */
 export function crossesBuilding(outlines: readonly number[], a: Point, b: Point): boolean {
-  for (const [x, z, halfWidth, halfDepth] of outlinesOf(outlines)) {
-    let enter = 0;
-    let leave = 1;
-    let misses = false;
-    for (const [start, step, low, high] of [
-      [a.x, b.x - a.x, x - halfWidth, x + halfWidth],
-      [a.z, b.z - a.z, z - halfDepth, z + halfDepth],
-    ] as const) {
-      if (Math.abs(step) < 1e-9) {
-        if (start < low || start > high) misses = true;
-        continue;
-      }
-      const t1 = (low - start) / step;
-      const t2 = (high - start) / step;
-      enter = Math.max(enter, Math.min(t1, t2));
-      leave = Math.min(leave, Math.max(t1, t2));
-    }
-    if (!misses && enter <= leave) return true;
-  }
+  for (const outline of outlinesOf(outlines)) if (crosses(outline, a, b)) return true;
   return false;
+}
+
+/** Whether the straight line from `a` to `b` passes through the box (the slab method). */
+function crosses({ x, z, halfWidth, halfDepth }: Box, a: Point, b: Point): boolean {
+  let enter = 0;
+  let leave = 1;
+  for (const [start, step, low, high] of [
+    [a.x, b.x - a.x, x - halfWidth, x + halfWidth],
+    [a.z, b.z - a.z, z - halfDepth, z + halfDepth],
+  ] as const) {
+    if (Math.abs(step) < 1e-9) {
+      if (start < low || start > high) return false;
+      continue;
+    }
+    const t1 = (low - start) / step;
+    const t2 = (high - start) / step;
+    enter = Math.max(enter, Math.min(t1, t2));
+    leave = Math.min(leave, Math.max(t1, t2));
+  }
+  return enter <= leave;
 }
 
 export type RouteEnd = "arrived" | "stuck" | "cancelled";

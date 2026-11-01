@@ -421,14 +421,36 @@ export const roadSchema = z.strictObject({
   class: z.enum(ROAD_CLASSES).optional(),
 });
 
+/** The little pictures landmarks wear on the map, painted in code. */
+export const LANDMARK_ICONS = ["market", "church", "mosque", "school", "bus", "okada", "office", "plaza", "tools"] as const;
+export type LandmarkIcon = (typeof LANDMARK_ICONS)[number];
+
 /** A named place drawn on the map (a market, a college). Its buildings and props are listed with the others. */
 export const landmarkSchema = z.strictObject({
   id: contentIdSchema,
   name: z.string().min(1).max(60),
   x: z.number(),
   z: z.number(),
+  icon: z.enum(LANDMARK_ICONS).optional(),
 });
 export type Landmark = z.infer<typeof landmarkSchema>;
+
+export const WATER_KINDS = ["canal", "pond"] as const;
+
+/**
+ * Open water: a canal or a pond, an axis-aligned box. Nobody walks into it.
+ * A road crossing it is a bridge: the water is cut where the road runs
+ * (`waterPieces`), so the road stays walkable.
+ */
+export const waterSchema = z.strictObject({
+  id: contentIdSchema,
+  kind: z.enum(WATER_KINDS),
+  x: z.number(),
+  z: z.number(),
+  halfWidth: z.number().positive(),
+  halfDepth: z.number().positive(),
+});
+export type Water = z.infer<typeof waterSchema>;
 
 /** Half the width and depth of a box on the ground. */
 const halfSizeSchema = z.strictObject({
@@ -485,6 +507,8 @@ export const propKindSchema = z.strictObject({
    * billboard's legs. "none" for things you walk over or under.
    */
   blocks: z.union([z.literal("footprint"), z.literal("none"), halfSizeSchema]),
+  /** Drawn on the map: "tree" for trees and palms (a green canopy). */
+  mapMark: z.literal("tree").optional(),
 });
 export type PropKind = z.infer<typeof propKindSchema>;
 
@@ -626,6 +650,7 @@ export const districtSchema = z.strictObject({
   props: z.array(propSchema).default([]),
   npcs: z.array(npcSchema).default([]),
   landmarks: z.array(landmarkSchema).default([]),
+  water: z.array(waterSchema).default([]),
   rides: z.array(rideRouteSchema).default([]),
   traffic: trafficSchema.optional(),
 });
@@ -683,8 +708,14 @@ export const districtHeaderSchema = districtLayoutSchema.omit({ buildings: true,
   roadProps: z.array(propSchema),
   /** Every building model the district uses, and how many buildings use it: loaded and warmed up before any chunk arrives. */
   buildingModels: z.record(contentIdSchema, z.int().positive()),
-  /** Every building's footprint as x, z, halfWidth, halfDepth, one after another, to a tenth of a metre: for the 2D map. */
+  /**
+   * Every building for the map, `MAP_BUILDING_STRIDE` numbers each: x, z,
+   * halfWidth, halfDepth and height to a tenth of a metre, then its roof tone
+   * (`roofTone`).
+   */
   mapBuildings: z.array(z.number()),
+  /** Every tree and palm (`mapMark: "tree"`) as x, z pairs, for the map. */
+  mapTrees: z.array(z.number()),
 });
 export type DistrictHeader = z.infer<typeof districtHeaderSchema>;
 

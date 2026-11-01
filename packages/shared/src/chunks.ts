@@ -1,4 +1,5 @@
 import type { Box, Point } from "./collision";
+import { hash01 } from "./random";
 import type { Building, DistrictHeader, DistrictLayout, Prop } from "./content";
 
 /**
@@ -80,6 +81,24 @@ export function isRoadProp(prop: Point, roads: readonly Box[]): boolean {
 
 const tenth = (value: number): number => Math.round(value * 10) / 10;
 
+/** Numbers per building in the header's `mapBuildings`: x, z, halfWidth, halfDepth, height, roof tone. */
+export const MAP_BUILDING_STRIDE = 6;
+/** How many zinc colours plain roofs come in (the client's palettes have this many). */
+export const ZINC_TONE_COUNT = 5;
+/** Model buildings' roofs on the map: this many concrete tones, numbered after the zinc ones. */
+export const MODEL_ROOF_TONE_COUNT = 3;
+
+/** Which zinc a plain building's roof is, 0 to `ZINC_TONE_COUNT - 1`, from its id. */
+export function zincTone(buildingId: string): number {
+  return Math.floor(hash01(buildingId) * ZINC_TONE_COUNT);
+}
+
+/** A building's roof tone on the map: its zinc, or for a model building one of the concrete tones after them. */
+export function roofTone(building: Pick<Building, "id" | "model">): number {
+  if (!building.model) return zincTone(building.id);
+  return ZINC_TONE_COUNT + Math.floor(hash01(`${building.id}:roof`) * MODEL_ROOF_TONE_COUNT);
+}
+
 /** The join message for a district: its layout less what travels in chunks (see `districtHeaderSchema`). */
 export function districtHeader(layout: DistrictLayout): DistrictHeader {
   const { buildings, props } = layout;
@@ -97,7 +116,8 @@ export function districtHeader(layout: DistrictLayout): DistrictHeader {
     ...(rest as Omit<DistrictLayout, "buildings" | "props">),
     roadProps: props.filter((prop) => isRoadProp(prop, layout.roads)),
     buildingModels,
-    mapBuildings: buildings.flatMap((b) => [tenth(b.x), tenth(b.z), tenth(b.halfWidth), tenth(b.halfDepth)]),
+    mapBuildings: buildings.flatMap((b) => [tenth(b.x), tenth(b.z), tenth(b.halfWidth), tenth(b.halfDepth), tenth(b.height), roofTone(b)]),
+    mapTrees: props.filter((prop) => layout.propKinds[prop.kind]?.mapMark === "tree").flatMap((prop) => [tenth(prop.x), tenth(prop.z)]),
   };
 }
 

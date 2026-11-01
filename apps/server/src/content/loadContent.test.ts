@@ -175,6 +175,19 @@ describe("loadContent (broken content)", () => {
     expect(problemsOf().join("\n")).toContain('building "long-wall" reaches more than 64 m from its centre');
   });
 
+  it("rejects a building standing in water, and a road that runs into water without crossing it", () => {
+    edit("cities/lagos.json", (j) => {
+      const district = j["districts"][0];
+      // In the canal, between the lanes that bridge it at z = -180 and -120.
+      district.buildings.push({ id: "boathouse", name: "Boathouse", x: -183, z: -150, halfWidth: 2, halfDepth: 2, height: 3, colour: "#ffffff" });
+      // A stub of road from the west lane, ending in the middle of the canal.
+      district.roads.push({ x: -196, z: 80, halfWidth: 14, halfDepth: 2, colour: "#4a4a4f", class: "lane" });
+    });
+    const problems = problemsOf().join("\n");
+    expect(problems).toContain('building "boathouse" stands in water');
+    expect(problems).toContain('runs into water "yaba-canal" without crossing it');
+  });
+
   it("rejects a building whose model is not in the catalog", () => {
     edit("cities/lagos.json", (j) => (j["districts"][0].buildings[0].model = "ghost-tower"));
     expect(problemsOf().join("\n")).toContain('unknown model "ghost-tower"');

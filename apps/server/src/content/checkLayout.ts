@@ -13,10 +13,12 @@ import {
   districtObstacles,
   isBlocked,
   obstacleGrid,
+  partlyOver,
   propBlockSize,
   reachableTargets,
   routeBetween,
   turnHalfSize,
+  waterPieces,
 } from "@japalife/shared";
 import { rideRoads } from "../game/district";
 
@@ -46,6 +48,19 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
         Math.abs(box.z - road.z) < box.halfDepth + road.halfDepth,
     );
 
+  // Water: inside the district, and every road over it a full bridge (a road ending in a canal makes no sense).
+  for (const body of layout.water) {
+    if (sticksOut(body)) problems.push(`${where}: water "${body.id}" sticks out of the walkable area`);
+    for (const road of roads) {
+      if (partlyOver(body, road)) {
+        problems.push(`${where}: a road at ${road.x}, ${road.z} runs into water "${body.id}" without crossing it`);
+      }
+    }
+  }
+  const pieces = waterPieces(layout.water, roads);
+  const inWater = (box: Box): boolean =>
+    pieces.some((piece) => Math.abs(box.x - piece.x) < box.halfWidth + piece.halfWidth && Math.abs(box.z - piece.z) < box.halfDepth + piece.halfDepth);
+
   const seen = new Set<string>();
   const buildingGrid = new SpatialGrid(buildings);
   for (const building of buildings) {
@@ -55,6 +70,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
       problems.push(`${where}: building "${building.id}" sticks out of the walkable area`);
     }
     if (onRoad(building)) problems.push(`${where}: building "${building.id}" stands on a road`);
+    if (inWater(building)) problems.push(`${where}: building "${building.id}" stands in water`);
     if (tooBigForChunks(building)) {
       problems.push(`${where}: building "${building.id}" reaches more than ${CHUNK_METRES} m from its centre (split it: it travels in one chunk)`);
     }
@@ -85,6 +101,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
       wires.set(prop.wire, (wires.get(prop.wire) ?? 0) + 1);
     }
     const size = propBlockSize(kind, layout.models);
+    if (inWater({ x: prop.x, z: prop.z, halfWidth: 0, halfDepth: 0 })) problems.push(`${where}: ${what} stands in water`);
     if (!size) return; // walked over or under: may stand anywhere, roads included
     const box = { x: prop.x, z: prop.z, ...turnHalfSize(size, prop.rotation) };
     if (sticksOut(box)) problems.push(`${where}: ${what} sticks out of the walkable area`);
@@ -102,6 +119,7 @@ export function checkLayout(where: string, layout: DistrictLayout): string[] {
     const box = { x: npc.x, z: npc.z, halfWidth: NPC_HALF_SIZE, halfDepth: NPC_HALF_SIZE };
     if (sticksOut(box)) problems.push(`${where}: NPC "${npc.id}" is outside the walkable area`);
     if (onRoad(box)) problems.push(`${where}: NPC "${npc.id}" stands in a road`);
+    if (inWater(box)) problems.push(`${where}: NPC "${npc.id}" stands in water`);
   }
 
   const obstacles = obstacleGrid(districtObstacles(layout));

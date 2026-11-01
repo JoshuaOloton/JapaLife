@@ -22,7 +22,8 @@
     },
     "palm": {
       "look": { "built": "palm", "halfWidth": 2.2, "halfDepth": 2.2, "height": 7 },
-      "blocks": { "halfWidth": 0.25, "halfDepth": 0.25 }
+      "blocks": { "halfWidth": 0.25, "halfDepth": 0.25 },
+      "mapMark": "tree"
     },
     "billboard": {
       "look": { "built": "billboard", "halfWidth": 3, "halfDepth": 0.3, "height": 6.5, "colour": "#3a3a3a" },
@@ -54,11 +55,13 @@
     },
     "tree-large": {
       "look": { "model": "tree-large", "scale": 8 },
-      "blocks": { "halfWidth": 0.2, "halfDepth": 0.2 }
+      "blocks": { "halfWidth": 0.2, "halfDepth": 0.2 },
+      "mapMark": "tree"
     },
     "tree-small": {
       "look": { "model": "tree-small", "scale": 8 },
-      "blocks": { "halfWidth": 0.15, "halfDepth": 0.15 }
+      "blocks": { "halfWidth": 0.15, "halfDepth": 0.15 },
+      "mapMark": "tree"
     },
     "planter": {
       "look": { "model": "planter", "scale": 5 },

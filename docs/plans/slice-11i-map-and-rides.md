@@ -47,6 +47,8 @@ Decided 2026-10-21:
 - **Building fade:** plain box buildings now fade like model buildings when they hide you. A headless danfo ride put the camera above a roof otherwise.
 - **Measured** (headless, Yaba bus stop to Sabo, 184 m): about 30 s including 6 s boarding, the fare charged once, no errors.
 
+**11i-3, aerial map and water** (planned and built 2026-10-23, play-tested on the vivo Y29 2026-11-01): a painted aerial map, and a canal and a pond. [Plan](slice-11i-3-aerial-map-and-water.md).
+
 The decisions (2026-10-22):
 - **Fares.**
   - **Danfo:** a flat ₦500, the top of the ₦250–₦500 quoted for short Yaba hops after the fuel rises ([Lagos.Cool](https://lagos.cool/transport), [transportlog](https://transportlog.com.ng/transport-fare-in-nigeria-2026-complete-guide-to-bus-taxi-okada-and-interstate-prices/)).

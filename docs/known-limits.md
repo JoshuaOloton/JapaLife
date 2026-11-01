@@ -198,6 +198,32 @@ Things that are deliberately incomplete or that will bite later. Remove an item 
     - An okada ride from a spot with no traffic okada drawn yet would draw the okada mesh for the first time. It is warmed at load, so a short stall at worst; okadas are usually about near the parks.
     - Headless run at the Yaba bus stop, before boarding: 76 calls and a "⚠ 83 calls peak", mostly the walkers and NPCs around the busy junction (40 calls with people and NPCs hidden). Not from the rides.
   - **vivo Y29 (2026-10-23, `next dev`, after a danfo ride to Sabo):** rides work; 60 fps, low 59, worst 58 ms, dpr 1.50, 50 calls, 128.0k triangles, street 100%, but "⚠ 90 calls peak" around the busy stops. The frame rate held, so the peak is about headroom, not a visible drop. A phone tab left open across code changes kept the old riding-less code (no chip, the character dragged along by the server) until it was closed and reopened.
+- **Water and the aerial map (Slice 11i-3, 2026-10-23).**
+  - **Water** is `water` in the city plan: axis-aligned canals and ponds, copied into the district and sent in the header.
+    - A road that crosses water from side to side is its bridge. `waterPieces` (`packages/shared/src/water.ts`) cuts the water there, and the pieces are both what is drawn and what blocks walking (they are in `districtObstacles`).
+    - The content check refuses a road that only partly covers water, and a building, prop or NPC standing in it.
+    - The generator keeps 2 m of bank clear round every body of water.
+  - **Drawn:**
+    - one mesh for all the water, with a 128 px ripple texture drifting by its offset (a uniform), mounted from the start;
+    - lips and bridge parapets in the existing `Boxes` call; the parapets are not solid, so the walkers on the road edges pass;
+    - gutters stop at the canal.
+  - **The map is painted in the aerial style:**
+    - ground patches, kerbs, centre dashes on main roads, water;
+    - every roof in its colour, with a shadow cast to the south-east by its height, so tall blocks read as 3D;
+    - trees as canopies (`mapMark: "tree"` on the prop kinds, sent as `mapTrees`);
+    - landmark badges with pictures painted in code.
+
+    The base image is 2 px a metre (about 6.5 MB of canvas memory, up from about 3.6 MB). The header's `mapBuildings` is now 6 numbers a building (`MAP_BUILDING_STRIDE`: adds height and roof tone).
+  - **First phone check (vivo Y29, 2026-11-01):**
+    - Opening the map gave no hitch (low 55, worst 66 ms).
+    - Standing 5 minutes at night in a power cut gave 2 hitches, worst 104 ms. That is the standing hitch from 11h, smaller.
+    - Two map fixes:
+      - Zoomed out, Yaba shrank to a small square in empty sand. The furthest zoom now fits the district to the screen (`fitScale`), and dragging stops 15 m past its edge (`keepInside`).
+      - Labels piled on top of each other. They are now placed in order (landmarks, then streets, then places), and one that would overlap a badge or another label is left out (`LabelSpace`), so zooming in shows more names.
+  - **Not done:**
+    - Water is boxes only: no curved banks or rounded ponds.
+    - Nothing floats on it and it makes no sound.
+    - The pond has no name label (water has no name yet).
 - **Chunk streaming and area of interest (Slice 11h-4, 2026-10-22).**
   - **What a client is sent.**
     - On join: the `district` header (`districtHeader` in `packages/shared/src/chunks.ts`). It holds the places, roads, road furniture (speed bumps, which the traffic needs from the start), traffic lanes, catalogs, NPCs, every building model with its count, and an outline map of every building for 11i.

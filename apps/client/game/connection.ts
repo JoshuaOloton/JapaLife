@@ -160,7 +160,7 @@ export class ChunkStore {
  * aside). The traffic runs on this, so it never restarts as chunks come and go.
  */
 export function headerLayout(header: DistrictHeader): DistrictLayout {
-  const layout: DistrictLayout & Partial<Pick<DistrictHeader, "roadProps" | "buildingModels" | "mapBuildings">> = {
+  const layout: DistrictLayout & Partial<Pick<DistrictHeader, "roadProps" | "buildingModels" | "mapBuildings" | "mapTrees">> = {
     ...header,
     buildings: [],
     props: header.roadProps,
@@ -169,6 +169,7 @@ export function headerLayout(header: DistrictHeader): DistrictLayout {
   delete layout.roadProps;
   delete layout.buildingModels;
   delete layout.mapBuildings;
+  delete layout.mapTrees;
   return layout;
 }
 

@@ -4,10 +4,13 @@ import {
   chunkKey,
   chunkOf,
   chunksAround,
+  ZINC_TONE_COUNT,
   districtHeader,
   isRoadProp,
+  roofTone,
   splitIntoChunks,
   withinRing,
+  zincTone,
 } from "./chunks";
 import type { DistrictLayout } from "./content";
 
@@ -34,6 +37,7 @@ function layout(): DistrictLayout {
     ],
     npcs: [],
     landmarks: [],
+    water: [],
     rides: [],
     models: { flats: { file: "buildings/flats.glb", halfWidth: 1, halfDepth: 0.65, height: 2.25, triangles: 10, bytes: 10 } },
     propKinds: {},
@@ -79,7 +83,13 @@ describe("districtHeader", () => {
     expect(header.npcs).toEqual([]);
     expect(header.roadProps.map((p) => p.kind)).toEqual(["speed-bump"]);
     expect(header.buildingModels).toEqual({ flats: 2 });
-    expect(header.mapBuildings).toEqual([10, -20, 4, 3, -100, 150, 4, 3, 70, -20, 4, 3]);
+    // x, z, half sizes, height, roof tone: zinc for the plain building, a concrete tone for the models.
+    expect(header.mapBuildings).toEqual([
+      ...[10, -20, 4, 3, 3, zincTone("a")],
+      ...[-100, 150, 4, 3, 3, roofTone({ id: "b", model: "flats" })],
+      ...[70, -20, 4, 3, 3, roofTone({ id: "c", model: "flats" })],
+    ]);
+    expect(roofTone({ id: "b", model: "flats" })).toBeGreaterThanOrEqual(ZINC_TONE_COUNT);
     expect(header.interactables).toHaveLength(1);
   });
 

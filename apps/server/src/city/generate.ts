@@ -39,6 +39,8 @@ const CROSSING_CLEARANCE = 3;
 const ROAD_CLEARANCE = 2.2;
 /** Least space between a generated thing and anything else, metres. */
 const SPACING = 0.6;
+/** Open ground kept round water (its concrete lip and a path), metres. */
+const WATER_BANK = 2;
 /** How far inside the district edge things stop, metres. */
 const EDGE_MARGIN = 0.5;
 /** Lanes run this far past the district edge, so traffic arrives off-screen. */
@@ -169,7 +171,7 @@ export function generateDistrict(plan: DistrictPlan, catalogs: Catalogs): Distri
 
   for (const landmark of plan.landmarks) {
     const at = { x: landmark.x, z: landmark.z };
-    if (landmark.name) landmarks.push({ id: landmark.id, name: landmark.name, ...at });
+    if (landmark.name) landmarks.push({ id: landmark.id, name: landmark.name, ...at, ...(landmark.icon ? { icon: landmark.icon } : {}) });
     if (landmark.clear) reserved.push({ ...at, ...landmark.clear });
     for (const thing of landmark.interactables) {
       const position = { x: round(at.x + thing.position.x), z: round(at.z + thing.position.z) };
@@ -193,6 +195,11 @@ export function generateDistrict(plan: DistrictPlan, catalogs: Catalogs): Distri
       npcs.push(placed);
       taken.add({ x: placed.x, z: placed.z, halfWidth: NPC_HALF_SIZE, halfDepth: NPC_HALF_SIZE });
     }
+  }
+
+  // Water and its banks are kept clear of everything generated.
+  for (const body of plan.water) {
+    reserved.push({ x: body.x, z: body.z, halfWidth: body.halfWidth + WATER_BANK, halfDepth: body.halfDepth + WATER_BANK });
   }
 
   const insideEdge = (box: Box): boolean =>
@@ -375,6 +382,7 @@ export function generateDistrict(plan: DistrictPlan, catalogs: Catalogs): Distri
     props,
     npcs,
     landmarks,
+    water: plan.water,
     rides: plan.rides,
     traffic: trafficFor(plan, frames),
   };

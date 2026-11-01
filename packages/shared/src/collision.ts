@@ -1,6 +1,7 @@
 import { PLAYER_RADIUS } from "./constants";
 import { type DistrictLayout, NPC_HALF_SIZE, propBlockSize, turnHalfSize } from "./content";
 import { SpatialGrid } from "./spatialGrid";
+import { waterPieces } from "./water";
 
 /**
  * Walking and collision, written once and run by BOTH the server (the authority)
@@ -41,9 +42,11 @@ export interface Bounds {
  * `district.buildings` on its own, so all three agree on every wall.
  */
 export function districtObstacles(
-  layout: Pick<DistrictLayout, "buildings" | "props" | "npcs" | "propKinds" | "models">,
+  layout: Pick<DistrictLayout, "buildings" | "props" | "npcs" | "propKinds" | "models" | "water" | "roads">,
 ): Box[] {
   const boxes: Box[] = layout.buildings.map(({ x, z, halfWidth, halfDepth }) => ({ x, z, halfWidth, halfDepth }));
+  // Canals and ponds, less the bridges where roads cross them.
+  boxes.push(...waterPieces(layout.water, layout.roads));
   for (const prop of layout.props) {
     const kind = layout.propKinds[prop.kind];
     const size = kind ? propBlockSize(kind, layout.models) : undefined;

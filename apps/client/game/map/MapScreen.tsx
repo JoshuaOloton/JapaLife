@@ -3,10 +3,12 @@
 import { COPY, type DistrictHeader, fill, type Point, type Route } from "@japalife/shared";
 import { useCallback, useEffect, useRef } from "react";
 import styles from "../hud.module.css";
-import { type MapBase, type MapView, drawMap, screenToWorld } from "./mapPaint";
+import { type MapBase, type MapView, drawMap, fitScale, keepInside, screenToWorld } from "./mapPaint";
 
-/** Zoom limits, screen pixels per metre: the whole district on a phone, down to a single street. */
-const MIN_SCALE = 0.4;
+/**
+ * Zoom limits, screen pixels per metre: zoomed right out, the district fills
+ * the screen's width (`fitScale`); zoomed in, a single street.
+ */
 const MAX_SCALE = 6;
 const START_SCALE = 1.4;
 /** A press that moves less than this (and lets go quickly) is a tap, not a drag. */
@@ -55,6 +57,9 @@ export function MapScreen({
       element.height = Math.round(height * ratio);
     }
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    // Opened near the edge, or the screen turned: still never past the district.
+    view.current.scale = Math.max(view.current.scale, fitScale(header, width, height));
+    keepInside(view.current, header, width, height);
     drawMap(context, base, view.current, width, height, { header, player: predicted.current, route: routeRef.current, labels: true });
   }, [base, header, predicted]);
 
@@ -78,10 +83,12 @@ export function MapScreen({
     let pinch: number | null = null;
     const zoomAbout = (factor: number, x: number, y: number): void => {
       const before = screenToWorld(view.current, element.clientWidth, element.clientHeight, x, y);
-      view.current.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.current.scale * factor));
+      const smallest = fitScale(header, element.clientWidth, element.clientHeight);
+      view.current.scale = Math.min(MAX_SCALE, Math.max(smallest, view.current.scale * factor));
       const after = screenToWorld(view.current, element.clientWidth, element.clientHeight, x, y);
       view.current.x += before.x - after.x;
       view.current.z += before.z - after.z;
+      keepInside(view.current, header, element.clientWidth, element.clientHeight);
     };
     const local = (event: PointerEvent): { x: number; y: number } => {
       const rect = element.getBoundingClientRect();
@@ -102,6 +109,7 @@ export function MapScreen({
       if (pointers.size === 1) {
         view.current.x -= (point.x - previous.x) / view.current.scale;
         view.current.z -= (point.y - previous.y) / view.current.scale;
+        keepInside(view.current, header, element.clientWidth, element.clientHeight);
         if (press) press.moved += Math.hypot(point.x - previous.x, point.y - previous.y);
       } else if (pointers.size === 2) {
         const [a, b] = [...pointers.values()] as [{ x: number; y: number }, { x: number; y: number }];
@@ -138,7 +146,7 @@ export function MapScreen({
       element.removeEventListener("pointercancel", onUp);
       element.removeEventListener("wheel", onWheel);
     };
-  }, [draw, onPick]);
+  }, [draw, onPick, header]);
 
   return (
     <div className={styles.mapScreen} role="dialog" aria-label={header.name}>

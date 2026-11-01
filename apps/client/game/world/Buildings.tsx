@@ -1,6 +1,6 @@
 "use client";
 
-import type { Building, ModelInfo, Point } from "@japalife/shared";
+import { type Building, type ModelInfo, type Point, zincTone } from "@japalife/shared";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
@@ -27,6 +27,8 @@ import { ModelBoundary } from "../ModelBoundary";
 import { WARM_UP_WHILE_HIDDEN } from "../ShaderWarmUp";
 import { Boxes, type FadeSet, type Slab } from "./Boxes";
 import { type FadeRule, type Point3, stepFades } from "./occlusion";
+// Each plain roof's zinc comes from its id (`zincTone`), the same as on the map.
+import { ZINC_COLOURS } from "./roofColours";
 import type { StreetState } from "./street";
 import {
   INSTANCE_FADE_ATTRIBUTE,
@@ -41,7 +43,6 @@ import {
   WINDOW_HEIGHT,
   WINDOW_WIDTH,
   type WindowSpot,
-  hash01,
   isWindowLit,
   modelWindowsLit,
   streetPower,
@@ -65,8 +66,6 @@ import {
 
 const ROOF_THICKNESS = 0.25;
 const ROOF_OVERHANG = 0.3;
-/** Zinc goes from new grey to rusty brown; each roof gets one, from its id. */
-const ZINC_COLOURS = ["#8d9196", "#7b7f82", "#8a6a52", "#7a5640", "#96999c"] as const;
 
 const WINDOW_COLOURS = { glass: "#34424e", lit: "#ffd98a", dark: "#161b22" } as const;
 /** How often the windows check whether night fell or the power went. */
@@ -109,7 +108,7 @@ export function plainBuildingSlabs(buildings: readonly Building[]): Slab[] {
       height: ROOF_THICKNESS,
       y: building.height - ROOF_THICKNESS,
       // From the id, not the list position, so a roof keeps its colour as the drawn area changes.
-      colour: ZINC_COLOURS[Math.floor(hash01(building.id) * ZINC_COLOURS.length)] ?? ZINC_COLOURS[0],
+      colour: ZINC_COLOURS[zincTone(building.id)] ?? ZINC_COLOURS[0],
     },
   ]);
 }

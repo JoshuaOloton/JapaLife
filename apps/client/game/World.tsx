@@ -29,6 +29,8 @@ import { Props } from "./world/Props";
 import { propSlabs } from "./world/propShapes";
 import { roadHeight, roadSurface } from "./world/roads";
 import { RouteRibbon } from "./world/RouteRibbon";
+import { Water } from "./world/Water";
+import { waterSlabs, withoutWater } from "./world/waterShapes";
 import type { StreetState } from "./world/street";
 
 /**
@@ -123,6 +125,7 @@ export function World({
         <meshLambertMaterial map={ground} />
       </mesh>
       <Roads roads={district.roads} />
+      <Water water={header.water} roads={header.roads} />
       <Potholes roads={district.roads} />
       <RouteRibbon routes={routes} />
       <Boxes slabs={near.slabs} capacity={slabCapacity} fades={slabFades} />
@@ -176,7 +179,9 @@ function worldIndex(district: DistrictLayout, withoutProps = false) {
     wall(0, d + t, w + 2 * t, t),
     wall(-w - t, 0, t, d),
     wall(w + t, 0, t, d),
-    ...gutterSlabs(district.roads, district),
+    // Gutters stop at a canal: the bridge's parapet takes over.
+    ...withoutWater(gutterSlabs(district.roads, district), district.water, district.roads),
+    ...waterSlabs(district.water, district.roads),
     ...(withoutProps ? [] : propSlabs(district)),
   ];
   const hasModel = (building: Building): boolean => Boolean(building.model && district.models[building.model]);

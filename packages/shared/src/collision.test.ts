@@ -104,8 +104,11 @@ describe("reachableTargets", () => {
 });
 
 describe("districtObstacles", () => {
-  const layout: Pick<DistrictLayout, "buildings" | "props" | "npcs" | "propKinds" | "models"> = {
+  const layout: Pick<DistrictLayout, "buildings" | "props" | "npcs" | "propKinds" | "models" | "water" | "roads"> = {
     buildings: [{ id: "shop", name: "Shop", x: -20, z: 0, halfWidth: 3, halfDepth: 2, height: 4, colour: "#ffffff", rotation: 0, scale: 1 }],
+    // A canal running north-south at x = 40, with an east-west road bridging it.
+    water: [{ id: "canal", kind: "canal", x: 40, z: 0, halfWidth: 2, halfDepth: 20 }],
+    roads: [{ x: 40, z: 0, halfWidth: 30, halfDepth: 3, colour: "#4a4a4f" }],
     props: [
       { kind: "generator", x: 5, z: 0, rotation: 0 },
       { kind: "generator", x: 5, z: 10, rotation: 90 },
@@ -137,9 +140,11 @@ describe("districtObstacles", () => {
   const boxes = districtObstacles(layout);
   const grid = obstacleGrid(boxes);
 
-  it("blocks buildings, props and standing NPCs, but not props you walk under", () => {
+  it("blocks buildings, water, props and standing NPCs, but not props you walk under or bridges", () => {
     expect(boxes).toEqual([
       { x: -20, z: 0, halfWidth: 3, halfDepth: 2 },
+      { x: 40, z: -11.5, halfWidth: 2, halfDepth: 8.5 }, // the canal north of the bridge
+      { x: 40, z: 11.5, halfWidth: 2, halfDepth: 8.5 }, // and south of it
       { x: 5, z: 0, halfWidth: 0.6, halfDepth: 0.4 },
       { x: 5, z: 10, halfWidth: 0.4, halfDepth: 0.6 }, // a quarter turn swaps width and depth
       { x: 0, z: 20, halfWidth: 0.2, halfDepth: 0.2 }, // only the palm's trunk
@@ -155,6 +160,13 @@ describe("districtObstacles", () => {
 
     const atMamaPut = moveWithCollisions({ x: -5, z: 0 }, { x: 0, z: 10 }, grid, bounds);
     expect(atMamaPut.z).toBeLessThanOrEqual(5 - NPC_HALF_SIZE - PLAYER_RADIUS);
+  });
+
+  it("stops the player at the water's edge but lets them cross on the bridge", () => {
+    const atBank = moveWithCollisions({ x: 30, z: 10 }, { x: 10, z: 0 }, grid, bounds);
+    expect(atBank.x).toBeLessThanOrEqual(38 - PLAYER_RADIUS);
+    const overBridge = moveWithCollisions({ x: 30, z: 0 }, { x: 18, z: 0 }, grid, bounds);
+    expect(overBridge.x).toBeCloseTo(48, 9);
   });
 
   it("lets the player walk under an umbrella and past a palm's leaves", () => {
