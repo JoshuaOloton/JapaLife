@@ -39,6 +39,7 @@ const promptsSchema = z.strictObject({
   bus_stop: text([], ["place"]),
   okada_park: text([], ["place"]),
   fuel_station: text([], ["place"]),
+  document_office: text([], ["place"]),
 } satisfies Record<Interactable["kind"], unknown>);
 
 const rejectionsSchema = z.strictObject(
@@ -93,11 +94,20 @@ export const copySchema = z.strictObject({
     close: text(),
     inbox: text(),
     inboxUnread: text(["count"]),
+    documents: text(),
   }),
   inbox: z.strictObject({
     title: text(),
     empty: text(),
     new: text(),
+  }),
+  /** The documents list: what the player is waiting for or holds. */
+  documents: z.strictObject({
+    title: text(),
+    empty: text(),
+    inProgress: text(["time"]),
+    ready: text(),
+    validFor: text(["time"]),
   }),
   map: z.strictObject({
     open: text(),
@@ -134,6 +144,17 @@ export const copySchema = z.strictObject({
     okadaNote: text(),
     fuelRuns: text(["hours"]),
     fuelInTank: text(["hours"]),
+    /** At a document office: the game fee beside the real one, the wait, and what is needed first. */
+    documentFee: text(["fee", "real"]),
+    documentFree: text(),
+    documentWait: text(["time", "days"]),
+    documentNeeds: text(["names"]),
+    documentApply: text(),
+    documentWaiting: text(["time"]),
+    documentHeld: text(),
+    /** The scam agent's pitch, as the player hears it. */
+    agentPitch: text(["fee"]),
+    agentHire: text(),
   }),
   /** The character creator, first time and "Change clothes" at home. Option names live in the character catalog. */
   creator: z.strictObject({
@@ -168,6 +189,14 @@ export const copySchema = z.strictObject({
     rentLateFeeBroke: text(["amount"]),
     taskForceTitle: text(),
     taskForce: text(["place"]),
+    documentReadyTitle: text(["name"]),
+    documentReady: text(["name"]),
+    documentExpiringTitle: text(["name"]),
+    documentExpiring: text(["name", "days"]),
+    documentExpiredTitle: text(["name"]),
+    documentExpired: text(["name"]),
+    agentSilentTitle: text(),
+    agentSilent: text(["name"]),
   }),
   /** The chip while you ride, and the vehicles' names in it. */
   riding: z.strictObject({

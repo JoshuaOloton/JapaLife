@@ -463,6 +463,46 @@ describe("movement", () => {
     await until(() => s.rejected.length >= 1, "the rejection");
     expect(s.rejected[0]?.reason).toBe("too_far");
   });
+
+  it("shows a document office's papers with the game fee beside the real one, and applies server-side", async () => {
+    const s = await join("nora");
+    const interactions: InteractionMessage[] = [];
+    s.room.onMessage("interaction", (m: InteractionMessage) => interactions.push(m));
+    await until(() => s.stats.length > 0, "stats");
+    expect(s.stats.at(-1)?.documents).toEqual([]);
+
+    s.room.send("interact", { targetId: "passport-office" });
+    await until(() => interactions.length >= 1, "the office sheet");
+    const office = interactions[0];
+    expect(office?.kind === "document_office" && office.documents[0]).toMatchObject({
+      documentId: "passport",
+      status: "locked",
+      feeKobo: 3_000_000,
+      realFeeKobo: 10_000_000,
+    });
+
+    // The NIN first: it is free, and the passport still refuses until it is held.
+    s.room.send("applyDocument", { documentId: "passport" });
+    await until(() => s.rejected.length >= 1, "the refusal");
+    expect(s.rejected[0]?.reason).toBe("missing_document");
+
+    s.room.send("applyDocument", { documentId: "nin" });
+    await until(() => (s.stats.at(-1)?.documents.length ?? 0) === 1, "the NIN in the HUD list");
+    expect(s.stats.at(-1)?.documents[0]).toMatchObject({ documentId: "nin", status: "in_progress" });
+    expect(s.stats.at(-1)?.balanceKobo).toBe(2_000_000);
+  });
+
+  it("refuses to apply for a document from too far away", async () => {
+    const s = await join("otis");
+    await until(() => s.stats.length > 0, "stats");
+    s.room.send("move", { seq: 1, dx: 1, dz: 0 });
+    await sleep(1200);
+    s.room.send("move", { seq: 2, dx: 0, dz: 0 });
+    await sleep(100);
+    s.room.send("applyDocument", { documentId: "nin" });
+    await until(() => s.rejected.length >= 1, "the rejection");
+    expect(s.rejected[0]?.reason).toBe("too_far");
+  });
 });
 
 describe("the scheduled job", () => {

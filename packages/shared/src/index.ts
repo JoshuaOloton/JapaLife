@@ -6,6 +6,7 @@ export * from "./constants";
 export * from "./content";
 export * from "./copy";
 export * from "./copyText";
+export * from "./documents";
 export * from "./economy";
 export * from "./events";
 export * from "./format";

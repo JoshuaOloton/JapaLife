@@ -36,6 +36,10 @@ export const REJECT_REASONS = [
   "already_riding",
   /** No ride goes from this stop to that one. */
   "no_ride",
+  /** The player already has this document, or is waiting for it. */
+  "already_applied",
+  /** A document it needs first is missing. */
+  "missing_document",
 ] as const;
 export type RejectReason = (typeof REJECT_REASONS)[number];
 
@@ -78,6 +82,19 @@ export interface StatsMessage {
   fuelPriceRisePercent: number;
   /** A request waiting for the player's answer (the event card), or null. */
   pendingChoice: PendingChoice | null;
+  /** Documents being waited for or held, soonest first. */
+  documents: DocumentSummary[];
+}
+
+/** One document the player is waiting for or holds, for the documents list. */
+export interface DocumentSummary {
+  documentId: string;
+  name: string;
+  status: "in_progress" | "ready";
+  /** When it is (or was) ready, on the server clock. */
+  readyAt: string;
+  /** When it expires, or null if it never does. */
+  expiresAt: string | null;
 }
 
 /** A request the player must answer, e.g. family asking for money. */
@@ -93,7 +110,7 @@ export interface PendingChoice {
   declineLabel: string;
 }
 
-export const NOTICE_KINDS = ["event", "shift_paid", "rent", "ride"] as const;
+export const NOTICE_KINDS = ["event", "shift_paid", "rent", "ride", "document"] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
 /** A toast: something happened to the player (an event, a shift paid out, a late fee). Also kept in the inbox. */
@@ -163,8 +180,31 @@ export interface RideOption {
   seconds: number;
 }
 
+/** Where a document stands for this player at an office. A failed or expired one shows as available again. */
+export type DocumentOfferStatus = "available" | "locked" | "in_progress" | "ready";
+
+/** A document an office handles, with the game price the server will charge and the real fee beside it. */
+export interface DocumentOffer {
+  documentId: string;
+  name: string;
+  status: DocumentOfferStatus;
+  /** What it costs in the game, and what the real fee is. */
+  feeKobo: number;
+  realFeeKobo: number;
+  /** How long the game makes the player wait, and the real wait in days beside it. */
+  waitMs: number;
+  realWaitDays: number;
+  /** Names of the documents needed first (when locked). */
+  needs: string[];
+  /** When it is or was ready; null until the player has applied. */
+  readyAt: string | null;
+  /** The agent's offer, or null. It is a scam; the sheet only shows what the agent says. */
+  agentFeeKobo: number | null;
+}
+
 export type InteractionMessage =
   | { targetId: string; kind: "job_site"; job: JobOffer }
+  | { targetId: string; kind: "document_office"; documents: DocumentOffer[] }
   | { targetId: string; kind: "food_vendor"; menu: MenuItem[] }
   | { targetId: string; kind: "fuel_station"; items: ShopOffer[] }
   | { targetId: string; kind: "bus_stop" | "okada_park"; rides: RideOption[] }

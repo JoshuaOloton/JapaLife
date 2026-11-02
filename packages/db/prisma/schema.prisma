@@ -62,6 +62,7 @@ model Player {
   appearance   PlayerAppearance?
   rides        PlayerRide[]
   location     PlayerLocation?
+  documents    Document[]
 }
 
 // ---- Where the player last stood (Slice 11i-2) --------------------------------
@@ -94,6 +95,42 @@ model PlayerAppearance {
   updatedAt    DateTime @updatedAt
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+}
+
+// ---- Documents (Phase 2, slice 2.1) ---------------------------------------------
+// Not money: the fee is a ledger debit (reference `document:<playerId>:<id>`).
+
+/// A document the player applied for (NIN, passport). Claimed first: `activeKey`
+/// holds "<playerId>:<documentId>" while it is `in_progress` or `ready`, so a
+/// player can hold at most one of each, even across servers. Then the fee is
+/// charged; `paidAt` is set once it is, and a row without it never started (it
+/// is removed). All times are fixed when the player applies, from the rules of
+/// that day, so a later content change never moves an existing document.
+model Document {
+  id            String    @id @default(uuid(7))
+  playerId      String
+  documentId    String
+  /// "in_progress", "ready", "failed" or "expired" (DOCUMENT_STATUSES in packages/shared).
+  status        String
+  /// True when the player paid the "agent": a scam that ends as `failed`.
+  viaAgent      Boolean   @default(false)
+  /// What was charged, in game kobo (zero for a free document).
+  feeKobo       BigInt
+  startedAt     DateTime
+  /// When it is ready, or for the agent scam when the agent goes quiet.
+  readyAt       DateTime
+  /// When it stops being valid, and when the player is warned. Null if it never expires.
+  expiresAt     DateTime?
+  warnAt        DateTime?
+  warnedAt      DateTime?
+  paidAt        DateTime?
+  activeKey     String?   @unique
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@index([playerId, status])
+  @@index([status, readyAt])
+  @@index([status, expiresAt])
 }
 
 // ---- Rides (Slice 11i) -------------------------------------------------------

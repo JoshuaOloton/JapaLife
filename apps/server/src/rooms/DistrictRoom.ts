@@ -369,8 +369,26 @@ export function createDistrictRoom(game: GameSystems) {
             game.players.currentNeeds(state, now),
           ]);
           const rides = game.rides.options(this.district, target.id);
-          client.send(SERVER_MESSAGES.interaction, describeOffer(target, game.content, { priceFactorBp, morale, rides }));
+          const documents =
+            target.kind === "document_office" ? await game.documents.offers(playerId, target.documentIds, now) : undefined;
+          client.send(
+            SERVER_MESSAGES.interaction,
+            describeOffer(target, game.content, { priceFactorBp, morale, rides, ...(documents ? { documents } : {}) }),
+          );
           return;
+        }
+        case "applyDocument":
+        case "hireAgent": {
+          const { documentId } = intent.payload;
+          const handles = (thing: Interactable): boolean =>
+            thing.kind === "document_office" && thing.documentIds.includes(documentId);
+          if (!this.district.config.interactables.some(handles)) return this.reject(client, intent.type, "unknown_target");
+          if (!this.district.nearest(position, handles)) return this.reject(client, intent.type, "too_far");
+          outcome =
+            intent.type === "applyDocument"
+              ? await game.documents.apply(playerId, documentId, now)
+              : await game.documents.hireAgent(playerId, documentId, now);
+          break;
         }
         case "work": {
           const { jobId } = intent.payload;
@@ -529,7 +547,7 @@ export function createDistrictRoom(game: GameSystems) {
 
     /**
      * Everything time has made due for one player: shift pay, expired requests,
-     * random events and late rent fees. Each tells the player itself, through
+     * random events, late rent fees and documents. Each tells the player itself, through
      * the inbox. Run under the player's mutex.
      */
     private async catchUp(playerId: string): Promise<void> {
@@ -538,6 +556,7 @@ export function createDistrictRoom(game: GameSystems) {
       await game.choices.expireDue(playerId, now);
       await game.events.processDue(playerId, now);
       await game.rent.chargeLateFees(playerId, now);
+      await game.documents.settleDue(now, playerId);
     }
 
     // ---- messages to the client --------------------------------------------------

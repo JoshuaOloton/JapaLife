@@ -111,6 +111,63 @@ function Body({
           ))}
         </>
       );
+    case "document_office":
+      return (
+        <>
+          {interaction.documents.map((document) => {
+            // The server answers an intent with fresh stats; asking for the office again refreshes this sheet.
+            const send = (intent: "applyDocument" | "hireAgent"): void => {
+              room.send(intent, { documentId: document.documentId });
+              room.send("interact", { targetId: interaction.targetId });
+            };
+            return (
+              <div key={document.documentId} className={styles.row}>
+                <div>
+                  <strong>{document.name}</strong>
+                  <div className={styles.detail}>
+                    {[
+                      document.feeKobo === 0 && document.realFeeKobo === 0
+                        ? text.documentFree
+                        : fill(text.documentFee, {
+                            fee: formatNaira(document.feeKobo),
+                            real: formatNaira(document.realFeeKobo),
+                          }),
+                      fill(text.documentWait, {
+                        time: formatCountdown(document.waitMs),
+                        days: document.realWaitDays,
+                      }),
+                    ].join(" · ")}
+                  </div>
+                  {document.status === "locked" && (
+                    <div className={styles.detail}>{fill(text.documentNeeds, { names: document.needs.join(", ") })}</div>
+                  )}
+                  {document.status === "in_progress" && document.readyAt && (
+                    <div className={styles.detail}>
+                      {fill(text.documentWaiting, { time: formatCountdown(Date.parse(document.readyAt) - now) })}
+                    </div>
+                  )}
+                  {document.agentFeeKobo !== null && (
+                    <div className={styles.detail}>{fill(text.agentPitch, { fee: formatNaira(document.agentFeeKobo) })}</div>
+                  )}
+                </div>
+                {document.status === "available" && (
+                  <div>
+                    <button type="button" className={styles.action} onClick={() => send("applyDocument")}>
+                      {text.documentApply}
+                    </button>
+                    {document.agentFeeKobo !== null && (
+                      <button type="button" className={styles.action} onClick={() => send("hireAgent")}>
+                        {text.agentHire}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {document.status === "ready" && <span className={styles.detail}>{text.documentHeld}</span>}
+              </div>
+            );
+          })}
+        </>
+      );
     case "home":
       return (
         <>

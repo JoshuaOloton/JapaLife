@@ -1,0 +1,40 @@
+{
+  "documents": {
+    "nin": {
+      "feeKobo": {
+        "value": 0,
+        "source": "https://nairametrics.com/2025/05/10/nimc-releases-new-prices-for-nin-modification-services-dob-correction-now-n28574",
+        "asOf": "2026-11-02",
+        "status": "active"
+      },
+      "waitDays": {
+        "value": 3,
+        "source": "https://nairametrics.com/2025/05/10/nimc-releases-new-prices-for-nin-modification-services-dob-correction-now-n28574",
+        "asOf": "2026-11-02",
+        "status": "active",
+        "todo": "TODO: no official wait found for a first NIN slip; 3 days is a placeholder, not a sourced figure"
+      }
+    },
+    "passport": {
+      "feeKobo": {
+        "value": 10000000,
+        "source": "https://nairametrics.com/2025/08/28/nigeria-immigration-service-increases-international-passport-fee-to-n100000-and-200000-effective-september-1/",
+        "asOf": "2026-11-02",
+        "status": "active"
+      },
+      "waitDays": {
+        "value": 42,
+        "source": "https://fmino.gov.ng/fg-reviews-timeline-for-passport-application-to-6-weeks/",
+        "asOf": "2026-11-02",
+        "status": "active",
+        "todo": "TODO: the six-week target dates from 2021; 2026 reports still describe delays"
+      },
+      "validityDays": {
+        "value": 1825,
+        "source": "https://nairametrics.com/2025/08/28/nigeria-immigration-service-increases-international-passport-fee-to-n100000-and-200000-effective-september-1/",
+        "asOf": "2026-11-02",
+        "status": "active"
+      }
+    }
+  }
+}

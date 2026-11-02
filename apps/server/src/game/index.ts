@@ -9,6 +9,7 @@ import { ChoiceService } from "./choices";
 import { type GameClock, createGameClock } from "./clock";
 import type { GameDeps } from "./deps";
 import { DistrictMap } from "./district";
+import { DocumentService } from "./documents";
 import { EventService } from "./events";
 import { FoodService } from "./food";
 import { InboxService } from "./inbox";
@@ -43,6 +44,8 @@ export interface GameSystems {
   rides: RideService;
   /** Where each player last stood, to come back there. */
   locations: LocationService;
+  /** The NIN, passport and the other papers the japa needs: applied for, waited for, held. */
+  documents: DocumentService;
   /** Live toasts for connected players. Game code tells players through `inbox`, which also uses this. */
   notices: NoticeBus;
   /** Every notice to a player, kept for when they come back. */
@@ -87,7 +90,8 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
   const food = new FoodService(deps, players, events);
   const shop = new ShopService(deps, players, events);
   const choices = new ChoiceService(deps, players, inbox);
-  const stats = new StatsService(deps, players, jobs, rent, events, choices, inbox);
+  const documents = new DocumentService(deps, players, inbox);
+  const stats = new StatsService(deps, players, jobs, rent, events, choices, inbox, documents);
 
   const districts = new Map<string, DistrictMap>();
   for (const city of Object.values(content.cities)) {
@@ -109,6 +113,7 @@ export function createGameSystems(options: GameSystemsOptions): GameSystems {
     appearance: new AppearanceService(deps),
     rides: new RideService(deps, inbox),
     locations: new LocationService(deps),
+    documents,
     notices,
     inbox,
     mutex: new KeyedMutex(),
@@ -134,9 +139,21 @@ export async function chargeDueLateFees(game: GameSystems, now: Date): Promise<v
 }
 
 /**
- * The scheduled job: pays every finished shift, expires unanswered requests and
- * charges late rent fees, including for players who are offline (time passes
- * without them; they find it all in their inbox). Returns a function that stops it.
+ * Moves on every document time has caught up with (ready, expiring, expired).
+ * No player mutex: each step is a conditional update that only one caller wins,
+ * and it changes no meters or money.
+ */
+export async function settleDueDocuments(game: GameSystems, now: Date): Promise<void> {
+  for (const playerId of await game.documents.playersWithDue(now)) {
+    await game.documents.settleDue(now, playerId);
+  }
+}
+
+/**
+ * The scheduled job: pays every finished shift, expires unanswered requests,
+ * charges late rent fees and settles documents, including for players who are
+ * offline (time passes without them; they find it all in their inbox).
+ * Returns a function that stops it.
  */
 export function startGameLoop(game: GameSystems, intervalMs = 30_000): () => void {
   let running = false;
@@ -153,7 +170,10 @@ export function startGameLoop(game: GameSystems, intervalMs = 30_000): () => voi
     const lateFees = chargeDueLateFees(game, now).catch((error: unknown) =>
       logError("game loop: charging late fees failed", error),
     );
-    void Promise.all([shifts, choices, lateFees]).finally(() => {
+    const documents = settleDueDocuments(game, now).catch((error: unknown) =>
+      logError("game loop: settling documents failed", error),
+    );
+    void Promise.all([shifts, choices, lateFees, documents]).finally(() => {
       running = false;
     });
   }, intervalMs);

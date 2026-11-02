@@ -8,4 +8,5 @@ export const PLACE_COLOURS: Record<Interactable["kind"], string> = {
   bus_stop: "#2f7a55",
   okada_park: "#c46a12",
   fuel_station: "#8a2f6a",
+  document_office: "#4a5568",
 };

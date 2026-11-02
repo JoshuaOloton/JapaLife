@@ -11,17 +11,21 @@ import {
   citySchema,
   copySchema,
   type Copy,
+  documentsSchema,
   gameEventSchema,
   jobsSchema,
   modelCatalogSchema,
   modelFootprintProblem,
   needsSchema,
   ngnEconomySchema,
+  nigeriaRulesSchema,
+  pacingSchema,
   propBlockProblem,
   propKindsSchema,
   vehicleKindsSchema,
   type CharacterCatalog,
   type CityConfig,
+  type DocumentsConfig,
   type GameEventConfig,
   type GameEventId,
   type JobsConfig,
@@ -29,6 +33,8 @@ import {
   type ModelCatalog,
   type NeedsConfig,
   type NgnEconomyConfig,
+  type NigeriaRules,
+  type PacingConfig,
   type PropKinds,
   type VehicleKinds,
 } from "@japalife/shared";
@@ -49,6 +55,12 @@ export type GameContent = {
   characters: CharacterCatalog;
   /** Kinds of vehicle in the street traffic, and the schedule of how many are out by the hour. */
   vehicles: VehicleKinds;
+  /** How much of each real money amount in the rules the game charges (Phase 2 pacing). */
+  pacing: PacingConfig;
+  /** Real fees, waits and validity of the Nigerian documents, each with its source. */
+  nigeria: NigeriaRules;
+  /** The documents a player can apply for, and the scam agent around them. */
+  documents: DocumentsConfig;
   /** Player-facing text. The client bundles the same file; checking it here stops a bad edit at boot. */
   copy: Copy;
   /** Values flagged `TODO` in the files, unsure and waiting for review. Printed at boot. */
@@ -133,6 +145,9 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   const propKinds = readJson("props/kinds.json", propKindsSchema);
   const characters = readJson("characters/catalog.json", characterCatalogSchema);
   const vehicles = readJson("traffic/kinds.json", vehicleKindsSchema);
+  const pacing = readJson("rules/pacing.json", pacingSchema);
+  const nigeria = readJson("rules/nigeria.json", nigeriaRulesSchema);
+  const documents = readJson("documents/documents.json", documentsSchema);
 
   const events: Partial<Record<GameEventId, GameEventConfig>> = {};
   for (const file of jsonFilesIn("events")) {
@@ -160,7 +175,8 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
   }
   if (!cities["lagos"]) problems.push("cities/lagos.json: missing (Phase 1 starts in Lagos)");
 
-  if (ngn && jobs) problems.push(...crossCheck(ngn, jobs, Object.values(cities)));
+  if (ngn && jobs && documents) problems.push(...crossCheck(ngn, jobs, documents, Object.values(cities)));
+  if (nigeria && documents) problems.push(...checkDocuments(documents, nigeria));
   if (modelCatalog && characters) problems.push(...checkCharacters(characters, modelCatalog));
   if (modelCatalog && vehicles) problems.push(...checkVehicles(vehicles, modelCatalog));
   if (modelCatalog && propKinds && characters && vehicles) {
@@ -168,7 +184,20 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
     problems.push(...checkWorld(catalogs, Object.values(cities)));
   }
 
-  if (problems.length > 0 || !ngn || !needs || !jobs || !copy || !modelCatalog || !propKinds || !characters || !vehicles) {
+  if (
+    problems.length > 0 ||
+    !ngn ||
+    !needs ||
+    !jobs ||
+    !copy ||
+    !modelCatalog ||
+    !propKinds ||
+    !characters ||
+    !vehicles ||
+    !pacing ||
+    !nigeria ||
+    !documents
+  ) {
     throw new ContentError(problems);
   }
   const allEvents = events as Record<GameEventId, GameEventConfig>;
@@ -182,9 +211,39 @@ export function loadContent(contentDir: string = DEFAULT_CONTENT_DIR): GameConte
     propKinds: propKinds.kinds,
     characters,
     vehicles,
+    pacing,
+    nigeria,
+    documents,
     copy,
-    todos: collectTodos(ngn, needs, jobs, allEvents),
+    todos: collectTodos(ngn, needs, jobs, allEvents, nigeria),
   };
+}
+
+/**
+ * Every document uses a real rule, needs only documents listed before it (so
+ * there are no loops), and has a ledger reason for its fee when the fee is
+ * above zero.
+ */
+function checkDocuments(documents: DocumentsConfig, nigeria: NigeriaRules): string[] {
+  const problems: string[] = [];
+  const earlier = new Set<string>();
+  for (const document of documents.documents) {
+    const where = `documents/documents.json "${document.id}"`;
+    if (earlier.has(document.id)) problems.push(`${where}: duplicate id`);
+    const rule = nigeria.documents[document.rule];
+    if (!rule) {
+      problems.push(`${where}: rule "${document.rule}" is not in rules/nigeria.json`);
+    } else if (rule.feeKobo.value > 0 && !document.feeReason) {
+      problems.push(`${where}: has a fee, so it needs a feeReason`);
+    }
+    for (const required of document.requires) {
+      if (!earlier.has(required)) {
+        problems.push(`${where}: requires "${required}", which must be listed before it`);
+      }
+    }
+    earlier.add(document.id);
+  }
+  return problems;
 }
 
 /**
@@ -308,11 +367,17 @@ function collectTodos(
   needs: NeedsConfig,
   jobs: JobsConfig,
   events: Record<GameEventId, GameEventConfig>,
+  nigeria: NigeriaRules,
 ): string[] {
   const todos: string[] = [];
   const add = (where: string, note: string | undefined): void => {
     if (note) todos.push(`${where}: ${note}`);
   };
+  for (const [id, rule] of Object.entries(nigeria.documents)) {
+    add(`rules/nigeria.json "${id}" fee`, rule.feeKobo.todo);
+    add(`rules/nigeria.json "${id}" wait`, rule.waitDays.todo);
+    add(`rules/nigeria.json "${id}" validity`, rule.validityDays?.todo);
+  }
   add("economy/needs.json", needs.todo);
   add("economy/ngn.json rent", ngn.rent.todo);
   for (const item of ngn.food) add(`economy/ngn.json food "${item.id}"`, item.todo);
@@ -323,7 +388,12 @@ function collectTodos(
 }
 
 /** Checks that ids are unique and that every reference points at something real. */
-function crossCheck(ngn: NgnEconomyConfig, jobs: JobsConfig, cities: CityConfig[]): string[] {
+function crossCheck(
+  ngn: NgnEconomyConfig,
+  jobs: JobsConfig,
+  documents: DocumentsConfig,
+  cities: CityConfig[],
+): string[] {
   const problems: string[] = [];
 
   const duplicates = (label: string, ids: string[]): void => {
@@ -338,6 +408,7 @@ function crossCheck(ngn: NgnEconomyConfig, jobs: JobsConfig, cities: CityConfig[
   duplicates("economy/jobs.json jobs", jobs.jobs.map((job) => job.id));
   duplicates("economy/ngn.json shop", ngn.shop.map((item) => item.id));
   const shopIds = new Set(ngn.shop.map((item) => item.id));
+  const documentIds = new Set(documents.documents.map((document) => document.id));
 
   for (const city of cities) {
     duplicates(`cities/${city.id}.json districts`, city.districts.map((d) => d.id));
@@ -364,6 +435,13 @@ function crossCheck(ngn: NgnEconomyConfig, jobs: JobsConfig, cities: CityConfig[
           for (const shopId of thing.shopItemIds) {
             if (!shopIds.has(shopId)) {
               problems.push(`${where}: "${thing.id}" sells unknown shop item "${shopId}"`);
+            }
+          }
+        }
+        if (thing.kind === "document_office") {
+          for (const documentId of thing.documentIds) {
+            if (!documentIds.has(documentId)) {
+              problems.push(`${where}: "${thing.id}" handles unknown document "${documentId}"`);
             }
           }
         }

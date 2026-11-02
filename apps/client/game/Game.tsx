@@ -16,6 +16,7 @@ import { Canvas } from "@react-three/fiber";
 import { type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CharacterCreator } from "./CharacterCreator";
 import { describeDiagnostics, useDiagnostics } from "./diagnostics";
+import { DocumentsPanel } from "./DocumentsPanel";
 import {
   type Connection,
   type DistrictRoom,
@@ -279,6 +280,7 @@ function Overlay({
   const now = useTicker(server);
   const near = useNearbyPlace(district, predicted);
   const [editing, setEditing] = useState<{ mode: "create" | "change"; draft: Appearance; saving: boolean } | null>(null);
+  const [documentsOpen, setDocumentsOpen] = useState(false);
 
   // A new player makes their character before anything else (the server says null).
   useEffect(() => {
@@ -319,7 +321,10 @@ function Overlay({
     if (interactionTarget) activity.current.gestureAt = performance.now();
   }, [activity, interactionTarget]);
 
-  const open = (place: Interactable): void => room.send("interact", { targetId: place.id });
+  const open = (place: Interactable): void => {
+    setDocumentsOpen(false);
+    room.send("interact", { targetId: place.id });
+  };
 
   // Walking away from a place closes its sheet.
   useEffect(() => {
@@ -329,10 +334,14 @@ function Overlay({
   // E (or Enter) uses the place you are standing at, on a keyboard.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if ((event.code === "KeyE" || event.code === "Enter") && near && !interaction) room.send("interact", { targetId: near.id });
+      if ((event.code === "KeyE" || event.code === "Enter") && near && !interaction) {
+        setDocumentsOpen(false);
+        room.send("interact", { targetId: near.id });
+      }
       if (event.code === "Escape") {
         closeInteraction();
         closeInbox();
+        setDocumentsOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -416,7 +425,13 @@ function Overlay({
         onAnswer={(choiceId, answer) => room.send("answerEvent", { choiceId, answer })}
         onOpenInbox={() => {
           closeInteraction();
+          setDocumentsOpen(false);
           room.send("openInbox", {});
+        }}
+        onOpenDocuments={() => {
+          closeInteraction();
+          closeInbox();
+          setDocumentsOpen(true);
         }}
         fpsOutput={fpsOutput}
       />
@@ -432,12 +447,15 @@ function Overlay({
         />
       ) : (
         <>
-          {near && !interaction && !inbox && !ride && (
+          {near && !interaction && !inbox && !documentsOpen && !ride && (
             <button type="button" className={styles.use} onClick={() => open(near)}>
               {placePrompt(near)}
             </button>
           )}
           {inbox && <InboxPanel messages={inbox} stats={server?.stats ?? null} onClose={closeInbox} />}
+          {documentsOpen && !inbox && !interaction && server && (
+            <DocumentsPanel documents={server.stats.documents} now={now} onClose={() => setDocumentsOpen(false)} />
+          )}
           {interaction && openPlace && !inbox && (
             <PlacePanel
               interaction={interaction}
@@ -449,8 +467,8 @@ function Overlay({
               onChangeClothes={changeClothes}
             />
           )}
-          {!interaction && !inbox && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
-          {!interaction && !inbox && !mapOpen && (
+          {!interaction && !inbox && !documentsOpen && <p className={styles.disclaimer}>{COPY.hud.disclaimer}</p>}
+          {!interaction && !inbox && !documentsOpen && !mapOpen && (
             <Minimap header={header} base={mapBase} predicted={predicted} route={route} onOpen={() => setMapOpen(true)} />
           )}
           {walking && !mapOpen && (
