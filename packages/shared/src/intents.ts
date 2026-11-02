@@ -83,6 +83,20 @@ export const takeRideIntentSchema = z.strictObject({
   to: contentId,
 });
 
+/**
+ * Apply for a document at the office you are standing at. The server checks
+ * the office handles it, that you hold what it needs, and charges the fee;
+ * the fee and the wait are never sent.
+ */
+export const applyDocumentIntentSchema = z.strictObject({
+  documentId: contentId,
+});
+
+/** Pay the "agent" outside the office to do it faster. A scam: the server takes the money and nothing is issued. */
+export const hireAgentIntentSchema = z.strictObject({
+  documentId: contentId,
+});
+
 export const intentSchemas = {
   move: moveIntentSchema,
   interact: interactIntentSchema,
@@ -94,6 +108,8 @@ export const intentSchemas = {
   openInbox: openInboxIntentSchema,
   setAppearance: setAppearanceIntentSchema,
   takeRide: takeRideIntentSchema,
+  applyDocument: applyDocumentIntentSchema,
+  hireAgent: hireAgentIntentSchema,
 } as const;
 
 export type IntentType = keyof typeof intentSchemas;

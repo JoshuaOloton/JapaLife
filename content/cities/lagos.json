@@ -34,6 +34,22 @@
           "kind": "fuel_station",
           "shopItemIds": ["generator-petrol"]
         },
+        {
+          "id": "nimc-office",
+          "label": "NIMC Office",
+          "prompt": "Go into the NIMC office",
+          "position": { "x": -28, "z": -43 },
+          "kind": "document_office",
+          "documentIds": ["nin"]
+        },
+        {
+          "id": "passport-office",
+          "label": "Passport Office",
+          "prompt": "Go into the Passport Office",
+          "position": { "x": 12, "z": -43 },
+          "kind": "document_office",
+          "documentIds": ["passport"]
+        },
         { "id": "yaba-motor-park", "label": "Yaba Motor Park", "position": { "x": -11, "z": 140 }, "kind": "bus_stop" },
         {
           "id": "tejuosho-buka",
@@ -192,6 +208,30 @@
           "colour": "#e8e2d6",
           "model": "church",
           "rotation": 180,
+          "scale": 1
+        },
+        {
+          "id": "nimc-office-building",
+          "name": "NIMC office",
+          "x": -28,
+          "z": -50,
+          "halfWidth": 7,
+          "halfDepth": 5,
+          "height": 6.5,
+          "colour": "#d8d3c4",
+          "rotation": 0,
+          "scale": 1
+        },
+        {
+          "id": "passport-office-building",
+          "name": "Passport office",
+          "x": 12,
+          "z": -50,
+          "halfWidth": 8,
+          "halfDepth": 5,
+          "height": 6.5,
+          "colour": "#c9d3d8",
+          "rotation": 0,
           "scale": 1
         },
         {
@@ -11118,6 +11158,8 @@
         }
       ],
       "props": [
+        { "kind": "signboard", "x": -34, "z": -44.2, "rotation": 0, "label": "NIMC • National Identity" },
+        { "kind": "signboard", "x": 6, "z": -44.2, "rotation": 0, "label": "Passport Office • Immigration" },
         { "kind": "electric-pole", "x": -54, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
         { "kind": "electric-pole", "x": -42, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
         { "kind": "electric-pole", "x": -30, "z": -5.6, "rotation": 90, "wire": "main-north-west" },

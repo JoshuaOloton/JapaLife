@@ -1,0 +1,6 @@
+{
+  "meta": { "asOf": "2026-11-02", "basis": "game-balance" },
+  "moneyScaleBp": 3000,
+  "waitScaleBp": 1500,
+  "maxWaitDays": 7
+}

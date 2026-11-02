@@ -1,0 +1,20 @@
+{
+  "meta": { "asOf": "2026-11-02", "basis": "game-balance" },
+  "expiryWarningDays": 90,
+  "agent": { "feeBp": 5000, "silentAfterDays": 7 },
+  "documents": [
+    {
+      "id": "nin",
+      "name": "National Identification Number (NIN)",
+      "rule": "nin"
+    },
+    {
+      "id": "passport",
+      "name": "International passport",
+      "rule": "passport",
+      "requires": ["nin"],
+      "feeReason": "passport_fee",
+      "agentOffer": true
+    }
+  ]
+}

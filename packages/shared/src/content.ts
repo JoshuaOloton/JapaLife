@@ -55,6 +55,8 @@ export function ruleValueSchema<T extends z.ZodType>(value: T) {
     source: z.url(),
     asOf: isoDate,
     status: z.enum(RULE_STATUSES),
+    /** A value I am unsure of: the loader prints these at boot so they get reviewed. */
+    todo: z.string().min(1).max(200).optional(),
   });
 }
 export type RuleValue<T> = {
@@ -62,6 +64,7 @@ export type RuleValue<T> = {
   source: string;
   asOf: string;
   status: (typeof RULE_STATUSES)[number];
+  todo?: string | undefined;
 };
 
 /** A price or amount I am unsure of: the loader prints these at boot so they get reviewed. */
@@ -330,6 +333,12 @@ export const interactableSchema = z.discriminatedUnion("kind", [
     ...signedSpot,
     kind: z.literal("fuel_station"),
     shopItemIds: z.array(contentIdSchema).min(1),
+  }),
+  /** A government office where documents are applied for (`documents/documents.json`). */
+  z.strictObject({
+    ...signedSpot,
+    kind: z.literal("document_office"),
+    documentIds: z.array(contentIdSchema).min(1),
   }),
 ]);
 

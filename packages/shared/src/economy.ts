@@ -54,7 +54,7 @@ const LIVING_REASONS = [
 ] as const;
 
 /** Documents gathered before applying (mostly Nigerian side). */
-const DOCUMENT_REASONS = [
+export const DOCUMENT_REASONS = [
   "passport_fee",
   "police_clearance_fee",
   "transcript_fee",

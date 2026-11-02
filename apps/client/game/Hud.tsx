@@ -21,6 +21,7 @@ export function Hud({
   districtName,
   onAnswer,
   onOpenInbox,
+  onOpenDocuments,
   fpsOutput,
 }: {
   server: ServerStats | null;
@@ -29,6 +30,7 @@ export function Hud({
   districtName: string;
   onAnswer: (choiceId: string, answer: EventAnswer) => void;
   onOpenInbox: () => void;
+  onOpenDocuments: () => void;
   /** Where the `?fps` meter writes its reading; absent when the meter is off. */
   fpsOutput?: RefObject<HTMLParagraphElement | null> | undefined;
 }) {
@@ -36,7 +38,7 @@ export function Hud({
   return (
     <div className={styles.hud}>
       {server ? (
-        <Stats server={server} now={now} onOpenInbox={onOpenInbox} />
+        <Stats server={server} now={now} onOpenInbox={onOpenInbox} onOpenDocuments={onOpenDocuments} />
       ) : (
         <div className={styles.bar}>{districtName}</div>
       )}
@@ -70,7 +72,17 @@ export function Hud({
   );
 }
 
-function Stats({ server, now, onOpenInbox }: { server: ServerStats; now: number; onOpenInbox: () => void }) {
+function Stats({
+  server,
+  now,
+  onOpenInbox,
+  onOpenDocuments,
+}: {
+  server: ServerStats;
+  now: number;
+  onOpenInbox: () => void;
+  onOpenDocuments: () => void;
+}) {
   const { stats } = server;
   const rentLeft = Date.parse(stats.rentDueAt) - now;
   const rentClass =
@@ -118,19 +130,24 @@ function Stats({ server, now, onOpenInbox }: { server: ServerStats; now: number;
         </span>
         <div className={styles.clockRow}>
           <span className={styles.clock}>{stats.isNight ? fill(hud.clockAtNight, { clock }) : clock}</span>
-          <button
-            type="button"
-            className={styles.inboxButton}
-            onClick={onOpenInbox}
-            aria-label={stats.unreadInbox > 0 ? fill(hud.inboxUnread, { count: stats.unreadInbox }) : hud.inbox}
-          >
-            {hud.inbox}
-            {stats.unreadInbox > 0 && (
-              <span className={styles.badge} aria-hidden="true">
-                {stats.unreadInbox}
-              </span>
-            )}
-          </button>
+          <div className={styles.clockButtons}>
+            <button type="button" className={styles.inboxButton} onClick={onOpenDocuments}>
+              {hud.documents}
+            </button>
+            <button
+              type="button"
+              className={styles.inboxButton}
+              onClick={onOpenInbox}
+              aria-label={stats.unreadInbox > 0 ? fill(hud.inboxUnread, { count: stats.unreadInbox }) : hud.inbox}
+            >
+              {hud.inbox}
+              {stats.unreadInbox > 0 && (
+                <span className={styles.badge} aria-hidden="true">
+                  {stats.unreadInbox}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
         <div className={styles.meters}>
           <Meter label={hud.hunger} value={stats.hunger} />

@@ -98,7 +98,9 @@
         { "id": "yaba-office", "label": "Yaba Office", "kind": "job_site", "position": { "x": 20, "z": -10 }, "jobId": "office-assistant" },
         { "id": "mama-put-buka", "label": "Mama Put Buka", "prompt": "Buy food at Mama Put", "kind": "food_vendor", "position": { "x": -15, "z": 12 }, "foodIds": ["agege-bread", "indomie-egg", "amala-ewedu", "jollof-rice", "suya"] },
         { "id": "yaba-bus-stop", "label": "Bus Stop", "kind": "bus_stop", "position": { "x": 8, "z": 25 } },
-        { "id": "yaba-fuel-station", "label": "Fuel Station", "prompt": "Buy petrol for your gen", "kind": "fuel_station", "position": { "x": 30, "z": 20 }, "shopItemIds": ["generator-petrol"] }
+        { "id": "yaba-fuel-station", "label": "Fuel Station", "prompt": "Buy petrol for your gen", "kind": "fuel_station", "position": { "x": 30, "z": 20 }, "shopItemIds": ["generator-petrol"] },
+        { "id": "nimc-office", "label": "NIMC Office", "prompt": "Go into the NIMC office", "kind": "document_office", "position": { "x": -28, "z": -43 }, "documentIds": ["nin"] },
+        { "id": "passport-office", "label": "Passport Office", "prompt": "Go into the Passport Office", "kind": "document_office", "position": { "x": 12, "z": -43 }, "documentIds": ["passport"] }
       ],
       "buildings": [
         { "id": "yaba-office-block", "name": "Office block", "x": 28, "z": -18, "halfWidth": 7.8, "halfDepth": 5, "height": 12.7, "colour": "#8fa3b8", "model": "office-block", "scale": 7.5 },
@@ -109,9 +111,13 @@
         { "id": "yaba-flats-1", "name": "Flats", "x": -35, "z": -15, "halfWidth": 5, "halfDepth": 3.25, "height": 14.75, "colour": "#b9a9c9", "model": "flats-four-storey", "scale": 5 },
         { "id": "yaba-flats-2", "name": "Flats", "x": 40, "z": -40, "halfWidth": 5, "halfDepth": 3.25, "height": 11.25, "colour": "#a9c9b9", "model": "flats-three-storey", "scale": 5 },
         { "id": "yaba-market", "name": "Market", "x": -42, "z": 40, "halfWidth": 8, "halfDepth": 6.1, "height": 5.45, "colour": "#d68f5d", "model": "market", "rotation": 180 },
-        { "id": "yaba-church", "name": "Church", "x": 16, "z": 44, "halfWidth": 5.2, "halfDepth": 6.2, "height": 9.9, "colour": "#e8e2d6", "model": "church", "rotation": 180 }
+        { "id": "yaba-church", "name": "Church", "x": 16, "z": 44, "halfWidth": 5.2, "halfDepth": 6.2, "height": 9.9, "colour": "#e8e2d6", "model": "church", "rotation": 180 },
+        { "id": "nimc-office-building", "name": "NIMC office", "x": -28, "z": -50, "halfWidth": 7, "halfDepth": 5, "height": 6.5, "colour": "#d8d3c4" },
+        { "id": "passport-office-building", "name": "Passport office", "x": 12, "z": -50, "halfWidth": 8, "halfDepth": 5, "height": 6.5, "colour": "#c9d3d8" }
       ],
       "props": [
+        { "kind": "signboard", "x": -34, "z": -44.2, "label": "NIMC • National Identity" },
+        { "kind": "signboard", "x": 6, "z": -44.2, "label": "Passport Office • Immigration" },
         { "kind": "electric-pole", "x": -54, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
         { "kind": "electric-pole", "x": -42, "z": -5.6, "rotation": 90, "wire": "main-north-west" },
         { "kind": "electric-pole", "x": -30, "z": -5.6, "rotation": 90, "wire": "main-north-west" },

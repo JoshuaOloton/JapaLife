@@ -15,7 +15,7 @@ describe("loadContent (real content/)", () => {
     const districts = content.cities["lagos"]?.districts ?? [];
     expect(districts.map((d) => d.id)).toEqual(["yaba"]);
     expect([...new Set(districts[0]?.interactables.map((i) => i.kind))].sort()).toEqual(
-      ["bus_stop", "food_vendor", "fuel_station", "home", "job_site", "okada_park"].sort(),
+      ["bus_stop", "document_office", "food_vendor", "fuel_station", "home", "job_site", "okada_park"].sort(),
     );
     // Every location has sign text, and the district has buildings and roads to draw.
     expect(districts[0]?.interactables.every((i) => i.label.length > 0)).toBe(true);
@@ -119,6 +119,46 @@ describe("loadContent (broken content)", () => {
   it("rejects a fuel station that sells an unknown shop item", () => {
     edit("cities/lagos.json", (j) => (interactable(j, "fuel_station").shopItemIds = ["ghost-diesel"]));
     expect(problemsOf().join("\n")).toContain('unknown shop item "ghost-diesel"');
+  });
+
+  it("rejects a document office that handles an unknown document", () => {
+    edit("cities/lagos.json", (j) => (interactable(j, "document_office").documentIds = ["ghost-visa"]));
+    expect(problemsOf().join("\n")).toContain('handles unknown document "ghost-visa"');
+  });
+
+  it("rejects a document that uses a rule that is not in rules/nigeria.json", () => {
+    edit("documents/documents.json", (j) => (j["documents"][0].rule = "ghost-rule"));
+    expect(problemsOf().join("\n")).toContain('rule "ghost-rule" is not in rules/nigeria.json');
+  });
+
+  it("rejects a document with a fee but no ledger reason for it", () => {
+    edit("documents/documents.json", (j) => delete j["documents"][1].feeReason);
+    expect(problemsOf().join("\n")).toContain('"passport": has a fee, so it needs a feeReason');
+  });
+
+  it("rejects a document that needs one listed after it, so there can be no loops", () => {
+    edit("documents/documents.json", (j) => (j["documents"][0].requires = ["passport"]));
+    expect(problemsOf().join("\n")).toContain('"nin": requires "passport", which must be listed before it');
+  });
+
+  it("rejects a rule value with no source (real figures need one)", () => {
+    edit("rules/nigeria.json", (j) => delete j["documents"].passport.feeKobo.source);
+    expect(problemsOf().join("\n")).toContain("rules/nigeria.json at documents.passport.feeKobo.source");
+  });
+
+  it("rejects a pacing factor that would charge more than the real fee", () => {
+    edit("rules/pacing.json", (j) => (j["moneyScaleBp"] = 20_000));
+    expect(problemsOf().join("\n")).toContain("rules/pacing.json at moneyScaleBp");
+  });
+
+  it("rejects a wait factor that would make the player wait longer than the real wait", () => {
+    edit("rules/pacing.json", (j) => (j["waitScaleBp"] = 20_000));
+    expect(problemsOf().join("\n")).toContain("rules/pacing.json at waitScaleBp");
+  });
+
+  it("rejects a wait cap over a week", () => {
+    edit("rules/pacing.json", (j) => (j["maxWaitDays"] = 30));
+    expect(problemsOf().join("\n")).toContain("rules/pacing.json at maxWaitDays");
   });
 
   it("rejects an interactable placed outside the walkable area", () => {

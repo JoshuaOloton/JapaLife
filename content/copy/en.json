@@ -47,12 +47,20 @@
     "joystick": "Movement joystick",
     "close": "Close",
     "inbox": "Inbox",
-    "inboxUnread": "Inbox, {count} new"
+    "inboxUnread": "Inbox, {count} new",
+    "documents": "Documents"
   },
   "inbox": {
     "title": "Inbox",
     "empty": "Nothing yet. News about your shifts, rent and family shows up here.",
     "new": "New"
+  },
+  "documents": {
+    "title": "Documents",
+    "empty": "You have no documents yet. Your first step is the NIN: ask around Yaba for the NIMC office.",
+    "inProgress": "Ready in {time}",
+    "ready": "Ready",
+    "validFor": "Ready · valid for {time}"
   },
   "map": {
     "open": "Open the map",
@@ -73,7 +81,8 @@
       "home": "Go home",
       "bus_stop": "Take a danfo",
       "okada_park": "Take an okada",
-      "fuel_station": "Buy petrol at {place}"
+      "fuel_station": "Buy petrol at {place}",
+      "document_office": "Go into {place}"
     },
     "jobTerms": "{pay} for {minutes} min · uses {energy} energy",
     "jobShiftsToday": "Shifts today: {done} of {max}",
@@ -92,7 +101,16 @@
     "ride": "Ride",
     "okadaNote": "Commercial okada is banned on Lagos Mainland. The riders keep to the back streets, and the task force sometimes stops them.",
     "fuelRuns": "Runs your gen {hours}h when NEPA takes light at night",
-    "fuelInTank": "in your jerrycan: {hours}h"
+    "fuelInTank": "in your jerrycan: {hours}h",
+    "documentFee": "{fee} · real fee {real}",
+    "documentFree": "Free",
+    "documentWait": "about {time} · real wait {days} days",
+    "documentNeeds": "You need first: {names}",
+    "documentApply": "Apply",
+    "documentWaiting": "Applied · ready in {time}",
+    "documentHeld": "You have this",
+    "agentPitch": "A man outside the gate says he can get it done in three days for {fee}, cash, to his personal account. No need to queue.",
+    "agentHire": "Pay the man"
   },
   "creator": {
     "title": "Make your character",
@@ -122,7 +140,15 @@
     "rentLateFee": "Your landlord added a {amount} late fee. Pay your rent at home to stop more fees.",
     "rentLateFeeBroke": "Your landlord came for a {amount} late fee you couldn't pay, and the whole compound heard. Pay your rent at home.",
     "taskForceTitle": "Task force!",
-    "taskForce": "The task force stopped your okada before {place}. You're walking the rest, and the fare is gone."
+    "taskForce": "The task force stopped your okada before {place}. You're walking the rest, and the fare is gone.",
+    "documentReadyTitle": "{name} is ready",
+    "documentReady": "Your {name} is ready. Check your documents list for what to do next.",
+    "documentExpiringTitle": "{name} expires soon",
+    "documentExpiring": "Your {name} runs out in about {days} days. Apply again before then, or your next step may stall.",
+    "documentExpiredTitle": "{name} has expired",
+    "documentExpired": "Your {name} has expired. You can apply for a new one at the same office.",
+    "agentSilentTitle": "The agent has gone quiet",
+    "agentSilent": "He doesn't pick your calls any more, and no {name} is coming. Real offices never ask you to pay into a personal account. Your money is gone, but you can still apply properly at the office."
   },
   "riding": {
     "onTheWay": "On the {vehicle} to {place} · {time}",
@@ -150,6 +176,8 @@
     "not_owned": "That isn't yours yet.",
     "not_at_home": "Change your clothes at home.",
     "already_riding": "You're already on a ride.",
-    "no_ride": "Nothing goes there from here."
+    "no_ride": "Nothing goes there from here.",
+    "already_applied": "You already have that, or you're still waiting for it.",
+    "missing_document": "You need another document before they'll take that one."
   }
 }

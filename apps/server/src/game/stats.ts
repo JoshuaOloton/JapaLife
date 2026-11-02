@@ -2,6 +2,7 @@ import type { StatsMessage } from "@japalife/shared";
 import type { ChoiceService } from "./choices";
 import { calendarDay, isNight } from "./clock";
 import type { GameDeps } from "./deps";
+import type { DocumentService } from "./documents";
 import type { EventService } from "./events";
 import type { InboxService } from "./inbox";
 import type { JobService } from "./jobs";
@@ -20,6 +21,7 @@ export class StatsService {
     private readonly events: EventService,
     private readonly choices: ChoiceService,
     private readonly inbox: InboxService,
+    private readonly documents: DocumentService,
   ) {}
 
   async build(playerId: string, now: Date): Promise<StatsMessage | null> {
@@ -27,7 +29,7 @@ export class StatsService {
     const state = await this.players.getState(playerId);
     if (!state) return null;
 
-    const [balance, active, shiftsToday, effects, current, pendingChoice, unreadInbox] = await Promise.all([
+    const [balance, active, shiftsToday, effects, current, pendingChoice, unreadInbox, documents] = await Promise.all([
       wallet.getBalance(playerId, "NGN"),
       this.jobs.activeShift(playerId, now),
       this.jobs.shiftsToday(playerId, now),
@@ -35,6 +37,7 @@ export class StatsService {
       this.players.currentNeeds(state, now),
       this.choices.pending(playerId, now),
       this.inbox.unreadCount(playerId),
+      this.documents.summaries(playerId),
     ]);
     const shown = displayNeeds(current);
 
@@ -65,6 +68,7 @@ export class StatsService {
       foodPriceRisePercent: risePercent(effects.priceFactorBp.food),
       fuelPriceRisePercent: risePercent(effects.priceFactorBp.fuel),
       pendingChoice,
+      documents,
     };
   }
 }

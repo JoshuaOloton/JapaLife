@@ -24,6 +24,8 @@ describe("parseIntent", () => {
         { body: "body-1", skinTone: "tone-4", hair: "low-cut", hairColour: "black", outfit: "senator", outfitColour: "green" },
       ],
       ["takeRide", { rideId: "yaba-danfo", from: "yaba-motor-park", to: "sabo-bus-stop" }],
+      ["applyDocument", { documentId: "passport" }],
+      ["hireAgent", { documentId: "passport" }],
     ];
     for (const [type, payload] of valid) {
       expect(parseIntent(type, payload).ok, type).toBe(true);
@@ -32,8 +34,29 @@ describe("parseIntent", () => {
 
   it("covers every declared intent type in the valid cases", () => {
     expect([...INTENT_TYPES].sort()).toEqual(
-      ["answerEvent", "buyFood", "buyItem", "interact", "move", "openInbox", "payRent", "setAppearance", "takeRide", "work"].sort(),
+      [
+        "answerEvent",
+        "applyDocument",
+        "buyFood",
+        "buyItem",
+        "hireAgent",
+        "interact",
+        "move",
+        "openInbox",
+        "payRent",
+        "setAppearance",
+        "takeRide",
+        "work",
+      ].sort(),
     );
+  });
+
+  it("takes a document id only: the fee, wait and agent's price are never sent", () => {
+    for (const type of ["applyDocument", "hireAgent"]) {
+      expect(parseIntent(type, { documentId: "passport", feeKobo: 0 }).ok, type).toBe(false);
+      expect(parseIntent(type, { documentId: "Passport!" }).ok, type).toBe(false);
+      expect(parseIntent(type, {}).ok, type).toBe(false);
+    }
   });
 
   it("rejects answers that are not pay or decline, bad ids, and any amount the client tries to set", () => {

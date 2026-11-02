@@ -1,4 +1,5 @@
 import type {
+  DocumentOffer,
   Interactable,
   InteractionMessage,
   MenuItem,
@@ -17,6 +18,8 @@ export interface OfferContext {
   morale: number;
   /** At a bus stop or okada park: where you can ride to, with the server's fares (`RideService.options`). */
   rides?: RideOption[];
+  /** At a document office: each document with its status for this player (`DocumentService.offers`). */
+  documents?: DocumentOffer[];
 }
 
 /**
@@ -77,6 +80,8 @@ export function describeOffer(target: Interactable, content: GameContent, contex
     case "bus_stop":
     case "okada_park":
       return { targetId: target.id, kind: target.kind, rides: context.rides ?? [] };
+    case "document_office":
+      return { targetId: target.id, kind: target.kind, documents: context.documents ?? [] };
     case "home":
       return { targetId: target.id, kind: target.kind };
   }
